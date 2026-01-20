@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { ToastProvider } from "@/components/common/ToastProvider";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -27,8 +28,10 @@ export default function RootLayout({
           <AuthGuard>
             {children}
           </AuthGuard>
+          <ToastProvider />
         </AuthProvider>
       </body>
     </html>
   );
 }
+

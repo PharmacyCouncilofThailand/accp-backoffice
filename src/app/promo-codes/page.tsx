@@ -111,7 +111,7 @@ export default function PromoCodesPage() {
             if (searchTerm) params.search = searchTerm;
 
             const res = await api.promoCodes.list(token, new URLSearchParams(params).toString());
-            setPromoCodes(res.promoCodes);
+            setPromoCodes(res.promoCodes as unknown as PromoCode[]);
             setTotalCount(res.pagination.total);
             setTotalPages(res.pagination.totalPages);
         } catch (error) {

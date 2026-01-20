@@ -70,7 +70,7 @@ export default function VerificationPage() {
         setIsLoading(true);
         try {
             const data = await api.verifications.list(token);
-            setVerifications(data.verifications);
+            setVerifications((data.pendingUsers || []) as unknown as Verification[]);
         } catch (error) {
             console.error('Failed to fetch verifications:', error);
             alert('Failed to load verification requests.');

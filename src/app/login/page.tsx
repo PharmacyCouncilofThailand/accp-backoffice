@@ -4,26 +4,56 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 export default function LoginPage() {
     const router = useRouter();
     const { login } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [rememberMe, setRememberMe] = useState(true);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+
+    // Basic client-side validation
+    const validateForm = (): boolean => {
+        if (!email.trim()) {
+            setError('Email is required');
+            return false;
+        }
+        if (!email.includes('@')) {
+            setError('Please enter a valid email address');
+            return false;
+        }
+        if (!password) {
+            setError('Password is required');
+            return false;
+        }
+        if (password.length < 6) {
+            setError('Password must be at least 6 characters');
+            return false;
+        }
+        return true;
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+
+        // Validate form
+        if (!validateForm()) {
+            return;
+        }
+
         setLoading(true);
 
         try {
-            console.log('Attempting login with API URL:', process.env.NEXT_PUBLIC_API_URL);
             const data = await api.auth.login({ email, password });
 
-            if (data.success) {
-                login(data.user, data.token);
+            if (data.success && data.user && data.token) {
+                login(data.user, data.token, rememberMe);
+                toast.success(`Welcome back, ${data.user.firstName}!`);
+                
                 // Role-based redirection
                 if (data.user.role === 'verifier') {
                     router.push('/verification');
@@ -38,9 +68,12 @@ export default function LoginPage() {
                 }
             } else {
                 setError(data.error || 'Login failed');
+                toast.error(data.error || 'Login failed');
             }
-        } catch (err: any) {
-            setError(err.message || 'Login failed. Please try again.');
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
+            setError(message);
+            toast.error(message);
         } finally {
             setLoading(false);
         }
@@ -101,8 +134,13 @@ export default function LoginPage() {
                         </div>
 
                         <div className="flex items-center justify-between">
-                            <label className="flex items-center">
-                                <input type="checkbox" className="w-4 h-4 text-blue-600 border-gray-300 rounded" />
+                            <label className="flex items-center cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={rememberMe}
+                                    onChange={(e) => setRememberMe(e.target.checked)}
+                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" 
+                                />
                                 <span className="ml-2 text-sm text-gray-600">Remember me</span>
                             </label>
                             <a href="#" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
@@ -137,3 +175,4 @@ export default function LoginPage() {
         </div>
     );
 }
+

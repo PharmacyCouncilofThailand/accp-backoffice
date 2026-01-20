@@ -134,8 +134,9 @@ export default function UsersPage() {
             });
 
             // 2. Assign events if not admin and user was created
-            if (result?.user?.id && formData.role !== 'admin' && formData.assignedEventIds.length > 0) {
-                await api.users.assignEvents(token, result.user.id, formData.assignedEventIds);
+            const userId = (result?.user as Record<string, unknown>)?.id as number;
+            if (userId && formData.role !== 'admin' && formData.assignedEventIds.length > 0) {
+                await api.users.assignEvents(token, userId, formData.assignedEventIds);
             }
 
             setShowCreateModal(false);

@@ -87,7 +87,11 @@ export default function SpeakersPage() {
         try {
             const token = localStorage.getItem('backoffice_token') || '';
             const res = await api.backofficeEvents.list(token);
-            setEvents(res.events || []);
+            setEvents((res.events || []).map((e: Record<string, unknown>) => ({
+                id: e.id as number,
+                eventCode: e.eventCode as string,
+                eventName: e.eventName as string
+            })) as Event[]);
         } catch (error) {
             console.error('Failed to fetch events:', error);
         }
@@ -102,7 +106,7 @@ export default function SpeakersPage() {
             const query = eventFilter ? `eventId=${eventFilter}` : undefined;
             
             const data = await api.speakers.list(token, query);
-            setSpeakers(data.speakers || []);
+            setSpeakers((data.speakers || []) as unknown as Speaker[]);
 
             // Build speaker -> eventIds map
             const map: { [speakerId: number]: number[] } = {};
@@ -123,7 +127,7 @@ export default function SpeakersPage() {
         try {
             const token = localStorage.getItem('backoffice_token') || '';
             const data = await api.uploadFile(token, file, 'speakers');
-            setFormData({ ...formData, photoUrl: data.url || data.fileUrl });
+            setFormData({ ...formData, photoUrl: data.url });
         } catch (error) {
             console.error('Upload error:', error);
             alert('Failed to upload image');

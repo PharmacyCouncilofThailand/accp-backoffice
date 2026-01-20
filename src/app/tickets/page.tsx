@@ -98,13 +98,14 @@ export default function TicketsPage() {
         try {
             const token = localStorage.getItem('backoffice_token') || '';
             const res = await api.backofficeEvents.list(token, 'limit=100'); // Get enough for dropdown
-            setEvents(res.events.map((e: any) => ({
-                id: e.id,
-                code: e.eventCode,
-                name: e.eventName
-            })));
-            if (res.events.length > 0 && formData.eventId === 0) {
-                setFormData(prev => ({ ...prev, eventId: res.events[0].id }));
+            const mappedEvents = res.events.map((e: Record<string, unknown>) => ({
+                id: e.id as number,
+                code: e.eventCode as string,
+                name: e.eventName as string
+            }));
+            setEvents(mappedEvents);
+            if (mappedEvents.length > 0 && formData.eventId === 0) {
+                setFormData(prev => ({ ...prev, eventId: mappedEvents[0].id }));
             }
         } catch (error) {
             console.error('Failed to fetch events:', error);

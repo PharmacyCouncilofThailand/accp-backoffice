@@ -60,7 +60,7 @@ export default function RegistrationsPage() {
             if (searchTerm) params.search = searchTerm;
 
             const res = await api.registrations.list(token, new URLSearchParams(params).toString());
-            setRegistrations(res.registrations);
+            setRegistrations(res.registrations as unknown as Registration[]);
             setTotalCount(res.pagination.total);
             setTotalPages(res.pagination.totalPages);
         } catch (error) {

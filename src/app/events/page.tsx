@@ -89,7 +89,7 @@ export default function EventsPage() {
                 if (searchTerm) params.search = searchTerm;
 
                 const response = await api.backofficeEvents.list(token, params);
-                setEvents(response.events);
+                setEvents(response.events as unknown as Event[]);
                 setTotalPages(response.pagination.totalPages);
                 setTotalCount(response.pagination.total);
             } catch (err: any) {

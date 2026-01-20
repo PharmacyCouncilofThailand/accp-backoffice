@@ -252,7 +252,17 @@ export default function EditEventPage() {
                 endTime: new Date(sessionForm.endTime).toISOString(),
                 maxCapacity: sessionForm.maxCapacity,
             });
-            setSessions(prev => [...prev, { ...response.session, startTime: toDateTimeLocal(response.session.startTime), endTime: toDateTimeLocal(response.session.endTime) }]);
+            const session = response.session as Record<string, unknown>;
+            setSessions(prev => [...prev, { 
+                id: session.id as number,
+                sessionCode: session.sessionCode as string,
+                sessionName: session.sessionName as string,
+                description: (session.description as string) || '',
+                room: (session.room as string) || '',
+                startTime: toDateTimeLocal(session.startTime as string),
+                endTime: toDateTimeLocal(session.endTime as string),
+                maxCapacity: (session.maxCapacity as number) || 50,
+            }]);
             setSessionForm({ sessionCode: '', sessionName: '', description: '', room: '', startTime: '', endTime: '', maxCapacity: 50 });
             setShowSessionForm(false);
         } catch (err: any) {
@@ -287,14 +297,17 @@ export default function EditEventPage() {
                 saleEndDate: ticketForm.saleEndDate ? new Date(ticketForm.saleEndDate).toISOString() : undefined,
                 allowedRoles: ticketForm.allowedRoles,
             });
+            const ticket = response.ticket as Record<string, unknown>;
             setTickets(prev => [...prev, {
-                ...response.ticket,
-                price: String(response.ticket.price), // Ensure price is string for state
-                quota: String(response.ticket.quota),
-                currency: response.ticket.currency,
-                saleStartDate: response.ticket.saleStartDate ? toDateTimeLocal(response.ticket.saleStartDate) : '',
-                saleEndDate: response.ticket.saleEndDate ? toDateTimeLocal(response.ticket.saleEndDate) : '',
-                allowedRoles: response.ticket.allowedRoles || [],
+                id: ticket.id as number,
+                name: ticket.name as string,
+                category: ticket.category as 'primary' | 'addon',
+                price: String(ticket.price),
+                currency: (ticket.currency as 'THB' | 'USD') || 'THB',
+                quota: String(ticket.quota || 0),
+                saleStartDate: ticket.saleStartDate ? toDateTimeLocal(ticket.saleStartDate as string) : '',
+                saleEndDate: ticket.saleEndDate ? toDateTimeLocal(ticket.saleEndDate as string) : '',
+                allowedRoles: (ticket.allowedRoles as string[]) || [],
             }]);
             setTicketForm({
                 name: '',
@@ -357,15 +370,15 @@ export default function EditEventPage() {
 
             // 2. Add to DB
             const dbRes = await api.backofficeEvents.addImage(token, parseInt(eventId), {
-                imageUrl: uploadRes.url,
+                url: uploadRes.url,
                 caption: imageCaption || file.name,
-                imageType: 'venue'
             });
-
+            
+            const image = dbRes.image as Record<string, unknown>;
             setVenueImages(prev => [...prev, {
-                id: dbRes.image.id,
-                imageUrl: dbRes.image.imageUrl,
-                caption: dbRes.image.caption,
+                id: image.id as number,
+                imageUrl: (image.imageUrl as string) || (image.url as string) || uploadRes.url,
+                caption: (image.caption as string) || imageCaption || file.name,
             }]);
             setImageCaption('');
             e.target.value = ''; // Reset input
