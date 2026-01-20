@@ -119,13 +119,15 @@ export default function LoginPage() {
                         </button>
                     </form>
 
-                    {/* Demo Credentials */}
-                    <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                        <p className="text-xs text-gray-500 text-center mb-2">Demo Credentials:</p>
-                        <p className="text-sm text-gray-700 text-center font-mono">
-                            admin@accp.org / admin123
-                        </p>
-                    </div>
+                    {/* Demo Credentials - Development Only */}
+                    {process.env.NODE_ENV === 'development' && (
+                        <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p className="text-xs text-yellow-600 text-center mb-2">⚠️ Development Only:</p>
+                            <p className="text-sm text-yellow-700 text-center font-mono">
+                                admin@accp.org / admin123
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 <p className="text-center text-blue-200 text-sm mt-6">
