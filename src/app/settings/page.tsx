@@ -12,6 +12,7 @@ import {
     IconCheck,
     IconUpload,
 } from '@tabler/icons-react';
+import toast from 'react-hot-toast';
 
 export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState('general');
@@ -54,7 +55,7 @@ export default function SettingsPage() {
     });
 
     const handleSave = () => {
-        alert('Settings saved successfully!');
+        toast.success('Settings saved successfully!');
     };
 
     const tabs = [

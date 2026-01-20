@@ -78,7 +78,7 @@ export default function AbstractsPage() {
             if (searchTerm) params.search = searchTerm;
 
             const res = await api.abstracts.list(token, new URLSearchParams(params).toString());
-            setAbstracts(res.abstracts);
+            setAbstracts(res.abstracts as unknown as Abstract[]);
             setTotalCount(res.pagination.total);
             setTotalPages(res.pagination.totalPages);
         } catch (error) {

@@ -125,7 +125,10 @@ interface SidebarProps {
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     const pathname = usePathname();
     const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
-    const { isAdmin, logout } = useAuth();
+    const { isAdmin, logout, user } = useAuth();
+    
+    // Get user role at component level (not inside map callback)
+    const role = user?.role;
 
     const handleLogout = () => {
         logout();
@@ -153,8 +156,6 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     const filteredMenu = menuStructure.map(item => {
         // Admin sees everything
         if (isAdmin) return item;
-
-        const role = (useAuth() as any).user?.role;
 
         // Verifier specific restrictions
         if (role === 'verifier') {

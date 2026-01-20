@@ -32,7 +32,7 @@ interface AuthContextType {
     getAccessibleEventIds: () => number[];
     currentEvent: AssignedEvent | null;
     setCurrentEvent: (event: AssignedEvent | null) => void;
-    login: (user: User, token: string) => void;
+    login: (user: User, token: string, rememberMe?: boolean) => void;
     logout: () => void;
     hasAccess: (page: string) => boolean;
 }
@@ -54,10 +54,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [currentEvent, setCurrentEvent] = useState<AssignedEvent | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Load user from localStorage on mount
+    // Load user from storage on mount (check both localStorage and sessionStorage)
     useEffect(() => {
-        const storedToken = localStorage.getItem('backoffice_token');
-        const storedUser = localStorage.getItem('backoffice_user');
+        // Check localStorage first (remember me), then sessionStorage
+        let storedToken = localStorage.getItem('backoffice_token');
+        let storedUser = localStorage.getItem('backoffice_user');
+        
+        if (!storedToken || !storedUser) {
+            storedToken = sessionStorage.getItem('backoffice_token');
+            storedUser = sessionStorage.getItem('backoffice_user');
+        }
 
         if (storedToken && storedUser) {
             try {
@@ -72,6 +78,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             } catch {
                 localStorage.removeItem('backoffice_token');
                 localStorage.removeItem('backoffice_user');
+                sessionStorage.removeItem('backoffice_token');
+                sessionStorage.removeItem('backoffice_user');
             }
         }
         setIsLoading(false);
@@ -98,11 +106,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return allowedPages.some(p => page.startsWith(p));
     };
 
-    const login = (newUser: User, newToken: string) => {
+    const login = (newUser: User, newToken: string, rememberMe: boolean = true) => {
         setUser(newUser);
         setToken(newToken);
-        localStorage.setItem('backoffice_token', newToken);
-        localStorage.setItem('backoffice_user', JSON.stringify(newUser));
+        
+        // Use localStorage for "remember me", sessionStorage otherwise
+        const storage = rememberMe ? localStorage : sessionStorage;
+        storage.setItem('backoffice_token', newToken);
+        storage.setItem('backoffice_user', JSON.stringify(newUser));
+        
+        // Clear the other storage to avoid conflicts
+        const otherStorage = rememberMe ? sessionStorage : localStorage;
+        otherStorage.removeItem('backoffice_token');
+        otherStorage.removeItem('backoffice_user');
 
         if (newUser.role !== 'admin' && newUser.assignedEvents.length > 0) {
             setCurrentEvent(newUser.assignedEvents[0]);
@@ -115,8 +131,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setToken(null);
         setCurrentEvent(null);
+        // Clear both storages
         localStorage.removeItem('backoffice_token');
         localStorage.removeItem('backoffice_user');
+        sessionStorage.removeItem('backoffice_token');
+        sessionStorage.removeItem('backoffice_user');
     };
 
     return (

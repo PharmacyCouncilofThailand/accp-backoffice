@@ -15,6 +15,7 @@ import {
     IconLoader2,
     IconCalendarEvent,
 } from '@tabler/icons-react';
+import toast from 'react-hot-toast';
 
 const categoryColors: { [key: string]: { bg: string; text: string } } = {
     primary: { bg: 'bg-blue-100', text: 'text-blue-800' },
@@ -98,13 +99,14 @@ export default function TicketsPage() {
         try {
             const token = localStorage.getItem('backoffice_token') || '';
             const res = await api.backofficeEvents.list(token, 'limit=100'); // Get enough for dropdown
-            setEvents(res.events.map((e: any) => ({
-                id: e.id,
-                code: e.eventCode,
-                name: e.eventName
-            })));
-            if (res.events.length > 0 && formData.eventId === 0) {
-                setFormData(prev => ({ ...prev, eventId: res.events[0].id }));
+            const mappedEvents = res.events.map((e: Record<string, unknown>) => ({
+                id: e.id as number,
+                code: e.eventCode as string,
+                name: e.eventName as string
+            }));
+            setEvents(mappedEvents);
+            if (mappedEvents.length > 0 && formData.eventId === 0) {
+                setFormData(prev => ({ ...prev, eventId: mappedEvents[0].id }));
             }
         } catch (error) {
             console.error('Failed to fetch events:', error);
@@ -149,9 +151,9 @@ export default function TicketsPage() {
     };
 
     const handleCreate = async () => {
-        if (!formData.eventId) return alert('Please select an event');
+        if (!formData.eventId) { toast.error('Please select an event'); return; }
         if (formData.quota < 1) {
-            alert('Quota must be at least 1');
+            toast.error('Quota must be at least 1');
             return;
         }
         setIsSubmitting(true);
@@ -162,12 +164,12 @@ export default function TicketsPage() {
                 sessionId: null, // Optional, not in form yet
             };
             await api.backofficeEvents.createTicket(token, formData.eventId, payload);
-            alert('Ticket created successfully!');
+            toast.success('Ticket created successfully!');
             setShowCreateModal(false);
             fetchTickets();
         } catch (error) {
             console.error(error);
-            alert('Failed to create ticket');
+            toast.error('Failed to create ticket');
         } finally {
             setIsSubmitting(false);
         }
@@ -176,7 +178,7 @@ export default function TicketsPage() {
     const handleEdit = async () => {
         if (!selectedTicket || !formData.eventId) return;
         if (formData.quota < 1) {
-            alert('Quota must be at least 1');
+            toast.error('Quota must be at least 1');
             return;
         }
         setIsSubmitting(true);
@@ -184,12 +186,12 @@ export default function TicketsPage() {
             const token = localStorage.getItem('backoffice_token') || '';
             // Use API update
             await api.backofficeEvents.updateTicket(token, formData.eventId, selectedTicket.id, formData);
-            alert('Ticket updated successfully!');
+            toast.success('Ticket updated successfully!');
             setShowEditModal(false);
             fetchTickets();
         } catch (error) {
             console.error(error);
-            alert('Failed to update ticket');
+            toast.error('Failed to update ticket');
         } finally {
             setIsSubmitting(false);
         }
@@ -201,12 +203,12 @@ export default function TicketsPage() {
         try {
             const token = localStorage.getItem('backoffice_token') || '';
             await api.backofficeEvents.deleteTicket(token, selectedTicket.eventId, selectedTicket.id);
-            alert('Ticket deleted successfully!');
+            toast.success('Ticket deleted successfully!');
             setShowDeleteModal(false);
             fetchTickets();
         } catch (error) {
             console.error(error);
-            alert('Failed to delete ticket');
+            toast.error('Failed to delete ticket');
         } finally {
             setIsSubmitting(false);
         }

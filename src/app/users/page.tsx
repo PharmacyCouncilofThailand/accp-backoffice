@@ -13,6 +13,7 @@ import {
 } from '@tabler/icons-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import toast from 'react-hot-toast';
 
 // User roles
 const roles = [
@@ -134,14 +135,15 @@ export default function UsersPage() {
             });
 
             // 2. Assign events if not admin and user was created
-            if (result?.user?.id && formData.role !== 'admin' && formData.assignedEventIds.length > 0) {
-                await api.users.assignEvents(token, result.user.id, formData.assignedEventIds);
+            const userId = (result?.user as Record<string, unknown>)?.id as number;
+            if (userId && formData.role !== 'admin' && formData.assignedEventIds.length > 0) {
+                await api.users.assignEvents(token, userId, formData.assignedEventIds);
             }
 
             setShowCreateModal(false);
             setEventSearchTerm('');
             setFormData({ name: '', email: '', password: '', role: 'staff', assignedEventIds: [] });
-            alert('User created successfully!');
+            toast.success('User created successfully!');
 
             // Refresh list
             const usersData = await api.users.list(token).catch(() => ({ users: [] }));
@@ -155,7 +157,7 @@ export default function UsersPage() {
             }
         } catch (error: any) {
             console.error('Failed to create user:', error);
-            alert(`Failed to create user: ${error.message || 'Unknown error'}`);
+            toast.error(`Failed to create user: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -183,7 +185,7 @@ export default function UsersPage() {
 
             setShowEditModal(false);
             setSelectedUser(null);
-            alert('User updated successfully!');
+            toast.success('User updated successfully!');
 
             // Refresh list
             const usersData = await api.users.list(token).catch(() => ({ users: [] }));
@@ -197,7 +199,7 @@ export default function UsersPage() {
             }
         } catch (error) {
             console.error('Failed to update user:', error);
-            alert('Failed to update user');
+            toast.error('Failed to update user');
         }
     };
 
@@ -208,13 +210,13 @@ export default function UsersPage() {
 
             setShowDeleteModal(false);
             setSelectedUser(null);
-            alert('User deleted successfully!');
+            toast.success('User deleted successfully!');
 
             // Refresh list
             setUsers(users.filter(u => u.id !== selectedUser.id));
         } catch (error) {
             console.error('Failed to delete user:', error);
-            alert('Failed to delete user');
+            toast.error('Failed to delete user');
         }
     };
 
@@ -225,7 +227,7 @@ export default function UsersPage() {
 
             setShowAssignModal(false);
             setSelectedUser(null);
-            alert('Event assignments updated!');
+            toast.success('Event assignments updated!');
 
             // Refresh list
             const usersData = await api.users.list(token).catch(() => ({ users: [] }));
@@ -239,7 +241,7 @@ export default function UsersPage() {
             }
         } catch (error) {
             console.error('Failed to assign events:', error);
-            alert('Failed to assign events');
+            toast.error('Failed to assign events');
         }
     };
 

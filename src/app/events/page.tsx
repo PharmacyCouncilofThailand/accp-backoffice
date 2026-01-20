@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 import {
     IconCalendarEvent,
     IconCheck,
@@ -89,7 +90,7 @@ export default function EventsPage() {
                 if (searchTerm) params.search = searchTerm;
 
                 const response = await api.backofficeEvents.list(token, params);
-                setEvents(response.events);
+                setEvents(response.events as unknown as Event[]);
                 setTotalPages(response.pagination.totalPages);
                 setTotalCount(response.pagination.total);
             } catch (err: any) {
@@ -119,7 +120,7 @@ export default function EventsPage() {
             setShowDeleteModal(false);
             setSelectedEvent(null);
         } catch (err: any) {
-            alert(err.message || 'Failed to delete event');
+            toast.error(err.message || 'Failed to delete event');
         } finally {
             setIsDeleting(false);
         }

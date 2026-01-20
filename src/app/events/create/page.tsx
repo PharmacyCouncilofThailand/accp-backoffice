@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 import {
     IconCalendarEvent,
     IconLayoutGrid,
@@ -222,7 +223,7 @@ export default function CreateEventPage() {
         if (!ticketForm.name || !ticketForm.price) return;
         const quotaNum = parseInt(ticketForm.quota) || 0;
         if (quotaNum < 1) {
-            alert('Quota must be at least 1');
+            toast.error('Quota must be at least 1');
             return;
         }
         setTickets(prev => [...prev, { ...ticketForm, id: Date.now() }]);
@@ -299,7 +300,7 @@ export default function CreateEventPage() {
                 });
             }
 
-            alert('Event created successfully!');
+            toast.success('Event created successfully!');
             router.push('/events');
         } catch (err: any) {
             setError(err.message || 'Failed to create event');
