@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 import {
     IconCalendarEvent,
     IconCheck,
@@ -119,7 +120,7 @@ export default function EventsPage() {
             setShowDeleteModal(false);
             setSelectedEvent(null);
         } catch (err: any) {
-            alert(err.message || 'Failed to delete event');
+            toast.error(err.message || 'Failed to delete event');
         } finally {
             setIsDeleting(false);
         }

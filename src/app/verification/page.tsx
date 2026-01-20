@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import toast from 'react-hot-toast';
 import {
     IconId,
     IconClock,
@@ -73,7 +74,7 @@ export default function VerificationPage() {
             setVerifications((data.pendingUsers || []) as unknown as Verification[]);
         } catch (error) {
             console.error('Failed to fetch verifications:', error);
-            alert('Failed to load verification requests.');
+            toast.error('Failed to load verification requests.');
         } finally {
             setIsLoading(false);
         }
@@ -108,13 +109,13 @@ export default function VerificationPage() {
         if (!selectedVerification || !token) return;
         try {
             await api.verifications.approve(token, selectedVerification.id);
-            alert('Student verification approved!');
+            toast.success('Student verification approved!');
             fetchVerifications(); // Refresh list
             setShowApproveModal(false);
             setSelectedVerification(null);
         } catch (error) {
             console.error('Approval failed:', error);
-            alert('Failed to approve verification.');
+            toast.error('Failed to approve verification.');
         }
     };
 
@@ -122,14 +123,14 @@ export default function VerificationPage() {
         if (!selectedVerification || !token || !rejectionReason) return;
         try {
             await api.verifications.reject(token, selectedVerification.id, rejectionReason);
-            alert('Verification rejected.');
+            toast.success('Verification rejected.');
             fetchVerifications(); // Refresh list
             setShowRejectModal(false);
             setSelectedVerification(null);
             setRejectionReason('');
         } catch (error) {
             console.error('Rejection failed:', error);
-            alert('Failed to reject verification.');
+            toast.error('Failed to reject verification.');
         }
     };
 

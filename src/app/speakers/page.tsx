@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 import {
     IconMicrophone,
     IconPlus,
@@ -130,7 +131,7 @@ export default function SpeakersPage() {
             setFormData({ ...formData, photoUrl: data.url });
         } catch (error) {
             console.error('Upload error:', error);
-            alert('Failed to upload image');
+            toast.error('Failed to upload image');
         } finally {
             setIsUploading(false);
         }
@@ -194,7 +195,7 @@ export default function SpeakersPage() {
             setShowCreateModal(false);
             resetForm();
         } catch (error) {
-            alert('Failed to create speaker');
+            toast.error('Failed to create speaker');
             console.error(error);
         } finally {
             setIsSubmitting(false);
@@ -231,7 +232,7 @@ export default function SpeakersPage() {
             setShowEditModal(false);
             setSelectedSpeaker(null);
         } catch (error) {
-            alert('Failed to update speaker');
+            toast.error('Failed to update speaker');
             console.error(error);
         } finally {
             setIsSubmitting(false);
@@ -248,7 +249,7 @@ export default function SpeakersPage() {
             setShowDeleteModal(false);
             setSelectedSpeaker(null);
         } catch (error) {
-            alert('Failed to delete speaker');
+            toast.error('Failed to delete speaker');
             console.error(error);
         } finally {
             setIsSubmitting(false);

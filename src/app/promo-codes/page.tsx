@@ -17,6 +17,7 @@ import {
     IconLoader2,
 } from '@tabler/icons-react';
 import { useAuth } from '@/contexts/AuthContext';
+import toast from 'react-hot-toast';
 
 const statusColors: { [key: string]: string } = {
     active: 'badge-success',
@@ -141,12 +142,12 @@ export default function PromoCodesPage() {
                 ...formData,
                 eventId: formData.eventId || null,
             });
-            alert('Promo code created successfully!');
+            toast.success('Promo code created successfully!');
             setShowCreateModal(false);
             resetForm();
             fetchPromoCodes();
         } catch (error: any) {
-            alert(error.message || 'Failed to create promo code');
+            toast.error(error.message || 'Failed to create promo code');
         } finally {
             setIsSubmitting(false);
         }
@@ -161,12 +162,12 @@ export default function PromoCodesPage() {
                 ...formData,
                 eventId: formData.eventId || null,
             });
-            alert('Promo code updated successfully!');
+            toast.success('Promo code updated successfully!');
             setShowEditModal(false);
             setSelectedPromo(null);
             fetchPromoCodes();
         } catch (error: any) {
-            alert(error.message || 'Failed to update promo code');
+            toast.error(error.message || 'Failed to update promo code');
         } finally {
             setIsSubmitting(false);
         }
@@ -178,12 +179,12 @@ export default function PromoCodesPage() {
         try {
             const token = localStorage.getItem('backoffice_token') || '';
             await api.promoCodes.delete(token, selectedPromo.id);
-            alert('Promo code deleted successfully!');
+            toast.success('Promo code deleted successfully!');
             setShowDeleteModal(false);
             setSelectedPromo(null);
             fetchPromoCodes();
         } catch (error: any) {
-            alert(error.message || 'Failed to delete promo code');
+            toast.error(error.message || 'Failed to delete promo code');
         } finally {
             setIsSubmitting(false);
         }

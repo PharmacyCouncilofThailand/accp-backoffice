@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 import {
     IconCalendarEvent,
     IconLayoutGrid,
@@ -266,7 +267,7 @@ export default function EditEventPage() {
             setSessionForm({ sessionCode: '', sessionName: '', description: '', room: '', startTime: '', endTime: '', maxCapacity: 50 });
             setShowSessionForm(false);
         } catch (err: any) {
-            alert(err.message || 'Failed to add session');
+            toast.error(err.message || 'Failed to add session');
         }
     };
 
@@ -278,7 +279,7 @@ export default function EditEventPage() {
             await api.backofficeEvents.deleteSession(token, parseInt(eventId), id);
             setSessions(prev => prev.filter(s => s.id !== id));
         } catch (err: any) {
-            alert(err.message || 'Failed to delete session');
+            toast.error(err.message || 'Failed to delete session');
         }
     };
 
@@ -321,7 +322,7 @@ export default function EditEventPage() {
             });
             setShowTicketModal(false);
         } catch (err: any) {
-            alert(err.message || 'Failed to add ticket');
+            toast.error(err.message || 'Failed to add ticket');
         }
     };
 
@@ -333,7 +334,7 @@ export default function EditEventPage() {
             await api.backofficeEvents.deleteTicket(token, parseInt(eventId), id);
             setTickets(prev => prev.filter(t => t.id !== id));
         } catch (err: any) {
-            alert(err.message || 'Failed to delete ticket');
+            toast.error(err.message || 'Failed to delete ticket');
         }
     };
 
@@ -345,7 +346,7 @@ export default function EditEventPage() {
             await api.backofficeEvents.deleteImage(token, parseInt(eventId), id);
             setVenueImages(prev => prev.filter(img => img.id !== id));
         } catch (err: any) {
-            alert(err.message || 'Failed to delete image');
+            toast.error(err.message || 'Failed to delete image');
         }
     };
 
@@ -355,7 +356,7 @@ export default function EditEventPage() {
         if (!file) return;
 
         if (file.size > 5 * 1024 * 1024) {
-            alert('File too large (max 5MB)');
+            toast.error('File too large (max 5MB)');
             return;
         }
 
@@ -383,7 +384,7 @@ export default function EditEventPage() {
             setImageCaption('');
             e.target.value = ''; // Reset input
         } catch (err: any) {
-            alert(err.message || 'Failed to upload image');
+            toast.error(err.message || 'Failed to upload image');
         } finally {
             setIsUploading(false);
         }
@@ -412,7 +413,7 @@ export default function EditEventPage() {
             };
 
             await api.backofficeEvents.update(token, parseInt(eventId), eventData);
-            alert('Event details saved!');
+            toast.success('Event details saved!');
         } catch (err: any) {
             setError(err.message || 'Failed to save event');
         } finally {

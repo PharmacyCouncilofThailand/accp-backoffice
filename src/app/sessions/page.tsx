@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 import {
     IconCalendarEvent,
     IconPlus,
@@ -180,7 +181,7 @@ export default function SessionsPage() {
     };
 
     const handleCreate = async () => {
-        if (!formData.eventId) return alert('Select an event');
+        if (!formData.eventId) { toast.error('Select an event'); return; }
         setIsSubmitting(true);
         try {
             const token = localStorage.getItem('backoffice_token') || '';
@@ -194,12 +195,12 @@ export default function SessionsPage() {
                 speakers: speakerNames,
             };
             await api.backofficeEvents.createSession(token, formData.eventId, payload);
-            alert('Session created successfully!');
+            toast.success('Session created successfully!');
             setShowCreateModal(false);
             fetchSessions();
         } catch (error) {
             console.error(error);
-            alert('Failed to create session');
+            toast.error('Failed to create session');
         } finally {
             setIsSubmitting(false);
         }
@@ -220,12 +221,12 @@ export default function SessionsPage() {
                 speakers: speakerNames,
             };
             await api.backofficeEvents.updateSession(token, formData.eventId, selectedSession.id, payload);
-            alert('Session updated successfully!');
+            toast.success('Session updated successfully!');
             setShowEditModal(false);
             fetchSessions();
         } catch (error) {
             console.error(error);
-            alert('Failed to update session');
+            toast.error('Failed to update session');
         } finally {
             setIsSubmitting(false);
         }
@@ -237,12 +238,12 @@ export default function SessionsPage() {
         try {
             const token = localStorage.getItem('backoffice_token') || '';
             await api.backofficeEvents.deleteSession(token, selectedSession.eventId, selectedSession.id);
-            alert('Session deleted successfully!');
+            toast.success('Session deleted successfully!');
             setShowDeleteModal(false);
             fetchSessions();
         } catch (error) {
             console.error(error);
-            alert('Failed to delete session');
+            toast.error('Failed to delete session');
         } finally {
             setIsSubmitting(false);
         }
