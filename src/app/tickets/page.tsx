@@ -64,6 +64,7 @@ export default function TicketsPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [eventFilter, setEventFilter] = useState<number | ''>('');
     const [categoryFilter, setCategoryFilter] = useState<'primary' | 'addon' | ''>('');
+    const [roleFilter, setRoleFilter] = useState<string>('');
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
@@ -93,7 +94,7 @@ export default function TicketsPage() {
 
     useEffect(() => {
         fetchTickets();
-    }, [page, searchTerm, eventFilter, categoryFilter]);
+    }, [page, searchTerm, eventFilter, categoryFilter, roleFilter]);
 
     const fetchEvents = async () => {
         try {
@@ -121,24 +122,38 @@ export default function TicketsPage() {
             if (eventFilter) params.eventId = eventFilter;
             if (searchTerm) params.search = searchTerm;
             if (categoryFilter) params.category = categoryFilter;
+            if (roleFilter) params.role = roleFilter;
 
             const res = await api.tickets.list(token, new URLSearchParams(params).toString());
 
-            const mappedTickets = res.tickets.map((t: any) => ({
-                id: t.id,
-                eventId: t.eventId,
-                name: t.name,
-                category: t.category,
-                price: parseFloat(t.price),
-                currency: t.currency || 'THB',
-                quota: t.quota,
-                sold: t.sold,
-                startDate: t.startDate,
-                endDate: t.endDate,
-                type: t.allowedRoles ? t.allowedRoles[0] : 'general', // Rough mapping
-                allowedRoles: t.allowedRoles || [],
-                eventCode: t.eventCode
-            }));
+            const mappedTickets = res.tickets.map((t: any) => {
+                // Parse allowedRoles - could be JSON string or array
+                let roles: string[] = [];
+                if (t.allowedRoles) {
+                    try {
+                        roles = typeof t.allowedRoles === 'string'
+                            ? JSON.parse(t.allowedRoles)
+                            : t.allowedRoles;
+                    } catch {
+                        roles = [];
+                    }
+                }
+                return {
+                    id: t.id,
+                    eventId: t.eventId,
+                    name: t.name,
+                    category: t.category,
+                    price: parseFloat(t.price),
+                    currency: t.currency || 'THB',
+                    quota: t.quota,
+                    sold: t.sold,
+                    startDate: t.startDate,
+                    endDate: t.endDate,
+                    type: roles.length > 0 ? roles[0] : 'general',
+                    allowedRoles: roles,
+                    eventCode: t.eventCode
+                };
+            });
 
             setTickets(mappedTickets);
             setTotalCount(res.pagination.total);
@@ -159,10 +174,22 @@ export default function TicketsPage() {
         setIsSubmitting(true);
         try {
             const token = localStorage.getItem('backoffice_token') || '';
-            const payload = {
-                ...formData,
-                sessionId: null, // Optional, not in form yet
+            // Build payload with only schema-valid fields
+            const payload: Record<string, unknown> = {
+                name: formData.name,
+                category: formData.category,
+                price: String(formData.price),
+                currency: formData.currency,
+                quota: formData.quota,
+                allowedRoles: JSON.stringify(formData.allowedRoles),
             };
+            // Convert dates to ISO format only if provided
+            if (formData.saleStartDate) {
+                payload.saleStartDate = new Date(formData.saleStartDate).toISOString();
+            }
+            if (formData.saleEndDate) {
+                payload.saleEndDate = new Date(formData.saleEndDate).toISOString();
+            }
             await api.backofficeEvents.createTicket(token, formData.eventId, payload);
             toast.success('Ticket created successfully!');
             setShowCreateModal(false);
@@ -184,8 +211,24 @@ export default function TicketsPage() {
         setIsSubmitting(true);
         try {
             const token = localStorage.getItem('backoffice_token') || '';
+            // Build payload with only schema-valid fields
+            const payload: Record<string, unknown> = {
+                name: formData.name,
+                category: formData.category,
+                price: String(formData.price),
+                currency: formData.currency,
+                quota: formData.quota,
+                allowedRoles: JSON.stringify(formData.allowedRoles),
+            };
+            // Convert dates to ISO format only if provided
+            if (formData.saleStartDate) {
+                payload.saleStartDate = new Date(formData.saleStartDate).toISOString();
+            }
+            if (formData.saleEndDate) {
+                payload.saleEndDate = new Date(formData.saleEndDate).toISOString();
+            }
             // Use API update
-            await api.backofficeEvents.updateTicket(token, formData.eventId, selectedTicket.id, formData);
+            await api.backofficeEvents.updateTicket(token, formData.eventId, selectedTicket.id, payload);
             toast.success('Ticket updated successfully!');
             setShowEditModal(false);
             fetchTickets();
@@ -337,6 +380,17 @@ export default function TicketsPage() {
                         <option value="primary">Primary</option>
                         <option value="addon">Add-on</option>
                     </select>
+                    <select
+                        value={roleFilter}
+                        onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
+                        className="input-field min-w-[180px]"
+                    >
+                        <option value="">All Roles</option>
+                        <option value="thai_student">Thai Student</option>
+                        <option value="thai_pharmacy">Thai Pharmacy</option>
+                        <option value="intl_student">International Student</option>
+                        <option value="intl_pharmacy">International Pharmacy</option>
+                    </select>
                 </div>
 
                 {/* Table */}
@@ -368,10 +422,7 @@ export default function TicketsPage() {
                                     return (
                                         <tr key={ticket.id} className="animate-fade-in">
                                             <td>
-                                                <div>
-                                                    <p className="font-medium text-gray-800">{ticket.name}</p>
-                                                    <p className="text-sm text-gray-500 font-mono">ID: {ticket.id}</p>
-                                                </div>
+                                                <p className="font-medium text-gray-800">{ticket.name}</p>
                                             </td>
                                             <td>
                                                 <span className="badge bg-gray-100 text-gray-800">

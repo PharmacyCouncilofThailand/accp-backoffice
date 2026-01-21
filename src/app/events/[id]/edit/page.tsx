@@ -206,17 +206,30 @@ export default function EditEventPage() {
 
                 // Load tickets
                 if (response.tickets) {
-                    setTickets(response.tickets.map((t: any) => ({
-                        id: t.id,
-                        name: t.name,
-                        category: t.category,
-                        price: t.price,
-                        currency: t.currency || 'THB',
-                        quota: String(t.quota || 0),
-                        saleStartDate: t.saleStartDate ? toDateTimeLocal(t.saleStartDate) : '',
-                        saleEndDate: t.saleEndDate ? toDateTimeLocal(t.saleEndDate) : '',
-                        allowedRoles: t.allowedRoles || [],
-                    })));
+                    setTickets(response.tickets.map((t: any) => {
+                        // Parse allowedRoles from JSON string
+                        let roles: string[] = [];
+                        if (t.allowedRoles) {
+                            try {
+                                roles = typeof t.allowedRoles === 'string'
+                                    ? JSON.parse(t.allowedRoles)
+                                    : t.allowedRoles;
+                            } catch {
+                                roles = [];
+                            }
+                        }
+                        return {
+                            id: t.id,
+                            name: t.name,
+                            category: t.category,
+                            price: t.price,
+                            currency: t.currency || 'THB',
+                            quota: String(t.quota || 0),
+                            saleStartDate: t.saleStartDate ? toDateTimeLocal(t.saleStartDate) : '',
+                            saleEndDate: t.saleEndDate ? toDateTimeLocal(t.saleEndDate) : '',
+                            allowedRoles: roles,
+                        };
+                    }));
                 }
 
                 // Load venue images
@@ -254,7 +267,7 @@ export default function EditEventPage() {
                 maxCapacity: sessionForm.maxCapacity,
             });
             const session = response.session as Record<string, unknown>;
-            setSessions(prev => [...prev, { 
+            setSessions(prev => [...prev, {
                 id: session.id as number,
                 sessionCode: session.sessionCode as string,
                 sessionName: session.sessionName as string,
@@ -288,17 +301,34 @@ export default function EditEventPage() {
         if (!ticketForm.name || !ticketForm.price) return;
         try {
             const token = localStorage.getItem('backoffice_token') || '';
-            const response = await api.backofficeEvents.createTicket(token, parseInt(eventId), {
+            // Build payload with correct types for backend
+            const ticketPayload: Record<string, unknown> = {
                 name: ticketForm.name,
                 category: ticketForm.category,
-                price: Number(ticketForm.price),
+                price: ticketForm.price, // Keep as string
                 currency: ticketForm.currency,
                 quota: parseInt(ticketForm.quota) || 0,
-                saleStartDate: ticketForm.saleStartDate ? new Date(ticketForm.saleStartDate).toISOString() : undefined,
-                saleEndDate: ticketForm.saleEndDate ? new Date(ticketForm.saleEndDate).toISOString() : undefined,
-                allowedRoles: ticketForm.allowedRoles,
-            });
+                allowedRoles: JSON.stringify(ticketForm.allowedRoles),
+            };
+            if (ticketForm.saleStartDate) {
+                ticketPayload.saleStartDate = new Date(ticketForm.saleStartDate).toISOString();
+            }
+            if (ticketForm.saleEndDate) {
+                ticketPayload.saleEndDate = new Date(ticketForm.saleEndDate).toISOString();
+            }
+            const response = await api.backofficeEvents.createTicket(token, parseInt(eventId), ticketPayload);
             const ticket = response.ticket as Record<string, unknown>;
+            // Parse allowedRoles back from JSON string
+            let roles: string[] = [];
+            if (ticket.allowedRoles) {
+                try {
+                    roles = typeof ticket.allowedRoles === 'string'
+                        ? JSON.parse(ticket.allowedRoles)
+                        : ticket.allowedRoles as string[];
+                } catch {
+                    roles = [];
+                }
+            }
             setTickets(prev => [...prev, {
                 id: ticket.id as number,
                 name: ticket.name as string,
@@ -308,7 +338,7 @@ export default function EditEventPage() {
                 quota: String(ticket.quota || 0),
                 saleStartDate: ticket.saleStartDate ? toDateTimeLocal(ticket.saleStartDate as string) : '',
                 saleEndDate: ticket.saleEndDate ? toDateTimeLocal(ticket.saleEndDate as string) : '',
-                allowedRoles: (ticket.allowedRoles as string[]) || [],
+                allowedRoles: roles,
             }]);
             setTicketForm({
                 name: '',
@@ -374,7 +404,7 @@ export default function EditEventPage() {
                 url: uploadRes.url,
                 caption: imageCaption || file.name,
             });
-            
+
             const image = dbRes.image as Record<string, unknown>;
             setVenueImages(prev => [...prev, {
                 id: image.id as number,
@@ -920,40 +950,73 @@ export default function EditEventPage() {
             {/* Add Ticket Modal */}
             {showTicketModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl max-w-md w-full">
+                    <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-semibold">Add Ticket Type</h3>
+                                <h3 className="text-lg font-semibold flex items-center gap-2">
+                                    <IconTicket size={20} /> Add Ticket Type
+                                </h3>
                                 <button onClick={() => setShowTicketModal(false)} className="text-gray-400 hover:text-gray-600">
                                     <IconX size={20} />
                                 </button>
                             </div>
                         </div>
-                        <div className="p-6 space-y-4">
-                            <div>
+                        <div className="p-6">
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                                    <select
+                                        className="input-field"
+                                        value={ticketForm.category}
+                                        onChange={(e) => setTicketForm(prev => ({ ...prev, category: e.target.value as 'primary' | 'addon' }))}
+                                    >
+                                        <option value="primary">Primary</option>
+                                        <option value="addon">Add-on</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Target Audience *</label>
+                                    <select
+                                        className="input-field"
+                                        value={ticketForm.allowedRoles[0] || 'thai_pharmacy'}
+                                        onChange={(e) => setTicketForm(prev => ({ ...prev, allowedRoles: [e.target.value] }))}
+                                    >
+                                        <option value="thai_student">Thai Student</option>
+                                        <option value="thai_pharmacy">Thai Pharmacy</option>
+                                        <option value="intl_student">International Student</option>
+                                        <option value="intl_pharmacy">International Pharmacy</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Quota *</label>
+                                    <input
+                                        type="number"
+                                        className="input-field"
+                                        value={ticketForm.quota}
+                                        onChange={(e) => setTicketForm(prev => ({ ...prev, quota: e.target.value }))}
+                                        placeholder="100"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="mb-4">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Ticket Name *</label>
                                 <input
                                     type="text"
                                     className="input-field"
-                                    placeholder="e.g., Early Bird"
+                                    placeholder="e.g., Early Bird - Member"
                                     value={ticketForm.name}
                                     onChange={(e) => setTicketForm(prev => ({ ...prev, name: e.target.value }))}
+                                    maxLength={255}
                                 />
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                                <select
-                                    className="input-field"
-                                    value={ticketForm.category}
-                                    onChange={(e) => setTicketForm(prev => ({ ...prev, category: e.target.value as 'primary' | 'addon' }))}
-                                >
-                                    <option value="primary">Primary Ticket</option>
-                                    <option value="addon">Add-on Item</option>
-                                </select>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
+
+                            <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Currency *</label>
                                     <select
                                         className="input-field"
                                         value={ticketForm.currency}
@@ -966,63 +1029,33 @@ export default function EditEventPage() {
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Price *</label>
                                     <input
-                                        type="number"
+                                        type="text"
                                         className="input-field"
-                                        placeholder="0.00"
+                                        placeholder="3500"
                                         value={ticketForm.price}
                                         onChange={(e) => setTicketForm(prev => ({ ...prev, price: e.target.value }))}
                                     />
                                 </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Quota *</label>
-                                <input
-                                    type="number"
-                                    className="input-field"
-                                    value={ticketForm.quota}
-                                    onChange={(e) => setTicketForm(prev => ({ ...prev, quota: e.target.value }))}
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
+
+                            <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Sale Start</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Sale Start Date</label>
                                     <input
-                                        type="datetime-local"
+                                        type="date"
                                         className="input-field"
-                                        value={ticketForm.saleStartDate}
+                                        value={ticketForm.saleStartDate ? ticketForm.saleStartDate.split('T')[0] : ''}
                                         onChange={(e) => setTicketForm(prev => ({ ...prev, saleStartDate: e.target.value }))}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Sale End</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Sale End Date</label>
                                     <input
-                                        type="datetime-local"
+                                        type="date"
                                         className="input-field"
-                                        value={ticketForm.saleEndDate}
+                                        value={ticketForm.saleEndDate ? ticketForm.saleEndDate.split('T')[0] : ''}
                                         onChange={(e) => setTicketForm(prev => ({ ...prev, saleEndDate: e.target.value }))}
                                     />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Target Audience</label>
-                                <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
-                                    {roleOptions.map((role) => (
-                                        <label key={role.value} className="flex items-center gap-2 text-sm">
-                                            <input
-                                                type="checkbox"
-                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                checked={ticketForm.allowedRoles.includes(role.value)}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) {
-                                                        setTicketForm(prev => ({ ...prev, allowedRoles: [...prev.allowedRoles, role.value] }));
-                                                    } else {
-                                                        setTicketForm(prev => ({ ...prev, allowedRoles: prev.allowedRoles.filter(r => r !== role.value) }));
-                                                    }
-                                                }}
-                                            />
-                                            {role.label}
-                                        </label>
-                                    ))}
                                 </div>
                             </div>
                         </div>

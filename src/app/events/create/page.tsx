@@ -288,16 +288,21 @@ export default function CreateEventPage() {
 
             // Create tickets
             for (const ticket of tickets) {
-                await api.backofficeEvents.createTicket(token, event.id, {
+                const ticketPayload: Record<string, unknown> = {
                     name: ticket.name,
                     category: ticket.category,
-                    price: ticket.price,
+                    price: ticket.price, // Already a string
                     currency: ticket.currency,
                     quota: parseInt(ticket.quota) || 0,
-                    allowedRoles: ticket.allowedRoles,
-                    saleStartDate: ticket.saleStartDate || undefined,
-                    saleEndDate: ticket.saleEndDate || undefined,
-                });
+                    allowedRoles: JSON.stringify(ticket.allowedRoles),
+                };
+                if (ticket.saleStartDate) {
+                    ticketPayload.saleStartDate = new Date(ticket.saleStartDate).toISOString();
+                }
+                if (ticket.saleEndDate) {
+                    ticketPayload.saleEndDate = new Date(ticket.saleEndDate).toISOString();
+                }
+                await api.backofficeEvents.createTicket(token, event.id, ticketPayload);
             }
 
             toast.success('Event created successfully!');
