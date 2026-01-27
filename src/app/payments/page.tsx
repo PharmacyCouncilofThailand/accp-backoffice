@@ -229,56 +229,56 @@ export default function PaymentsPage() {
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto">
-                    <table className="data-table">
+                <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                    <table className="w-full">
                         <thead>
-                            <tr>
-                                <th>Transaction ID</th>
-                                <th>User</th>
-                                <th>Items</th>
-                                <th>Amount</th>
-                                <th>Status</th>
-                                <th>Date</th>
-                                <th className="text-center">Action</th>
+                            <tr className="bg-gray-50 border-b border-gray-200">
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Transaction ID</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">User</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Items</th>
+                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
+                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Date</th>
+                                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-[80px]">Action</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-gray-100">
                             {filteredPayments.map((payment) => {
                                 const StatusIcon = statusIcons[payment.status] || IconCreditCard;
                                 return (
                                     <tr key={payment.id} className="hover:bg-gray-50 transition-colors">
-                                        <td>
-                                            <span className="font-mono text-sm text-gray-600 font-medium bg-gray-100 px-2 py-1 rounded">
+                                        <td className="px-4 py-4">
+                                            <span className="font-mono text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
                                                 {payment.id}
                                             </span>
                                             <div className="text-xs text-gray-400 mt-1">{payment.method}</div>
                                         </td>
-                                        <td>
-                                            <div className="font-medium text-gray-800">{payment.user}</div>
+                                        <td className="px-4 py-4">
+                                            <div className="font-medium text-gray-900">{payment.user}</div>
                                             <div className="text-sm text-gray-500">{payment.email}</div>
                                         </td>
-                                        <td>
+                                        <td className="px-4 py-4">
                                             <div className="text-sm text-gray-600">
                                                 {payment.items.join(', ')}
                                             </div>
                                         </td>
-                                        <td>
-                                            <div className="font-bold text-gray-800">
+                                        <td className="px-4 py-4 text-center">
+                                            <div className="font-bold text-gray-900">
                                                 ฿{payment.amount.toLocaleString()}
                                             </div>
                                         </td>
-                                        <td>
-                                            <span className={`badge flex items-center gap-1 w-fit ${statusColors[payment.status]}`}>
+                                        <td className="px-4 py-4 text-center">
+                                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[payment.status]}`}>
                                                 <StatusIcon size={14} />
                                                 <span className="capitalize">{payment.status}</span>
                                             </span>
                                         </td>
-                                        <td className="text-sm text-gray-500">
+                                        <td className="px-4 py-4 text-center text-sm text-gray-600">
                                             {payment.date}
                                         </td>
-                                        <td>
+                                        <td className="px-4 py-4 text-center">
                                             <div className="flex justify-center">
-                                                <button className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors" title="View Details">
+                                                <button className="p-2 hover:bg-blue-50 text-gray-500 hover:text-blue-600 rounded-lg transition-colors" title="View Details">
                                                     <IconEye size={18} />
                                                 </button>
                                             </div>

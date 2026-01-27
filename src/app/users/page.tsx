@@ -93,6 +93,7 @@ export default function UsersPage() {
         email: '',
         password: '',
         role: 'staff',
+        isActive: true, // Default to true
         assignedEventIds: [] as number[],
     });
 
@@ -142,7 +143,7 @@ export default function UsersPage() {
 
             setShowCreateModal(false);
             setEventSearchTerm('');
-            setFormData({ name: '', email: '', password: '', role: 'staff', assignedEventIds: [] });
+            setFormData({ name: '', email: '', password: '', role: 'staff', isActive: true, assignedEventIds: [] });
             toast.success('User created successfully!');
 
             // Refresh list
@@ -170,6 +171,7 @@ export default function UsersPage() {
                 lastName: formData.name.split(' ').slice(1).join(' ') || '-',
                 role: formData.role,
                 email: formData.email,
+                isActive: formData.isActive,
             };
             if (formData.password) {
                 updates.password = formData.password;
@@ -253,6 +255,7 @@ export default function UsersPage() {
             email: user.email,
             password: '',
             role: user.role,
+            isActive: user.status === 'active', // Map string status back to boolean
             assignedEventIds: user.assignedEventIds,
         });
         setShowEditModal(true);
@@ -334,98 +337,102 @@ export default function UsersPage() {
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto">
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>User</th>
-                                <th>Role</th>
-                                <th>Assigned Events</th>
-                                <th>Status</th>
-                                <th className="text-center">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredUsers.map((user) => {
-                                const roleInfo = getRoleInfo(user.role);
-                                const eventCodes = getEventNames(user.assignedEventIds);
-                                return (
-                                    <tr key={user.id} className="animate-fade-in">
-                                        <td>
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 font-medium">
-                                                    {user.name.charAt(0).toUpperCase()}
+                <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="bg-gray-50 border-b border-gray-200">
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">User</th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Role</th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Assigned Events</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-[100px]">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {filteredUsers.map((user) => {
+                                    const roleInfo = getRoleInfo(user.role);
+                                    const eventCodes = getEventNames(user.assignedEventIds);
+                                    return (
+                                        <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-4 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 font-medium text-sm">
+                                                        {user.name.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-medium text-gray-900">{user.name}</p>
+                                                        <p className="text-sm text-gray-500">{user.email}</p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="font-medium text-gray-800">{user.name}</p>
-                                                    <p className="text-sm text-gray-500">{user.email}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span className={`badge ${roleInfo.color}`}>
-                                                {roleInfo.label}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            {user.role === 'admin' ? (
-                                                <span className="text-sm text-gray-500 italic">All Events</span>
-                                            ) : eventCodes.length > 0 ? (
-                                                <div className="flex flex-wrap gap-1">
-                                                    {eventCodes.map(code => (
-                                                        <span key={code} className="badge bg-blue-100 text-blue-800 text-xs">
-                                                            {code}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <span className="text-sm text-red-500">No events assigned</span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            <span className={`badge ${user.status === 'active' ? 'badge-success' : 'badge-error'}`}>
-                                                {user.status === 'active' ? 'Active' : 'Inactive'}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div className="flex gap-1 justify-center">
-                                                {user.role !== 'admin' && (
-                                                    <button
-                                                        className="p-1.5 hover:bg-blue-100 rounded text-blue-600"
-                                                        title="Assign Events"
-                                                        onClick={() => openAssignModal(user)}
-                                                    >
-                                                        <IconCalendarEvent size={18} />
-                                                    </button>
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${roleInfo.color}`}>
+                                                    {roleInfo.label}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                {user.role === 'admin' ? (
+                                                    <span className="text-xs text-gray-400 italic">All Events Access</span>
+                                                ) : eventCodes.length > 0 ? (
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {eventCodes.map(code => (
+                                                            <span key={code} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                                                                {code}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xs text-gray-400">No events assigned</span>
                                                 )}
-                                                <button
-                                                    className="p-1.5 hover:bg-gray-100 rounded text-gray-600"
-                                                    title="Edit"
-                                                    onClick={() => openEditModal(user)}
-                                                >
-                                                    <IconPencil size={18} />
-                                                </button>
-                                                <button
-                                                    className="p-1.5 hover:bg-red-100 rounded text-red-600"
-                                                    title="Delete"
-                                                    onClick={() => { setSelectedUser(user); setShowDeleteModal(true); }}
-                                                >
-                                                    <IconTrash size={18} />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${user.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                                                    }`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${user.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                                                    {user.status === 'active' ? 'Active' : 'Inactive'}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                <div className="flex gap-1 justify-center items-center">
+                                                    {user.role !== 'admin' && (
+                                                        <button
+                                                            className="p-2 hover:bg-blue-50 rounded-lg text-gray-500 hover:text-blue-600 transition-colors"
+                                                            title="Assign Events"
+                                                            onClick={() => openAssignModal(user)}
+                                                        >
+                                                            <IconCalendarEvent size={18} />
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        className="p-2 hover:bg-yellow-50 rounded-lg text-gray-500 hover:text-yellow-600 transition-colors"
+                                                        title="Edit"
+                                                        onClick={() => openEditModal(user)}
+                                                    >
+                                                        <IconPencil size={18} />
+                                                    </button>
+                                                    <button
+                                                        className="p-2 hover:bg-red-50 rounded-lg text-gray-500 hover:text-red-600 transition-colors"
+                                                        title="Delete"
+                                                        onClick={() => { setSelectedUser(user); setShowDeleteModal(true); }}
+                                                    >
+                                                        <IconTrash size={18} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
 
-                {/* Pagination */}
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-                    <p className="text-sm text-gray-500">
-                        Showing {filteredUsers.length} of {users.length} users
-                    </p>
+                    {/* Pagination */}
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50">
+                        <p className="text-sm text-gray-500">
+                            Showing {filteredUsers.length} of {users.length} users
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -435,7 +442,7 @@ export default function UsersPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     {roles.map((role) => (
                         <div key={role.id} className="border border-gray-200 rounded-lg p-4">
-                            <span className={`badge ${role.color} mb-2`}>{role.label}</span>
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${role.color} mb-2`}>{role.label}</span>
                             <p className="text-sm text-gray-600">{role.description}</p>
                             {role.id === 'admin' && (
                                 <p className="text-xs text-gray-400 mt-2 italic">Access to all events</p>
@@ -600,6 +607,28 @@ export default function UsersPage() {
                                         <option key={role.id} value={role.id}>{role.label}</option>
                                     ))}
                                 </select>
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Account Status</label>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={formData.isActive}
+                                        onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${formData.isActive ? 'bg-green-500' : 'bg-gray-200'
+                                            }`}
+                                    >
+                                        <span
+                                            className={`${formData.isActive ? 'translate-x-6' : 'translate-x-1'
+                                                } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                                        />
+                                    </button>
+                                    <span className={`text-sm font-medium ${formData.isActive ? 'text-green-600' : 'text-gray-500'}`}>
+                                        {formData.isActive ? 'Active' : 'Inactive'}
+                                    </span>
+                                </div>
                             </div>
 
                             {/* Event Assignment (only for non-admin) */}

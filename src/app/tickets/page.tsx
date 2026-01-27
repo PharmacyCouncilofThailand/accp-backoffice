@@ -403,48 +403,48 @@ export default function TicketsPage() {
                         No tickets found.
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="data-table">
+                    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                        <table className="w-full">
                             <thead>
-                                <tr>
-                                    <th>Ticket</th>
-                                    <th>Event</th>
-                                    <th>Category</th>
-                                    <th>Price</th>
-                                    <th>Quota</th>
-                                    <th>Sales Period</th>
-                                    <th className="text-center">Actions</th>
+                                <tr className="bg-gray-50 border-b border-gray-200">
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Ticket</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Event</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Price</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Quota</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Sales Period</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-[120px]">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-gray-100">
                                 {tickets.map((ticket) => {
                                     const soldPercentage = ticket.quota > 0 ? (ticket.sold / ticket.quota) * 100 : 0;
                                     return (
-                                        <tr key={ticket.id} className="animate-fade-in">
-                                            <td>
-                                                <p className="font-medium text-gray-800">{ticket.name}</p>
+                                        <tr key={ticket.id} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-4 py-4">
+                                                <p className="font-medium text-gray-900">{ticket.name}</p>
                                             </td>
-                                            <td>
-                                                <span className="badge bg-gray-100 text-gray-800">
+                                            <td className="px-4 py-4 text-center">
+                                                <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
                                                     {ticket.eventCode || events.find(e => e.id === ticket.eventId)?.code || 'Unknown'}
                                                 </span>
                                             </td>
-                                            <td>
-                                                <span className={`badge ${categoryColors[ticket.category]?.bg || 'bg-gray-100'} ${categoryColors[ticket.category]?.text || 'text-gray-800'}`}>
-                                                    {ticket.category === 'primary' ? 'Primary' : 'Add-on'}
-                                                </span>
-                                                <span className={`badge ml-1 ${typeColors[ticket.type] || 'bg-gray-100 text-gray-600'}`}>
-                                                    {ticket.type.replace('_', ' ').toUpperCase()}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <div>
-                                                    <p className="font-semibold text-gray-800">{ticket.currency === 'USD' ? '$' : '฿'}{ticket.price.toLocaleString()}</p>
+                                            <td className="px-4 py-4 text-center">
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${categoryColors[ticket.category]?.bg || 'bg-gray-100'} ${categoryColors[ticket.category]?.text || 'text-gray-800'}`}>
+                                                        {ticket.category === 'primary' ? 'Primary' : 'Add-on'}
+                                                    </span>
+                                                    <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${typeColors[ticket.type] || 'bg-gray-100 text-gray-600'}`}>
+                                                        {ticket.type.replace('_', ' ')}
+                                                    </span>
                                                 </div>
                                             </td>
-                                            <td>
-                                                <div className="w-24">
-                                                    <div className="flex justify-between text-sm mb-1">
+                                            <td className="px-4 py-4 text-center">
+                                                <p className="font-semibold text-gray-900">{ticket.currency === 'USD' ? '$' : '฿'}{ticket.price.toLocaleString()}</p>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                <div className="w-24 mx-auto">
+                                                    <div className="flex justify-between text-xs mb-1">
                                                         <span className="text-gray-600">{ticket.sold}/{ticket.quota}</span>
                                                         <span className={soldPercentage >= 90 ? 'text-red-600' : soldPercentage >= 70 ? 'text-yellow-600' : 'text-green-600'}>
                                                             {Math.round(soldPercentage)}%
@@ -458,28 +458,28 @@ export default function TicketsPage() {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td className="px-4 py-4 text-center">
                                                 <p className="text-sm text-gray-600">{ticket.startDate ? new Date(ticket.startDate).toLocaleDateString() : 'N/A'}</p>
-                                                <p className="text-sm text-gray-400">to {ticket.endDate ? new Date(ticket.endDate).toLocaleDateString() : 'N/A'}</p>
+                                                <p className="text-xs text-gray-400">to {ticket.endDate ? new Date(ticket.endDate).toLocaleDateString() : 'N/A'}</p>
                                             </td>
-                                            <td>
-                                                <div className="flex gap-1 justify-center">
+                                            <td className="px-4 py-4 text-center">
+                                                <div className="flex gap-1 justify-center items-center">
                                                     <button
-                                                        className="p-1.5 hover:bg-gray-100 rounded text-gray-600"
+                                                        className="p-2 hover:bg-blue-50 rounded-lg text-gray-500 hover:text-blue-600 transition-colors"
                                                         title="Duplicate"
                                                         onClick={() => handleDuplicate(ticket)}
                                                     >
                                                         <IconCopy size={18} />
                                                     </button>
                                                     <button
-                                                        className="p-1.5 hover:bg-gray-100 rounded text-gray-600"
+                                                        className="p-2 hover:bg-yellow-50 rounded-lg text-gray-500 hover:text-yellow-600 transition-colors"
                                                         title="Edit"
                                                         onClick={() => openEditModal(ticket)}
                                                     >
                                                         <IconPencil size={18} />
                                                     </button>
                                                     <button
-                                                        className="p-1.5 hover:bg-red-100 rounded text-red-600"
+                                                        className="p-2 hover:bg-red-50 rounded-lg text-gray-500 hover:text-red-600 transition-colors"
                                                         title="Delete"
                                                         onClick={() => { setSelectedTicket(ticket); setShowDeleteModal(true); }}
                                                     >

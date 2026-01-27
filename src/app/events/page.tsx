@@ -240,64 +240,75 @@ export default function EventsPage() {
                     </div>
                 ) : (
                     /* Table */
-                    <div className="overflow-x-auto">
-                        <table className="data-table">
+                    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                        <table className="w-full">
                             <thead>
-                                <tr>
-                                    <th className="w-12">ID</th>
-                                    <th>Event</th>
-                                    <th>Date</th>
-                                    <th>Type</th>
-                                    <th>Capacity</th>
-                                    <th>Status</th>
-                                    <th className="text-center">Actions</th>
+                                <tr className="bg-gray-50 border-b border-gray-200">
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-16">ID</th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Event</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Date</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Capacity</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-[120px]">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-gray-100">
                                 {events.map((event) => (
-                                    <tr key={event.id} className="animate-fade-in">
-                                        <td className="font-mono text-sm text-gray-600">{event.id}</td>
-                                        <td>
+                                    <tr key={event.id} className="hover:bg-gray-50 transition-colors">
+                                        <td className="px-4 py-4 text-center">
+                                            <span className="font-mono text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                                {event.id}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-600">
-                                                    <IconCalendarEvent size={24} stroke={1.5} />
+                                                <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
+                                                    <IconCalendarEvent size={20} stroke={1.5} />
                                                 </div>
                                                 <div>
-                                                    <p className="font-medium text-gray-800">{event.eventName}</p>
-                                                    <p className="text-sm text-gray-500">{event.eventCode} • {event.location || 'TBD'}</p>
+                                                    <p className="font-medium text-gray-900">{event.eventName}</p>
+                                                    <p className="text-sm text-gray-500">{event.eventCode}</p>
+                                                    {event.location && (
+                                                        <p className="text-xs text-gray-400">{event.location}</p>
+                                                    )}
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="text-gray-600">{formatDate(event.startDate)}</td>
-                                        <td>
-                                            <span className={`badge ${typeLabels[event.eventType]?.className || 'bg-gray-100 text-gray-800'}`}>
+                                        <td className="px-4 py-4 text-center">
+                                            <span className="text-sm text-gray-600">{formatDate(event.startDate)}</span>
+                                        </td>
+                                        <td className="px-4 py-4 text-center">
+                                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${typeLabels[event.eventType]?.className || 'bg-gray-100 text-gray-700'}`}>
                                                 {typeLabels[event.eventType]?.label || event.eventType}
                                             </span>
                                         </td>
-                                        <td>{event.maxCapacity || '-'}</td>
-                                        <td>
-                                            <span className={`badge ${statusColors[event.status]}`}>
+                                        <td className="px-4 py-4 text-center">
+                                            <span className="text-sm text-gray-600">{event.maxCapacity || '-'}</span>
+                                        </td>
+                                        <td className="px-4 py-4 text-center">
+                                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[event.status] || 'bg-gray-100 text-gray-700'}`}>
                                                 {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
                                             </span>
                                         </td>
-                                        <td>
-                                            <div className="flex gap-1 justify-center">
+                                        <td className="px-4 py-4 text-center">
+                                            <div className="flex gap-1 justify-center items-center">
                                                 <button
-                                                    className="p-1.5 hover:bg-gray-100 rounded text-gray-600"
-                                                    title="View"
+                                                    className="p-2 hover:bg-blue-50 rounded-lg text-gray-500 hover:text-blue-600 transition-colors"
+                                                    title="View Details"
                                                     onClick={() => { setSelectedEvent(event); setShowViewModal(true); }}
                                                 >
                                                     <IconEye size={18} />
                                                 </button>
                                                 <Link
                                                     href={`/events/${event.id}/edit`}
-                                                    className="p-1.5 hover:bg-gray-100 rounded text-gray-600"
+                                                    className="p-2 hover:bg-yellow-50 rounded-lg text-gray-500 hover:text-yellow-600 transition-colors"
                                                     title="Edit"
                                                 >
                                                     <IconPencil size={18} />
                                                 </Link>
                                                 <button
-                                                    className="p-1.5 hover:bg-red-100 rounded text-red-600"
+                                                    className="p-2 hover:bg-red-50 rounded-lg text-gray-500 hover:text-red-600 transition-colors"
                                                     title="Delete"
                                                     onClick={() => { setSelectedEvent(event); setShowDeleteModal(true); }}
                                                 >
