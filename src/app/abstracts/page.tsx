@@ -42,11 +42,11 @@ interface Abstract {
         lastName: string;
         email: string;
         institution: string | null;
-    };
+    } | null;
     event: {
         name: string;
         code: string;
-    };
+    } | null;
 }
 
 export default function AbstractsPage() {
@@ -193,7 +193,10 @@ export default function AbstractsPage() {
                                         <td className="font-mono text-sm text-gray-600">ABS-{abs.id}</td>
                                         <td>
                                             <h5 className="font-medium text-gray-800 mb-1">{abs.title}</h5>
-                                            <p className="text-sm text-gray-500">{abs.author.firstName} {abs.author.lastName}, {abs.author.institution}</p>
+                                            <p className="text-sm text-gray-500">
+                                                {abs.author?.firstName || 'Unknown'} {abs.author?.lastName || ''}
+                                                {abs.author?.institution ? `, ${abs.author.institution}` : ''}
+                                            </p>
                                         </td>
                                         <td>
                                             <span className={`badge ${topicColors[abs.category] || 'bg-gray-100 text-gray-800'}`}>
@@ -291,10 +294,13 @@ export default function AbstractsPage() {
                                 </span>
                             </div>
                             <h4 className="text-xl font-semibold text-gray-800 mb-2">{selectedAbstract.title}</h4>
-                            <p className="text-gray-600 mb-4"><strong>{selectedAbstract.author.firstName} {selectedAbstract.author.lastName}</strong>, {selectedAbstract.author.institution}</p>
+                            <p className="text-gray-600 mb-4">
+                                <strong>{selectedAbstract.author?.firstName || 'Unknown'} {selectedAbstract.author?.lastName || ''}</strong>
+                                {selectedAbstract.author?.institution ? `, ${selectedAbstract.author.institution}` : ''}
+                            </p>
 
                             <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-                                <div><strong>Event:</strong> {selectedAbstract.event.name}</div>
+                                <div><strong>Event:</strong> {selectedAbstract.event?.name || 'N/A'}</div>
                                 <div><strong>Category:</strong> {selectedAbstract.category}</div>
                                 <div><strong>Submitted:</strong> {new Date(selectedAbstract.createdAt).toLocaleString()}</div>
                                 <div><strong>Presentation:</strong> {selectedAbstract.presentationType || 'Not assigned'}</div>
