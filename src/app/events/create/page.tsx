@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/layout';
@@ -18,8 +18,17 @@ import {
     IconPencil,
     IconTrash,
     IconX,
+    IconMicrophone,
+    IconTarget,
     IconLoader2,
 } from '@tabler/icons-react';
+
+interface Speaker {
+    id: number;
+    firstName: string;
+    lastName: string;
+    organization: string | null;
+}
 
 // Step types
 type Step = 1 | 2 | 3 | 4;
@@ -34,6 +43,7 @@ interface SessionData {
     startTime: string;
     endTime: string;
     maxCapacity: number;
+    selectedSpeakerIds?: number[];
 }
 
 interface TicketData {
@@ -46,6 +56,7 @@ interface TicketData {
     saleStartDate: string;
     saleEndDate: string;
     allowedRoles: string[];
+    sessionIds?: number[];
 }
 
 interface EventFormData {
@@ -98,8 +109,10 @@ const formatTime = (dateTimeStr: string): string => {
 export default function CreateEventPage() {
     const router = useRouter();
     const [currentStep, setCurrentStep] = useState<Step>(1);
-    const [showSessionForm, setShowSessionForm] = useState(false);
+    const [showSessionModal, setShowSessionModal] = useState(false);
+    const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
     const [showTicketModal, setShowTicketModal] = useState(false);
+    const [editingTicketId, setEditingTicketId] = useState<number | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
 
@@ -122,6 +135,20 @@ export default function CreateEventPage() {
     // Sessions and Tickets
     const [sessions, setSessions] = useState<SessionData[]>([]);
     const [tickets, setTickets] = useState<TicketData[]>([]);
+    const [speakers, setSpeakers] = useState<Speaker[]>([]);
+
+    useEffect(() => {
+        const fetchSpeakers = async () => {
+            try {
+                const token = localStorage.getItem('backoffice_token') || '';
+                const res = await api.speakers.list(token);
+                setSpeakers(res.speakers as unknown as Speaker[]);
+            } catch (err) {
+                console.error('Failed to fetch speakers:', err);
+            }
+        };
+        fetchSpeakers();
+    }, []);
 
     // Session form data
     const [sessionForm, setSessionForm] = useState<SessionData>({
@@ -132,6 +159,7 @@ export default function CreateEventPage() {
         startTime: '',
         endTime: '',
         maxCapacity: 50,
+        selectedSpeakerIds: [],
     });
 
     // Ticket form data
@@ -144,6 +172,7 @@ export default function CreateEventPage() {
         saleStartDate: '',
         saleEndDate: '',
         allowedRoles: ['thai_pharmacy'],
+        sessionIds: [],
     });
 
     // Generate a unique event code
@@ -197,10 +226,21 @@ export default function CreateEventPage() {
         }
     };
 
-    // Add session
+    // Add/Update session
     const handleAddSession = () => {
         if (!sessionForm.sessionCode || !sessionForm.sessionName) return;
-        setSessions(prev => [...prev, { ...sessionForm, id: Date.now() }]);
+
+        if (editingSessionId) {
+            // Update existing session
+            setSessions(prev => prev.map(s =>
+                s.id === editingSessionId ? { ...sessionForm, id: editingSessionId } : s
+            ));
+            setEditingSessionId(null);
+        } else {
+            // Add new session
+            setSessions(prev => [...prev, { ...sessionForm, id: Date.now() }]);
+        }
+
         setSessionForm({
             sessionCode: '',
             sessionName: '',
@@ -209,8 +249,25 @@ export default function CreateEventPage() {
             startTime: '',
             endTime: '',
             maxCapacity: 50,
+            selectedSpeakerIds: [],
         });
-        setShowSessionForm(false);
+        setShowSessionModal(false);
+    };
+
+    // Edit session
+    const handleEditSession = (session: SessionData) => {
+        setSessionForm({
+            sessionCode: session.sessionCode,
+            sessionName: session.sessionName,
+            description: session.description || '',
+            room: session.room || '',
+            startTime: session.startTime,
+            endTime: session.endTime,
+            maxCapacity: session.maxCapacity,
+            selectedSpeakerIds: session.selectedSpeakerIds || [],
+        });
+        setEditingSessionId(session.id!);
+        setShowSessionModal(true);
     };
 
     // Delete session
@@ -226,7 +283,18 @@ export default function CreateEventPage() {
             toast.error('Quota must be at least 1');
             return;
         }
-        setTickets(prev => [...prev, { ...ticketForm, id: Date.now() }]);
+
+        if (editingTicketId) {
+            // Update existing ticket
+            setTickets(prev => prev.map(t =>
+                t.id === editingTicketId ? { ...ticketForm, id: editingTicketId } : t
+            ));
+            setEditingTicketId(null);
+        } else {
+            // Add new ticket
+            setTickets(prev => [...prev, { ...ticketForm, id: Date.now() }]);
+        }
+
         setTicketForm({
             name: '',
             category: 'primary',
@@ -236,8 +304,26 @@ export default function CreateEventPage() {
             saleStartDate: '',
             saleEndDate: '',
             allowedRoles: ['thai_pharmacy'],
+            sessionIds: [],
         });
         setShowTicketModal(false);
+    };
+
+    // Edit ticket
+    const handleEditTicket = (ticket: TicketData) => {
+        setTicketForm({
+            name: ticket.name,
+            category: ticket.category,
+            price: ticket.price,
+            currency: ticket.currency,
+            quota: ticket.quota,
+            saleStartDate: ticket.saleStartDate,
+            saleEndDate: ticket.saleEndDate,
+            allowedRoles: ticket.allowedRoles,
+            sessionIds: ticket.sessionIds || (ticket.sessionId ? [ticket.sessionId] : []),
+        });
+        setEditingTicketId(ticket.id!);
+        setShowTicketModal(true);
     };
 
     // Delete ticket
@@ -271,23 +357,45 @@ export default function CreateEventPage() {
 
             const { event } = await api.backofficeEvents.create(token, eventData);
 
-            // Create sessions
+            // Create sessions and track ID mapping
+            const sessionIdMap = new Map<number, number>(); // local ID -> API ID
             if (shouldShowSessions && sessions.length > 0) {
                 for (const session of sessions) {
-                    await api.backofficeEvents.createSession(token, event.id, {
+                    // Get speaker names from selected IDs
+                    const speakerNames = (session.selectedSpeakerIds || []).map(id => {
+                        const speaker = speakers.find(s => s.id === id);
+                        return speaker ? `${speaker.firstName} ${speaker.lastName}` : '';
+                    }).filter(Boolean);
+
+                    const sessionResponse = await api.backofficeEvents.createSession(token, event.id, {
                         sessionCode: session.sessionCode,
                         sessionName: session.sessionName,
                         description: session.description || undefined,
                         room: session.room || undefined,
                         startTime: new Date(session.startTime).toISOString(),
                         endTime: new Date(session.endTime).toISOString(),
+                        speakers: JSON.stringify(speakerNames),
                         maxCapacity: session.maxCapacity,
                     });
+                    // Map local session ID to API session ID
+                    if (session.id && sessionResponse.session) {
+                        sessionIdMap.set(session.id, (sessionResponse.session as any).id);
+                    }
                 }
             }
 
             // Create tickets
             for (const ticket of tickets) {
+                // Map local sessionIds to API sessionIds for add-on tickets
+                let apiSessionIds: number[] = [];
+                if (ticket.category === 'addon' && ticket.sessionIds && ticket.sessionIds.length > 0) {
+                    apiSessionIds = ticket.sessionIds.map(localId => sessionIdMap.get(localId)).filter(id => id !== undefined) as number[];
+                } else if (ticket.category === 'addon' && ticket.sessionId) {
+                    // Backward compat for local state if needed
+                    const mapped = sessionIdMap.get(ticket.sessionId);
+                    if (mapped) apiSessionIds.push(mapped);
+                }
+
                 const ticketPayload: Record<string, unknown> = {
                     name: ticket.name,
                     category: ticket.category,
@@ -295,6 +403,7 @@ export default function CreateEventPage() {
                     currency: ticket.currency,
                     quota: parseInt(ticket.quota) || 0,
                     allowedRoles: JSON.stringify(ticket.allowedRoles),
+                    sessionIds: apiSessionIds,
                 };
                 if (ticket.saleStartDate) {
                     ticketPayload.saleStartDate = new Date(ticket.saleStartDate).toISOString();
@@ -549,85 +658,9 @@ export default function CreateEventPage() {
                         <IconLayoutGrid size={18} /> Add sessions for your multi-session event
                     </div>
 
-                    {/* Add Session Form */}
-                    {showSessionForm && (
-                        <div className="border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50">
-                            <h4 className="font-semibold mb-4">Add New Session</h4>
-                            <div className="grid grid-cols-4 gap-4 mb-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Session Code *</label>
-                                    <input
-                                        type="text"
-                                        className="input-field"
-                                        placeholder="S01"
-                                        value={sessionForm.sessionCode}
-                                        onChange={(e) => setSessionForm(prev => ({ ...prev, sessionCode: e.target.value }))}
-                                    />
-                                </div>
-                                <div className="col-span-3">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Session Name *</label>
-                                    <input
-                                        type="text"
-                                        className="input-field"
-                                        placeholder="Session name"
-                                        value={sessionForm.sessionName}
-                                        onChange={(e) => setSessionForm(prev => ({ ...prev, sessionName: e.target.value }))}
-                                    />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-4 gap-4 mb-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Room</label>
-                                    <input
-                                        type="text"
-                                        className="input-field"
-                                        placeholder="Grand Hall"
-                                        value={sessionForm.room}
-                                        onChange={(e) => setSessionForm(prev => ({ ...prev, room: e.target.value }))}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
-                                    <input
-                                        type="datetime-local"
-                                        className="input-field"
-                                        value={sessionForm.startTime}
-                                        onChange={(e) => setSessionForm(prev => ({ ...prev, startTime: e.target.value }))}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
-                                    <input
-                                        type="datetime-local"
-                                        className="input-field"
-                                        value={sessionForm.endTime}
-                                        onChange={(e) => setSessionForm(prev => ({ ...prev, endTime: e.target.value }))}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
-                                    <input
-                                        type="number"
-                                        className="input-field"
-                                        value={sessionForm.maxCapacity}
-                                        onChange={(e) => setSessionForm(prev => ({ ...prev, maxCapacity: parseInt(e.target.value) || 50 }))}
-                                    />
-                                </div>
-                            </div>
-                            <div className="flex gap-2">
-                                <button onClick={handleAddSession} className="btn-primary flex items-center gap-2">
-                                    <IconCheck size={18} /> Save Session
-                                </button>
-                                <button onClick={() => setShowSessionForm(false)} className="btn-secondary">Cancel</button>
-                            </div>
-                        </div>
-                    )}
-
-                    {!showSessionForm && (
-                        <button onClick={() => setShowSessionForm(true)} className="btn-secondary mb-4 flex items-center gap-2">
-                            <IconPlus size={18} /> Add Session
-                        </button>
-                    )}
+                    <button onClick={() => setShowSessionModal(true)} className="btn-secondary mb-4 flex items-center gap-2">
+                        <IconPlus size={18} /> Add Session
+                    </button>
 
                     {/* Sessions Table */}
                     {sessions.length > 0 ? (
@@ -656,7 +689,13 @@ export default function CreateEventPage() {
                                                 {formatDateTime(session.startTime)}<br />to {formatTime(session.endTime)}
                                             </td>
                                             <td>{session.maxCapacity}</td>
-                                            <td>
+                                            <td className="flex gap-1">
+                                                <button
+                                                    onClick={() => handleEditSession(session)}
+                                                    className="p-1.5 hover:bg-blue-100 rounded"
+                                                >
+                                                    <IconPencil size={18} className="text-blue-600" />
+                                                </button>
                                                 <button
                                                     onClick={() => handleDeleteSession(session.id!)}
                                                     className="p-1.5 hover:bg-red-100 rounded"
@@ -731,6 +770,15 @@ export default function CreateEventPage() {
                                                 <span className="badge ml-1 bg-gray-100 text-gray-700">
                                                     {ticket.allowedRoles[0]?.replace('_', ' ').toUpperCase() || 'ALL'}
                                                 </span>
+                                                {ticket.category === 'addon' && ticket.sessionIds && ticket.sessionIds.length > 0 && (
+                                                    <div className="text-xs text-purple-600 mt-1">
+                                                        {ticket.sessionIds.length === 1 ? (
+                                                            <>→ {sessions.find(s => s.id === ticket.sessionIds![0])?.sessionName || `Session #${ticket.sessionIds![0]}`}</>
+                                                        ) : (
+                                                            <>→ {ticket.sessionIds.length} sessions linked</>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="font-semibold">
                                                 {ticket.currency === 'USD' ? '$' : '฿'}{ticket.price}
@@ -741,12 +789,20 @@ export default function CreateEventPage() {
                                                 <br />to {ticket.saleEndDate || 'N/A'}
                                             </td>
                                             <td>
-                                                <button
-                                                    onClick={() => handleDeleteTicket(ticket.id!)}
-                                                    className="p-1.5 hover:bg-red-100 rounded"
-                                                >
-                                                    <IconTrash size={18} className="text-red-600" />
-                                                </button>
+                                                <div className="flex gap-1">
+                                                    <button
+                                                        onClick={() => handleEditTicket(ticket)}
+                                                        className="p-1.5 hover:bg-blue-100 rounded"
+                                                    >
+                                                        <IconPencil size={18} className="text-blue-600" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteTicket(ticket.id!)}
+                                                        className="p-1.5 hover:bg-red-100 rounded"
+                                                    >
+                                                        <IconTrash size={18} className="text-red-600" />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -845,9 +901,9 @@ export default function CreateEventPage() {
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex items-center justify-between">
                                 <h3 className="text-lg font-semibold flex items-center gap-2">
-                                    <IconTicket size={20} /> Add Ticket Type
+                                    <IconTicket size={20} /> {editingTicketId ? 'Edit Ticket' : 'Add Ticket Type'}
                                 </h3>
-                                <button onClick={() => setShowTicketModal(false)} className="text-gray-400 hover:text-gray-600">
+                                <button onClick={() => { setShowTicketModal(false); setEditingTicketId(null); }} className="text-gray-400 hover:text-gray-600">
                                     <IconX size={20} />
                                 </button>
                             </div>
@@ -879,6 +935,44 @@ export default function CreateEventPage() {
                                     </select>
                                 </div>
                             </div>
+
+                            {/* Session Selector - Only for Add-on tickets (Checkboxes) */}
+                            {ticketForm.category === 'addon' && sessions.length > 0 && (
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Link to Sessions/Workshops *
+                                    </label>
+                                    <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2">
+                                        {sessions.map(session => (
+                                            <label key={session.id} className="flex items-start gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                                <input
+                                                    type="checkbox"
+                                                    className="mt-1"
+                                                    checked={ticketForm.sessionIds?.includes(session.id!) || false}
+                                                    onChange={(e) => {
+                                                        const isChecked = e.target.checked;
+                                                        setTicketForm(prev => {
+                                                            const currentIds = prev.sessionIds || [];
+                                                            if (isChecked) {
+                                                                return { ...prev, sessionIds: [...currentIds, session.id!] };
+                                                            } else {
+                                                                return { ...prev, sessionIds: currentIds.filter(id => id !== session.id) };
+                                                            }
+                                                        });
+                                                    }}
+                                                />
+                                                <div>
+                                                    <div className="text-sm font-medium">{session.sessionCode}</div>
+                                                    <div className="text-xs text-gray-500">{session.sessionName}</div>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Select one or more sessions for this add-on ticket
+                                    </p>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div>
@@ -951,9 +1045,157 @@ export default function CreateEventPage() {
                             </div>
                         </div>
                         <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">
-                            <button onClick={() => setShowTicketModal(false)} className="btn-secondary">Cancel</button>
+                            <button onClick={() => { setShowTicketModal(false); setEditingTicketId(null); }} className="btn-secondary">Cancel</button>
                             <button onClick={handleAddTicket} className="btn-primary">
-                                Add Ticket
+                                {editingTicketId ? 'Update Ticket' : 'Add Ticket'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Session Modal */}
+            {showSessionModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 border-b border-gray-100">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-lg font-semibold">{editingSessionId ? 'Edit Session' : 'Create Session'}</h3>
+                                <button onClick={() => { setShowSessionModal(false); setEditingSessionId(null); }} className="text-gray-400 hover:text-gray-600">
+                                    <IconX size={20} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="p-6">
+                            {/* Session Code & Session Name */}
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Session Code *</label>
+                                    <input
+                                        type="text"
+                                        className="input-field"
+                                        placeholder="S-001"
+                                        value={sessionForm.sessionCode}
+                                        onChange={(e) => setSessionForm(prev => ({ ...prev, sessionCode: e.target.value }))}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Session Name *</label>
+                                    <input
+                                        type="text"
+                                        className="input-field"
+                                        placeholder="Enter session name"
+                                        value={sessionForm.sessionName}
+                                        onChange={(e) => setSessionForm(prev => ({ ...prev, sessionName: e.target.value }))}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Start Time & End Time */}
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+                                    <input
+                                        type="datetime-local"
+                                        className="input-field"
+                                        value={sessionForm.startTime}
+                                        onChange={(e) => setSessionForm(prev => ({ ...prev, startTime: e.target.value }))}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
+                                    <input
+                                        type="datetime-local"
+                                        className="input-field"
+                                        value={sessionForm.endTime}
+                                        onChange={(e) => setSessionForm(prev => ({ ...prev, endTime: e.target.value }))}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Room & Max Capacity */}
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Room</label>
+                                    <input
+                                        type="text"
+                                        className="input-field"
+                                        placeholder="Meeting Room 1"
+                                        value={sessionForm.room}
+                                        onChange={(e) => setSessionForm(prev => ({ ...prev, room: e.target.value }))}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Capacity</label>
+                                    <input
+                                        type="number"
+                                        className="input-field"
+                                        placeholder="100"
+                                        value={sessionForm.maxCapacity}
+                                        onChange={(e) => setSessionForm(prev => ({ ...prev, maxCapacity: parseInt(e.target.value) || 0 }))}
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Set to 0 for unlimited capacity</p>
+                                </div>
+                            </div>
+
+                            {/* Instructor(s) */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                                    <IconMicrophone size={16} /> Instructor(s)
+                                </label>
+                                <div className="border border-gray-300 rounded-md bg-white">
+                                    {speakers.length > 0 ? (
+                                        <div className="max-h-32 overflow-y-auto p-2">
+                                            {speakers.map(speaker => (
+                                                <label key={speaker.id} className="flex items-center gap-2 text-sm p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={sessionForm.selectedSpeakerIds?.includes(speaker.id)}
+                                                        onChange={(e) => {
+                                                            const id = speaker.id;
+                                                            setSessionForm(prev => ({
+                                                                ...prev,
+                                                                selectedSpeakerIds: e.target.checked
+                                                                    ? [...(prev.selectedSpeakerIds || []), id]
+                                                                    : (prev.selectedSpeakerIds || []).filter(sid => sid !== id)
+                                                            }));
+                                                        }}
+                                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span>{speaker.firstName} {speaker.lastName}</span>
+                                                    {speaker.organization && <span className="text-xs text-gray-500">({speaker.organization})</span>}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="p-3 text-sm text-gray-500">
+                                            No instructors available
+                                        </div>
+                                    )}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Selected: {sessionForm.selectedSpeakerIds?.length || 0} Instructor(s)
+                                </p>
+                            </div>
+
+                            {/* Learning Objectives */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                                    <IconTarget size={16} /> Learning Objectives
+                                </label>
+                                <textarea
+                                    className="input-field"
+                                    rows={3}
+                                    placeholder="Describe the learning objectives for this session..."
+                                    value={sessionForm.description}
+                                    onChange={(e) => setSessionForm(prev => ({ ...prev, description: e.target.value }))}
+                                />
+                            </div>
+                        </div>
+                        <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">
+                            <button onClick={() => { setShowSessionModal(false); setEditingSessionId(null); }} className="btn-secondary">Cancel</button>
+                            <button onClick={handleAddSession} className="btn-primary">
+                                {editingSessionId ? 'Update Session' : 'Create Session'}
                             </button>
                         </div>
                     </div>

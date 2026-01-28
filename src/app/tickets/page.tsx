@@ -46,6 +46,13 @@ interface Ticket {
     type: string; // mapped from allowedRoles? or just logic
     allowedRoles: string[];
     eventCode?: string;
+    sessionIds?: number[];
+}
+
+interface EventSession {
+    id: number;
+    sessionCode: string;
+    sessionName: string;
 }
 
 interface EventOption {
@@ -57,6 +64,7 @@ interface EventOption {
 export default function TicketsPage() {
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [events, setEvents] = useState<EventOption[]>([]);
+    const [sessions, setSessions] = useState<EventSession[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -86,11 +94,20 @@ export default function TicketsPage() {
         saleStartDate: '',
         saleEndDate: '',
         allowedRoles: ['thai_pharmacy'], // Default
+        sessionIds: [] as number[],
     });
 
     useEffect(() => {
         fetchEvents();
     }, []);
+
+    useEffect(() => {
+        if ((showCreateModal || showEditModal) && formData.eventId) {
+            fetchSessions(formData.eventId);
+        } else {
+            setSessions([]);
+        }
+    }, [formData.eventId, showCreateModal, showEditModal]);
 
     useEffect(() => {
         fetchTickets();
@@ -111,6 +128,23 @@ export default function TicketsPage() {
             }
         } catch (error) {
             console.error('Failed to fetch events:', error);
+        }
+    };
+
+
+    const fetchSessions = async (eventId: number) => {
+        try {
+            const token = localStorage.getItem('backoffice_token') || '';
+            const res = await api.backofficeEvents.getSessions(token, eventId);
+            const mappedSessions = res.sessions.map((s: any) => ({
+                id: s.id,
+                sessionCode: s.sessionCode,
+                sessionName: s.sessionName
+            }));
+            setSessions(mappedSessions);
+        } catch (error) {
+            console.error('Failed to fetch sessions:', error);
+            setSessions([]);
         }
     };
 
@@ -151,7 +185,8 @@ export default function TicketsPage() {
                     endDate: t.endDate,
                     type: roles.length > 0 ? roles[0] : 'general',
                     allowedRoles: roles,
-                    eventCode: t.eventCode
+                    eventCode: t.eventCode,
+                    sessionIds: t.sessionIds || []
                 };
             });
 
@@ -182,6 +217,7 @@ export default function TicketsPage() {
                 currency: formData.currency,
                 quota: formData.quota,
                 allowedRoles: JSON.stringify(formData.allowedRoles),
+                sessionIds: formData.category === 'addon' ? formData.sessionIds : [],
             };
             // Convert dates to ISO format only if provided
             if (formData.saleStartDate) {
@@ -219,6 +255,7 @@ export default function TicketsPage() {
                 currency: formData.currency,
                 quota: formData.quota,
                 allowedRoles: JSON.stringify(formData.allowedRoles),
+                sessionIds: formData.category === 'addon' ? formData.sessionIds : [],
             };
             // Convert dates to ISO format only if provided
             if (formData.saleStartDate) {
@@ -268,6 +305,7 @@ export default function TicketsPage() {
             saleStartDate: ticket.startDate ? new Date(ticket.startDate).toISOString().split('T')[0] : '',
             saleEndDate: ticket.endDate ? new Date(ticket.endDate).toISOString().split('T')[0] : '',
             allowedRoles: ticket.allowedRoles,
+            sessionIds: ticket.sessionIds || [],
         });
         setShowCreateModal(true);
     };
@@ -284,6 +322,7 @@ export default function TicketsPage() {
             saleStartDate: ticket.startDate ? new Date(ticket.startDate).toISOString().split('T')[0] : '',
             saleEndDate: ticket.endDate ? new Date(ticket.endDate).toISOString().split('T')[0] : '',
             allowedRoles: ticket.type === 'general' ? ['thai_pharmacy'] : [ticket.type], // Simplify for now
+            sessionIds: ticket.sessionIds || [],
         });
         setShowEditModal(true);
     };
@@ -299,6 +338,7 @@ export default function TicketsPage() {
             saleStartDate: '',
             saleEndDate: '',
             allowedRoles: ['thai_pharmacy'],
+            sessionIds: [],
         });
     };
 
@@ -437,6 +477,11 @@ export default function TicketsPage() {
                                                     <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${typeColors[ticket.type] || 'bg-gray-100 text-gray-600'}`}>
                                                         {ticket.type.replace('_', ' ')}
                                                     </span>
+                                                    {ticket.category === 'addon' && ticket.sessionIds && ticket.sessionIds.length > 0 && (
+                                                        <span className="text-xs text-purple-600 mt-1">
+                                                            → {ticket.sessionIds.length} sessions linked
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="px-4 py-4 text-center">
@@ -564,6 +609,48 @@ export default function TicketsPage() {
                                     </select>
                                 </div>
                             </div>
+
+                            {/* Session Linking for Add-on Tickets */}
+                            {formData.category === 'addon' && (
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Link to Sessions/Workshops *
+                                    </label>
+                                    <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2 bg-gray-50">
+                                        {sessions.length > 0 ? (
+                                            sessions.map(session => (
+                                                <label key={session.id} className="flex items-start gap-2 cursor-pointer hover:bg-gray-100 p-1 rounded">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="mt-1"
+                                                        checked={formData.sessionIds.includes(session.id)}
+                                                        onChange={(e) => {
+                                                            const isChecked = e.target.checked;
+                                                            setFormData(prev => {
+                                                                const currentIds = prev.sessionIds || [];
+                                                                if (isChecked) {
+                                                                    return { ...prev, sessionIds: [...currentIds, session.id] };
+                                                                } else {
+                                                                    return { ...prev, sessionIds: currentIds.filter(id => id !== session.id) };
+                                                                }
+                                                            });
+                                                        }}
+                                                    />
+                                                    <div>
+                                                        <div className="text-sm font-medium">{session.sessionCode}</div>
+                                                        <div className="text-xs text-gray-500">{session.sessionName}</div>
+                                                    </div>
+                                                </label>
+                                            ))
+                                        ) : (
+                                            <p className="text-sm text-gray-500 italic text-center py-2">No sessions available for this event</p>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Select one or more sessions to link with this ticket
+                                    </p>
+                                </div>
+                            )}
 
                             <div className="mb-4">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Target Audience (Role) *</label>

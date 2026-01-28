@@ -24,6 +24,16 @@ const roles = [
     { id: 'verifier', label: 'Verifier', color: 'bg-orange-100 text-orange-800', description: 'Verify student identity documents' },
 ];
 
+// Abstract categories for reviewer assignment
+const abstractCategories = [
+    { id: 'clinical_pharmacy', label: 'Clinical Pharmacy', color: 'bg-blue-100 text-blue-800' },
+    { id: 'social_administrative', label: 'Social & Administrative Pharmacy', color: 'bg-green-100 text-green-800' },
+    { id: 'pharmaceutical_sciences', label: 'Pharmaceutical Sciences', color: 'bg-purple-100 text-purple-800' },
+    { id: 'pharmacology_toxicology', label: 'Pharmacology & Toxicology', color: 'bg-red-100 text-red-800' },
+    { id: 'pharmacy_education', label: 'Pharmacy Education', color: 'bg-yellow-100 text-yellow-800' },
+    { id: 'digital_pharmacy', label: 'Digital Pharmacy & Innovation', color: 'bg-indigo-100 text-indigo-800' },
+];
+
 // Mock data removed
 
 
@@ -35,6 +45,7 @@ interface User {
     status: string;
     createdAt: string;
     assignedEventIds: number[];
+    assignedCategories?: string[]; // For reviewers: abstract categories they can review
 }
 
 export default function UsersPage() {
@@ -70,7 +81,8 @@ export default function UsersPage() {
                         ...u,
                         name: u.name || `${u.firstName} ${u.lastName}`.trim(),
                         status: u.isActive ? 'active' : 'inactive',
-                        assignedEventIds: u.assignedEventIds || []
+                        assignedEventIds: u.assignedEventIds || [],
+                        assignedCategories: u.assignedCategories || [],
                     })));
                 }
 
@@ -95,6 +107,7 @@ export default function UsersPage() {
         role: 'staff',
         isActive: true, // Default to true
         assignedEventIds: [] as number[],
+        assignedCategories: [] as string[], // For reviewers
     });
 
     const filteredUsers = users.filter((user) => {
@@ -126,13 +139,15 @@ export default function UsersPage() {
             const firstName = nameParts[0] || '-';
             const lastName = nameParts.slice(1).join(' ') || '-';
 
-            // 1. Create user
+            // 1. Create user with assignedCategories if reviewer
             const result = await api.users.create(token, {
                 email: formData.email,
                 password: formData.password,
                 role: formData.role,
                 firstName,
                 lastName,
+                // Include assignedCategories for reviewers
+                ...(formData.role === 'reviewer' && { assignedCategories: formData.assignedCategories }),
             });
 
             // 2. Assign events if not admin and user was created
@@ -143,7 +158,7 @@ export default function UsersPage() {
 
             setShowCreateModal(false);
             setEventSearchTerm('');
-            setFormData({ name: '', email: '', password: '', role: 'staff', isActive: true, assignedEventIds: [] });
+            setFormData({ name: '', email: '', password: '', role: 'staff', isActive: true, assignedEventIds: [], assignedCategories: [] });
             toast.success('User created successfully!');
 
             // Refresh list
@@ -172,6 +187,8 @@ export default function UsersPage() {
                 role: formData.role,
                 email: formData.email,
                 isActive: formData.isActive,
+                // Include assignedCategories for reviewers
+                ...(formData.role === 'reviewer' && { assignedCategories: formData.assignedCategories }),
             };
             if (formData.password) {
                 updates.password = formData.password;
@@ -257,6 +274,7 @@ export default function UsersPage() {
             role: user.role,
             isActive: user.status === 'active', // Map string status back to boolean
             assignedEventIds: user.assignedEventIds,
+            assignedCategories: user.assignedCategories || [],
         });
         setShowEditModal(true);
     };
@@ -277,6 +295,15 @@ export default function UsersPage() {
             assignedEventIds: prev.assignedEventIds.includes(eventId)
                 ? prev.assignedEventIds.filter(id => id !== eventId)
                 : [...prev.assignedEventIds, eventId]
+        }));
+    };
+
+    const toggleCategoryAssignment = (categoryId: string) => {
+        setFormData(prev => ({
+            ...prev,
+            assignedCategories: prev.assignedCategories.includes(categoryId)
+                ? prev.assignedCategories.filter(id => id !== categoryId)
+                : [...prev.assignedCategories, categoryId]
         }));
     };
 
@@ -502,7 +529,7 @@ export default function UsersPage() {
                                 <select
                                     className="input-field"
                                     value={formData.role}
-                                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                                    onChange={(e) => setFormData({ ...formData, role: e.target.value, assignedCategories: [] })}
                                 >
                                     {roles.map((role) => (
                                         <option key={role.id} value={role.id}>{role.label} - {role.description}</option>
@@ -510,6 +537,35 @@ export default function UsersPage() {
                                 </select>
                             </div>
 
+                            {/* Abstract Category Assignment (only for reviewer) */}
+                            {formData.role === 'reviewer' && (
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Assign Abstract Categories *
+                                    </label>
+                                    <p className="text-xs text-gray-500 mb-2">
+                                        Select which abstract categories this reviewer can review
+                                    </p>
+                                    <div className="border border-gray-200 rounded-lg p-3 space-y-2">
+                                        {abstractCategories.map(category => (
+                                            <label key={category.id} className="flex items-center gap-3 py-1.5 hover:bg-gray-50 cursor-pointer rounded px-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.assignedCategories.includes(category.id)}
+                                                    onChange={() => toggleCategoryAssignment(category.id)}
+                                                    className="w-4 h-4 text-purple-600 rounded"
+                                                />
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${category.color}`}>
+                                                    {category.label}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2">
+                                        Selected: {formData.assignedCategories.length} category(ies)
+                                    </p>
+                                </div>
+                            )}
                             {/* Event Assignment (only for non-admin) */}
                             {formData.role !== 'admin' && (
                                 <div className="mb-4">
@@ -630,6 +686,36 @@ export default function UsersPage() {
                                     </span>
                                 </div>
                             </div>
+
+                            {/* Abstract Category Assignment (only for reviewer) */}
+                            {formData.role === 'reviewer' && (
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Assigned Abstract Categories
+                                    </label>
+                                    <p className="text-xs text-gray-500 mb-2">
+                                        Select which abstract categories this reviewer can review
+                                    </p>
+                                    <div className="border border-gray-200 rounded-lg p-3 space-y-2">
+                                        {abstractCategories.map(category => (
+                                            <label key={category.id} className="flex items-center gap-3 py-1.5 hover:bg-gray-50 cursor-pointer rounded px-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.assignedCategories.includes(category.id)}
+                                                    onChange={() => toggleCategoryAssignment(category.id)}
+                                                    className="w-4 h-4 text-purple-600 rounded"
+                                                />
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${category.color}`}>
+                                                    {category.label}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2">
+                                        Selected: {formData.assignedCategories.length} category(ies)
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Event Assignment (only for non-admin) */}
                             {formData.role !== 'admin' && (

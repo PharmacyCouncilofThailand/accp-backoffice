@@ -126,6 +126,8 @@ export const api = {
       fetchAPI<{ session: Record<string, unknown> }>(`/api/backoffice/events/${eventId}/sessions/${sessionId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
     deleteSession: (token: string, eventId: number, sessionId: number) =>
       fetchAPI<void>(`/api/backoffice/events/${eventId}/sessions/${sessionId}`, { method: 'DELETE', token }),
+    getSessionEnrollments: (token: string, eventId: number, sessionId: number) =>
+      fetchAPI<{ enrollments: { id: number; regCode: string; email: string; firstName: string; lastName: string; status: string; createdAt: string; ticketName: string | null }[]; count: number }>(`/api/backoffice/events/${eventId}/sessions/${sessionId}/enrollments`, { token }),
 
     // Tickets nested routes (using Record for page compatibility)
     getTickets: (token: string, eventId: number) =>

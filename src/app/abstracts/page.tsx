@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import {
     IconFileText,
     IconClock,
@@ -24,11 +25,27 @@ const statusColors: { [key: string]: string } = {
 
 // Map backend categories to colors if needed, or use generic
 const topicColors: { [key: string]: string } = {
+    'clinical_pharmacy': 'bg-blue-100 text-blue-800',
+    'social_administrative': 'bg-green-100 text-green-800',
+    'pharmaceutical_sciences': 'bg-purple-100 text-purple-800',
+    'pharmacology_toxicology': 'bg-red-100 text-red-800',
+    'pharmacy_education': 'bg-yellow-100 text-yellow-800',
+    'digital_pharmacy': 'bg-indigo-100 text-indigo-800',
     'Research': 'bg-blue-100 text-blue-800',
     'Case Report': 'bg-purple-100 text-purple-800',
     'Review': 'bg-green-100 text-green-800',
     'Other': 'bg-gray-100 text-gray-800',
 };
+
+// Categories for filter dropdown
+const abstractCategories = [
+    { id: 'clinical_pharmacy', label: 'Clinical Pharmacy' },
+    { id: 'social_administrative', label: 'Social & Administrative Pharmacy' },
+    { id: 'pharmaceutical_sciences', label: 'Pharmaceutical Sciences' },
+    { id: 'pharmacology_toxicology', label: 'Pharmacology & Toxicology' },
+    { id: 'pharmacy_education', label: 'Pharmacy Education' },
+    { id: 'digital_pharmacy', label: 'Digital Pharmacy & Innovation' },
+];
 
 interface CoAuthor {
     id: number;
@@ -71,13 +88,27 @@ interface Abstract {
 
 export default function AbstractsPage() {
     const router = useRouter();
+    const { user, isAdmin } = useAuth();
     const [abstracts, setAbstracts] = useState<Abstract[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState('');
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
+
+    // Filter categories based on user role
+    // Admin sees all, Reviewer sees only assigned categories
+    const availableCategories = useMemo(() => {
+        if (isAdmin || !user || user.role !== 'reviewer') {
+            // Admin and other roles see all categories
+            return abstractCategories;
+        }
+        // Reviewer only sees assigned categories
+        const assignedCats = user.assignedCategories || [];
+        return abstractCategories.filter(cat => assignedCats.includes(cat.id));
+    }, [user, isAdmin]);
 
     const [selectedAbstract, setSelectedAbstract] = useState<Abstract | null>(null);
     const [showApproveModal, setShowApproveModal] = useState(false);
@@ -87,7 +118,7 @@ export default function AbstractsPage() {
 
     useEffect(() => {
         fetchAbstracts();
-    }, [page, searchTerm, statusFilter]);
+    }, [page, searchTerm, statusFilter, categoryFilter]);
 
     const fetchAbstracts = async () => {
         setIsLoading(true);
@@ -95,6 +126,7 @@ export default function AbstractsPage() {
             const token = localStorage.getItem('backoffice_token') || '';
             const params: any = { page, limit: 10 };
             if (statusFilter) params.status = statusFilter;
+            if (categoryFilter) params.category = categoryFilter;
             if (searchTerm) params.search = searchTerm;
 
             const res = await api.abstracts.list(token, new URLSearchParams(params).toString());
@@ -181,6 +213,28 @@ export default function AbstractsPage() {
                         <option value="pending">Pending</option>
                         <option value="accepted">Accepted</option>
                         <option value="rejected">Rejected</option>
+                    </select>
+
+                    <select
+                        value={categoryFilter}
+                        onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+                        className="input-field w-auto"
+                        disabled={availableCategories.length === 1}
+                    >
+                        {availableCategories.length === 1 ? (
+                            // Single category - show only that one
+                            <option value="">{availableCategories[0].label}</option>
+                        ) : (
+                            // Multiple categories - show "All" and individual options
+                            <>
+                                <option value="">
+                                    {isAdmin ? 'All Categories' : `All (${availableCategories.map(c => c.label).join(', ')})`}
+                                </option>
+                                {availableCategories.map(cat => (
+                                    <option key={cat.id} value={cat.id}>{cat.label}</option>
+                                ))}
+                            </>
+                        )}
                     </select>
                 </div>
 
