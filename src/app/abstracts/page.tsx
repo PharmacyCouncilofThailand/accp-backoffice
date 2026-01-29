@@ -47,6 +47,12 @@ const abstractCategories = [
     { id: 'digital_pharmacy', label: 'Digital Pharmacy & Innovation' },
 ];
 
+// Presentation types for filter dropdown
+const presentationTypes = [
+    { id: 'poster', label: 'Poster' },
+    { id: 'oral', label: 'Oral Presentation' },
+];
+
 interface Abstract {
     id: number;
     title: string;
@@ -82,6 +88,7 @@ export default function AbstractsPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('');
+    const [presentationTypeFilter, setPresentationTypeFilter] = useState('');
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
@@ -106,7 +113,7 @@ export default function AbstractsPage() {
 
     useEffect(() => {
         fetchAbstracts();
-    }, [page, searchTerm, statusFilter, categoryFilter]);
+    }, [page, searchTerm, statusFilter, categoryFilter, presentationTypeFilter]);
 
     const fetchAbstracts = async () => {
         setIsLoading(true);
@@ -115,6 +122,7 @@ export default function AbstractsPage() {
             const params: any = { page, limit: 10 };
             if (statusFilter) params.status = statusFilter;
             if (categoryFilter) params.category = categoryFilter;
+            if (presentationTypeFilter) params.presentationType = presentationTypeFilter;
             if (searchTerm) params.search = searchTerm;
 
             const res = await api.abstracts.list(token, new URLSearchParams(params).toString());
@@ -224,6 +232,17 @@ export default function AbstractsPage() {
                             </>
                         )}
                     </select>
+
+                    <select
+                        value={presentationTypeFilter}
+                        onChange={(e) => { setPresentationTypeFilter(e.target.value); setPage(1); }}
+                        className="input-field w-auto"
+                    >
+                        <option value="">All Presentation Types</option>
+                        {presentationTypes.map(type => (
+                            <option key={type.id} value={type.id}>{type.label}</option>
+                        ))}
+                    </select>
                 </div>
 
                 {/* Table */}
@@ -242,6 +261,7 @@ export default function AbstractsPage() {
                                 <tr className="bg-gray-50 border-b border-gray-200">
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">ID</th>
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[300px]">Title & Author</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Presentation</th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Submitted</th>
@@ -262,6 +282,11 @@ export default function AbstractsPage() {
                                             {abs.author?.institution && (
                                                 <p className="text-xs text-gray-400">{abs.author.institution}</p>
                                             )}
+                                        </td>
+                                        <td className="px-4 py-4 text-center">
+                                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${abs.presentationType === 'oral' ? 'bg-orange-100 text-orange-800' : 'bg-cyan-100 text-cyan-800'}`}>
+                                                {abs.presentationType === 'oral' ? 'Oral' : 'Poster'}
+                                            </span>
                                         </td>
                                         <td className="px-4 py-4 text-center">
                                             <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${topicColors[abs.category] || 'bg-gray-100 text-gray-700'}`}>

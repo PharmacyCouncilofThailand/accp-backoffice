@@ -34,6 +34,12 @@ const abstractCategories = [
     { id: 'digital_pharmacy', label: 'Digital Pharmacy & Innovation', color: 'bg-indigo-100 text-indigo-800' },
 ];
 
+// Presentation types for reviewer assignment
+const presentationTypes = [
+    { id: 'poster', label: 'Poster', color: 'bg-cyan-100 text-cyan-800' },
+    { id: 'oral', label: 'Oral Presentation', color: 'bg-orange-100 text-orange-800' },
+];
+
 // Mock data removed
 
 
@@ -46,6 +52,7 @@ interface User {
     createdAt: string;
     assignedEventIds: number[];
     assignedCategories?: string[]; // For reviewers: abstract categories they can review
+    assignedPresentationTypes?: string[]; // For reviewers: presentation types they can review
 }
 
 export default function UsersPage() {
@@ -83,6 +90,7 @@ export default function UsersPage() {
                         status: u.isActive ? 'active' : 'inactive',
                         assignedEventIds: u.assignedEventIds || [],
                         assignedCategories: u.assignedCategories || [],
+                        assignedPresentationTypes: u.assignedPresentationTypes || [],
                     })));
                 }
 
@@ -108,6 +116,7 @@ export default function UsersPage() {
         isActive: true, // Default to true
         assignedEventIds: [] as number[],
         assignedCategories: [] as string[], // For reviewers
+        assignedPresentationTypes: [] as string[], // For reviewers
     });
 
     const filteredUsers = users.filter((user) => {
@@ -146,8 +155,11 @@ export default function UsersPage() {
                 role: formData.role,
                 firstName,
                 lastName,
-                // Include assignedCategories for reviewers
-                ...(formData.role === 'reviewer' && { assignedCategories: formData.assignedCategories }),
+                // Include assignedCategories and assignedPresentationTypes for reviewers
+                ...(formData.role === 'reviewer' && { 
+                    assignedCategories: formData.assignedCategories,
+                    assignedPresentationTypes: formData.assignedPresentationTypes 
+                }),
             });
 
             // 2. Assign events if not admin and user was created
@@ -158,7 +170,7 @@ export default function UsersPage() {
 
             setShowCreateModal(false);
             setEventSearchTerm('');
-            setFormData({ name: '', email: '', password: '', role: 'staff', isActive: true, assignedEventIds: [], assignedCategories: [] });
+            setFormData({ name: '', email: '', password: '', role: 'staff', isActive: true, assignedEventIds: [], assignedCategories: [], assignedPresentationTypes: [] });
             toast.success('User created successfully!');
 
             // Refresh list
@@ -187,8 +199,11 @@ export default function UsersPage() {
                 role: formData.role,
                 email: formData.email,
                 isActive: formData.isActive,
-                // Include assignedCategories for reviewers
-                ...(formData.role === 'reviewer' && { assignedCategories: formData.assignedCategories }),
+                // Include assignedCategories and assignedPresentationTypes for reviewers
+                ...(formData.role === 'reviewer' && { 
+                    assignedCategories: formData.assignedCategories,
+                    assignedPresentationTypes: formData.assignedPresentationTypes 
+                }),
             };
             if (formData.password) {
                 updates.password = formData.password;
@@ -275,6 +290,7 @@ export default function UsersPage() {
             isActive: user.status === 'active', // Map string status back to boolean
             assignedEventIds: user.assignedEventIds,
             assignedCategories: user.assignedCategories || [],
+            assignedPresentationTypes: user.assignedPresentationTypes || [],
         });
         setShowEditModal(true);
     };
@@ -304,6 +320,15 @@ export default function UsersPage() {
             assignedCategories: prev.assignedCategories.includes(categoryId)
                 ? prev.assignedCategories.filter(id => id !== categoryId)
                 : [...prev.assignedCategories, categoryId]
+        }));
+    };
+
+    const togglePresentationTypeAssignment = (typeId: string) => {
+        setFormData(prev => ({
+            ...prev,
+            assignedPresentationTypes: prev.assignedPresentationTypes.includes(typeId)
+                ? prev.assignedPresentationTypes.filter(id => id !== typeId)
+                : [...prev.assignedPresentationTypes, typeId]
         }));
     };
 
@@ -566,6 +591,36 @@ export default function UsersPage() {
                                     </p>
                                 </div>
                             )}
+
+                            {/* Presentation Type Assignment (only for reviewer) */}
+                            {formData.role === 'reviewer' && (
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Assign Presentation Types *
+                                    </label>
+                                    <p className="text-xs text-gray-500 mb-2">
+                                        Select which presentation types this reviewer can review
+                                    </p>
+                                    <div className="border border-gray-200 rounded-lg p-3 space-y-2">
+                                        {presentationTypes.map(type => (
+                                            <label key={type.id} className="flex items-center gap-3 py-1.5 hover:bg-gray-50 cursor-pointer rounded px-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.assignedPresentationTypes.includes(type.id)}
+                                                    onChange={() => togglePresentationTypeAssignment(type.id)}
+                                                    className="w-4 h-4 text-orange-600 rounded"
+                                                />
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${type.color}`}>
+                                                    {type.label}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2">
+                                        Selected: {formData.assignedPresentationTypes.length} type(s)
+                                    </p>
+                                </div>
+                            )}
                             {/* Event Assignment (only for non-admin) */}
                             {formData.role !== 'admin' && (
                                 <div className="mb-4">
@@ -713,6 +768,36 @@ export default function UsersPage() {
                                     </div>
                                     <p className="text-xs text-gray-400 mt-2">
                                         Selected: {formData.assignedCategories.length} category(ies)
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Presentation Type Assignment (only for reviewer) */}
+                            {formData.role === 'reviewer' && (
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Assigned Presentation Types
+                                    </label>
+                                    <p className="text-xs text-gray-500 mb-2">
+                                        Select which presentation types this reviewer can review
+                                    </p>
+                                    <div className="border border-gray-200 rounded-lg p-3 space-y-2">
+                                        {presentationTypes.map(type => (
+                                            <label key={type.id} className="flex items-center gap-3 py-1.5 hover:bg-gray-50 cursor-pointer rounded px-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.assignedPresentationTypes.includes(type.id)}
+                                                    onChange={() => togglePresentationTypeAssignment(type.id)}
+                                                    className="w-4 h-4 text-orange-600 rounded"
+                                                />
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${type.color}`}>
+                                                    {type.label}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2">
+                                        Selected: {formData.assignedPresentationTypes.length} type(s)
                                     </p>
                                 </div>
                             )}
