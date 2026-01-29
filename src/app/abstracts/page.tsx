@@ -47,17 +47,6 @@ const abstractCategories = [
     { id: 'digital_pharmacy', label: 'Digital Pharmacy & Innovation' },
 ];
 
-interface CoAuthor {
-    id: number;
-    abstractId: number;
-    firstName: string;
-    lastName: string;
-    email: string;
-    institution: string | null;
-    country: string | null;
-    sortOrder: number | null;
-}
-
 interface Abstract {
     id: number;
     title: string;
@@ -83,7 +72,6 @@ interface Abstract {
         name: string;
         code: string;
     };
-    coAuthors: CoAuthor[];
 }
 
 export default function AbstractsPage() {
@@ -270,8 +258,8 @@ export default function AbstractsPage() {
                                         </td>
                                         <td className="px-4 py-4">
                                             <h5 className="font-medium text-gray-900 mb-1 line-clamp-2">{abs.title}</h5>
-                                            <p className="text-sm text-gray-500">{abs.author.firstName} {abs.author.lastName}</p>
-                                            {abs.author.institution && (
+                                            <p className="text-sm text-gray-500">{abs.author?.firstName} {abs.author?.lastName}</p>
+                                            {abs.author?.institution && (
                                                 <p className="text-xs text-gray-400">{abs.author.institution}</p>
                                             )}
                                         </td>
