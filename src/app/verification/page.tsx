@@ -18,11 +18,7 @@ import {
 } from '@tabler/icons-react';
 
 
-const statusColors: { [key: string]: string } = {
-    pending: 'badge-warning',
-    approved: 'badge-success',
-    rejected: 'badge-error',
-};
+
 
 const roleLabels: { [key: string]: { label: string; className: string } } = {
     'thai-student': { label: 'Thai Student', className: 'bg-green-100 text-green-800' },
@@ -225,22 +221,21 @@ export default function VerificationPage() {
                         <span className="ml-3 text-gray-500">Loading verifications...</span>
                     </div>
                 ) : (
-                    <>
-                        {/* Table */}
+                    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
                         <div className="overflow-x-auto">
-                            <table className="data-table">
+                            <table className="w-full">
                                 <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Student Info</th>
-                                        <th>University</th>
-                                        <th>Document</th>
-                                        <th>Status</th>
-                                        <th>Submitted</th>
-                                        <th className="text-center">Actions</th>
+                                    <tr className="bg-gray-50 border-b border-gray-200">
+                                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">ID</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Student Info</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">University</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Document</th>
+                                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Submitted</th>
+                                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="divide-y divide-gray-100">
                                     {filteredVerifications.length === 0 ? (
                                         <tr>
                                             <td colSpan={7} className="text-center py-8 text-gray-500">
@@ -249,45 +244,57 @@ export default function VerificationPage() {
                                         </tr>
                                     ) : (
                                         filteredVerifications.map((v) => (
-                                            <tr key={v.id} className="animate-fade-in">
-                                                <td className="font-mono text-sm text-gray-600">{v.id}</td>
-                                                <td>
+                                            <tr key={v.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-4 py-4 text-center">
+                                                    <span className="font-mono text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                                                        {v.id}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-4">
                                                     <div>
-                                                        <p className="font-medium text-gray-800">{v.name}</p>
+                                                        <p className="font-medium text-gray-900">{v.name}</p>
                                                         <p className="text-sm text-gray-500">{v.email}</p>
-                                                        <span className={`badge text-xs mt-1 ${roleLabels[v.role]?.className}`}>
+                                                        <span className={`inline-flex items-center mt-1 px-2 py-0.5 rounded text-xs font-medium ${roleLabels[v.role]?.className}`}>
                                                             {roleLabels[v.role]?.label}
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td>
-                                                    <p className="text-gray-800">{v.university}</p>
-                                                    <p className="text-sm text-gray-500">ID: {v.studentId}</p>
+                                                <td className="px-4 py-4">
+                                                    <p className="text-gray-900 font-medium">{v.university}</p>
+                                                    <p className="text-sm text-gray-500 font-mono">ID: {v.studentId}</p>
                                                 </td>
-                                                <td>
+                                                <td className="px-4 py-4">
                                                     <div className="flex items-center gap-2">
                                                         <IconFileText size={16} className="text-gray-400" />
-                                                        <span className="text-sm">{v.documentType}</span>
+                                                        <span className="text-sm text-gray-600">{v.documentType}</span>
                                                     </div>
                                                 </td>
-                                                <td>
-                                                    <span className={`badge ${statusColors[v.status]}`}>
+                                                <td className="px-4 py-4 text-center">
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${v.status === 'approved' ? 'bg-green-50 text-green-700 border-green-200' :
+                                                        v.status === 'pending' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                                            'bg-red-50 text-red-700 border-red-200'
+                                                        }`}>
+                                                        {v.status === 'approved' && <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>}
+                                                        {v.status === 'pending' && <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>}
+                                                        {v.status === 'rejected' && <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>}
                                                         {v.status.charAt(0).toUpperCase() + v.status.slice(1)}
                                                     </span>
                                                 </td>
-                                                <td className="text-gray-500 text-sm">
-                                                    {new Date(v.submittedAt).toLocaleDateString('th-TH', {
-                                                        year: 'numeric',
-                                                        month: 'short',
-                                                        day: 'numeric',
-                                                        hour: '2-digit',
-                                                        minute: '2-digit'
-                                                    })}
+                                                <td className="px-4 py-4 text-center">
+                                                    <span className="text-sm text-gray-600">
+                                                        {new Date(v.submittedAt).toLocaleDateString('th-TH', {
+                                                            year: 'numeric',
+                                                            month: 'short',
+                                                            day: 'numeric',
+                                                            hour: '2-digit',
+                                                            minute: '2-digit'
+                                                        })}
+                                                    </span>
                                                 </td>
-                                                <td>
-                                                    <div className="flex gap-1 justify-center">
+                                                <td className="px-4 py-4 text-center">
+                                                    <div className="flex gap-1 justify-center items-center">
                                                         <button
-                                                            className="p-1.5 hover:bg-gray-100 rounded text-gray-600"
+                                                            className="p-2 hover:bg-blue-50 rounded-lg text-gray-500 hover:text-blue-600 transition-colors"
                                                             title="View Document"
                                                             onClick={() => { setSelectedVerification(v); setShowViewModal(true); }}
                                                         >
@@ -296,14 +303,14 @@ export default function VerificationPage() {
                                                         {v.status === 'pending' && (
                                                             <>
                                                                 <button
-                                                                    className="p-1.5 hover:bg-green-100 rounded text-green-600"
+                                                                    className="p-2 hover:bg-green-50 rounded-lg text-gray-500 hover:text-green-600 transition-colors"
                                                                     title="Approve"
                                                                     onClick={() => { setSelectedVerification(v); setShowApproveModal(true); }}
                                                                 >
                                                                     <IconCheck size={18} />
                                                                 </button>
                                                                 <button
-                                                                    className="p-1.5 hover:bg-red-100 rounded text-red-600"
+                                                                    className="p-2 hover:bg-red-50 rounded-lg text-gray-500 hover:text-red-600 transition-colors"
                                                                     title="Reject"
                                                                     onClick={() => { setSelectedVerification(v); setShowRejectModal(true); }}
                                                                 >
@@ -321,12 +328,12 @@ export default function VerificationPage() {
                         </div>
 
                         {/* Pagination */}
-                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50">
                             <p className="text-sm text-gray-500">
                                 Showing {filteredVerifications.length} of {verifications.length} requests
                             </p>
                         </div>
-                    </>
+                    </div>
                 )}
             </div>
 
@@ -346,11 +353,17 @@ export default function VerificationPage() {
                         </div>
                         <div className="p-6">
                             <div className="flex gap-2 mb-4">
-                                <span className="badge bg-gray-100 text-gray-700">{selectedVerification.id}</span>
-                                <span className={`badge ${statusColors[selectedVerification.status]}`}>
-                                    {selectedVerification.status}
+                                <span className="font-mono text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">{selectedVerification.id}</span>
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${selectedVerification.status === 'approved' ? 'bg-green-50 text-green-700 border-green-200' :
+                                        selectedVerification.status === 'pending' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                            'bg-red-50 text-red-700 border-red-200'
+                                    }`}>
+                                    {selectedVerification.status === 'approved' && <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>}
+                                    {selectedVerification.status === 'pending' && <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>}
+                                    {selectedVerification.status === 'rejected' && <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>}
+                                    {selectedVerification.status.charAt(0).toUpperCase() + selectedVerification.status.slice(1)}
                                 </span>
-                                <span className={`badge ${roleLabels[selectedVerification.role]?.className}`}>
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${roleLabels[selectedVerification.role]?.className}`}>
                                     {roleLabels[selectedVerification.role]?.label}
                                 </span>
                             </div>
@@ -524,8 +537,8 @@ export default function VerificationPage() {
                         </div>
                         <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">
                             <button onClick={() => setShowRejectModal(false)} className="btn-secondary">Cancel</button>
-                            <button 
-                                onClick={handleReject} 
+                            <button
+                                onClick={handleReject}
                                 className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50"
                                 disabled={!rejectionReason}
                             >

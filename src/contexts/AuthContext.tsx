@@ -20,6 +20,7 @@ export interface User {
     email: string;
     role: UserRole;
     assignedEvents: AssignedEvent[];
+    assignedCategories?: string[]; // For reviewers: abstract categories they can review
 }
 
 // Auth context type
@@ -59,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Check localStorage first (remember me), then sessionStorage
         let storedToken = localStorage.getItem('backoffice_token');
         let storedUser = localStorage.getItem('backoffice_user');
-        
+
         if (!storedToken || !storedUser) {
             storedToken = sessionStorage.getItem('backoffice_token');
             storedUser = sessionStorage.getItem('backoffice_user');
@@ -109,12 +110,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const login = (newUser: User, newToken: string, rememberMe: boolean = true) => {
         setUser(newUser);
         setToken(newToken);
-        
+
         // Use localStorage for "remember me", sessionStorage otherwise
         const storage = rememberMe ? localStorage : sessionStorage;
         storage.setItem('backoffice_token', newToken);
         storage.setItem('backoffice_user', JSON.stringify(newUser));
-        
+
         // Clear the other storage to avoid conflicts
         const otherStorage = rememberMe ? sessionStorage : localStorage;
         otherStorage.removeItem('backoffice_token');

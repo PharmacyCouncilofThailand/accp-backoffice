@@ -368,45 +368,43 @@ export default function PromoCodesPage() {
                         No promo codes found.
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="data-table">
+                    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                        <table className="w-full">
                             <thead>
-                                <tr>
-                                    <th>Promo Code</th>
-                                    <th>Event</th>
-                                    <th>Discount</th>
-                                    <th>Usage</th>
-                                    <th>Status</th>
-                                    <th>Period</th>
-                                    <th className="text-center">Actions</th>
+                                <tr className="bg-gray-50 border-b border-gray-200">
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Promo Code</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Event</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Discount</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Usage</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Period</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-[120px]">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-gray-100">
                                 {promoCodes.map((promo) => {
                                     const usagePercentage = promo.maxUses ? (promo.usedCount / promo.maxUses) * 100 : 0;
                                     return (
-                                        <tr key={promo.id} className="animate-fade-in">
-                                            <td>
-                                                <div>
-                                                    <p className="font-mono font-semibold text-gray-800">{promo.code}</p>
-                                                    <p className="text-sm text-gray-500">{promo.description || '-'}</p>
-                                                </div>
+                                        <tr key={promo.id} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-4 py-4">
+                                                <p className="font-mono font-semibold text-gray-900">{promo.code}</p>
+                                                <p className="text-sm text-gray-500">{promo.description || '-'}</p>
                                             </td>
-                                            <td>
-                                                <span className="badge bg-gray-100 text-gray-800">
+                                            <td className="px-4 py-4 text-center">
+                                                <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
                                                     {promo.eventCode || getEventName(promo.eventId)}
                                                 </span>
                                             </td>
-                                            <td>
+                                            <td className="px-4 py-4 text-center">
                                                 <p className="font-semibold text-green-600">
                                                     {promo.discountType === 'percentage'
                                                         ? `${promo.discountValue}%`
                                                         : `฿${parseFloat(promo.discountValue).toLocaleString()}`}
                                                 </p>
                                             </td>
-                                            <td>
-                                                <div className="w-20">
-                                                    <div className="flex justify-between text-sm mb-1">
+                                            <td className="px-4 py-4 text-center">
+                                                <div className="w-20 mx-auto">
+                                                    <div className="flex justify-between text-xs mb-1">
                                                         <span className="text-gray-600">{promo.usedCount}/{promo.maxUses}</span>
                                                     </div>
                                                     <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -417,33 +415,33 @@ export default function PromoCodesPage() {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td>
-                                                <span className={`badge ${statusColors[promo.status]}`}>
+                                            <td className="px-4 py-4 text-center">
+                                                <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[promo.status] || 'bg-gray-100 text-gray-700'}`}>
                                                     {promo.status.charAt(0).toUpperCase() + promo.status.slice(1)}
                                                 </span>
                                             </td>
-                                            <td>
+                                            <td className="px-4 py-4 text-center">
                                                 <p className="text-sm text-gray-600">{promo.validFrom?.split('T')[0] || '-'}</p>
-                                                <p className="text-sm text-gray-400">to {promo.validUntil?.split('T')[0] || '-'}</p>
+                                                <p className="text-xs text-gray-400">to {promo.validUntil?.split('T')[0] || '-'}</p>
                                             </td>
-                                            <td>
-                                                <div className="flex gap-1 justify-center">
+                                            <td className="px-4 py-4 text-center">
+                                                <div className="flex gap-1 justify-center items-center">
                                                     <button
-                                                        className="p-1.5 hover:bg-gray-100 rounded text-gray-600"
+                                                        className="p-2 hover:bg-blue-50 rounded-lg text-gray-500 hover:text-blue-600 transition-colors"
                                                         title="Duplicate"
                                                         onClick={() => handleDuplicate(promo)}
                                                     >
                                                         <IconCopy size={18} />
                                                     </button>
                                                     <button
-                                                        className="p-1.5 hover:bg-gray-100 rounded text-gray-600"
+                                                        className="p-2 hover:bg-yellow-50 rounded-lg text-gray-500 hover:text-yellow-600 transition-colors"
                                                         title="Edit"
                                                         onClick={() => openEditModal(promo)}
                                                     >
                                                         <IconPencil size={18} />
                                                     </button>
                                                     <button
-                                                        className="p-1.5 hover:bg-red-100 rounded text-red-600"
+                                                        className="p-2 hover:bg-red-50 rounded-lg text-gray-500 hover:text-red-600 transition-colors"
                                                         title="Delete"
                                                         onClick={() => { setSelectedPromo(promo); setShowDeleteModal(true); }}
                                                     >

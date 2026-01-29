@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import {
     IconFileText,
     IconClock,
@@ -23,17 +25,38 @@ const statusColors: { [key: string]: string } = {
 
 // Map backend categories to colors if needed, or use generic
 const topicColors: { [key: string]: string } = {
+    'clinical_pharmacy': 'bg-blue-100 text-blue-800',
+    'social_administrative': 'bg-green-100 text-green-800',
+    'pharmaceutical_sciences': 'bg-purple-100 text-purple-800',
+    'pharmacology_toxicology': 'bg-red-100 text-red-800',
+    'pharmacy_education': 'bg-yellow-100 text-yellow-800',
+    'digital_pharmacy': 'bg-indigo-100 text-indigo-800',
     'Research': 'bg-blue-100 text-blue-800',
     'Case Report': 'bg-purple-100 text-purple-800',
     'Review': 'bg-green-100 text-green-800',
     'Other': 'bg-gray-100 text-gray-800',
 };
 
+// Categories for filter dropdown
+const abstractCategories = [
+    { id: 'clinical_pharmacy', label: 'Clinical Pharmacy' },
+    { id: 'social_administrative', label: 'Social & Administrative Pharmacy' },
+    { id: 'pharmaceutical_sciences', label: 'Pharmaceutical Sciences' },
+    { id: 'pharmacology_toxicology', label: 'Pharmacology & Toxicology' },
+    { id: 'pharmacy_education', label: 'Pharmacy Education' },
+    { id: 'digital_pharmacy', label: 'Digital Pharmacy & Innovation' },
+];
+
 interface Abstract {
     id: number;
     title: string;
     category: string;
     presentationType: string | null;
+    keywords: string | null;
+    background: string;
+    methods: string;
+    results: string;
+    conclusion: string;
     status: string;
     fullPaperUrl: string | null;
     createdAt: string;
@@ -41,25 +64,41 @@ interface Abstract {
         firstName: string;
         lastName: string;
         email: string;
+        phone: string | null;
+        country: string | null;
         institution: string | null;
     } | null;
     event: {
         name: string;
         code: string;
-    } | null;
+    };
 }
 
 export default function AbstractsPage() {
+    const router = useRouter();
+    const { user, isAdmin } = useAuth();
     const [abstracts, setAbstracts] = useState<Abstract[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState('');
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
 
+    // Filter categories based on user role
+    // Admin sees all, Reviewer sees only assigned categories
+    const availableCategories = useMemo(() => {
+        if (isAdmin || !user || user.role !== 'reviewer') {
+            // Admin and other roles see all categories
+            return abstractCategories;
+        }
+        // Reviewer only sees assigned categories
+        const assignedCats = user.assignedCategories || [];
+        return abstractCategories.filter(cat => assignedCats.includes(cat.id));
+    }, [user, isAdmin]);
+
     const [selectedAbstract, setSelectedAbstract] = useState<Abstract | null>(null);
-    const [showViewModal, setShowViewModal] = useState(false);
     const [showApproveModal, setShowApproveModal] = useState(false);
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,7 +106,7 @@ export default function AbstractsPage() {
 
     useEffect(() => {
         fetchAbstracts();
-    }, [page, searchTerm, statusFilter]);
+    }, [page, searchTerm, statusFilter, categoryFilter]);
 
     const fetchAbstracts = async () => {
         setIsLoading(true);
@@ -75,6 +114,7 @@ export default function AbstractsPage() {
             const token = localStorage.getItem('backoffice_token') || '';
             const params: any = { page, limit: 10 };
             if (statusFilter) params.status = statusFilter;
+            if (categoryFilter) params.category = categoryFilter;
             if (searchTerm) params.search = searchTerm;
 
             const res = await api.abstracts.list(token, new URLSearchParams(params).toString());
@@ -101,7 +141,6 @@ export default function AbstractsPage() {
             // Close modals
             setShowApproveModal(false);
             setShowRejectModal(false);
-            setShowViewModal(false);
             setSelectedAbstract(null);
             setReviewComment('');
 
@@ -163,6 +202,28 @@ export default function AbstractsPage() {
                         <option value="accepted">Accepted</option>
                         <option value="rejected">Rejected</option>
                     </select>
+
+                    <select
+                        value={categoryFilter}
+                        onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+                        className="input-field w-auto"
+                        disabled={availableCategories.length === 1}
+                    >
+                        {availableCategories.length === 1 ? (
+                            // Single category - show only that one
+                            <option value="">{availableCategories[0].label}</option>
+                        ) : (
+                            // Multiple categories - show "All" and individual options
+                            <>
+                                <option value="">
+                                    {isAdmin ? 'All Categories' : `All (${availableCategories.map(c => c.label).join(', ')})`}
+                                </option>
+                                {availableCategories.map(cat => (
+                                    <option key={cat.id} value={cat.id}>{cat.label}</option>
+                                ))}
+                            </>
+                        )}
+                    </select>
                 </div>
 
                 {/* Table */}
@@ -175,71 +236,73 @@ export default function AbstractsPage() {
                         No abstracts found.
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="data-table">
+                    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                        <table className="w-full">
                             <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th className="min-w-[300px]">Title & Author</th>
-                                    <th>Category</th>
-                                    <th>Status</th>
-                                    <th>Submitted</th>
-                                    <th className="text-center">Actions</th>
+                                <tr className="bg-gray-50 border-b border-gray-200">
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">ID</th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[300px]">Title & Author</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Submitted</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-[120px]">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-gray-100">
                                 {abstracts.map((abs) => (
-                                    <tr key={abs.id} className="animate-fade-in">
-                                        <td className="font-mono text-sm text-gray-600">ABS-{abs.id}</td>
-                                        <td>
-                                            <h5 className="font-medium text-gray-800 mb-1">{abs.title}</h5>
-                                            <p className="text-sm text-gray-500">
-                                                {abs.author?.firstName || 'Unknown'} {abs.author?.lastName || ''}
-                                                {abs.author?.institution ? `, ${abs.author.institution}` : ''}
-                                            </p>
-                                        </td>
-                                        <td>
-                                            <span className={`badge ${topicColors[abs.category] || 'bg-gray-100 text-gray-800'}`}>
-                                                {abs.category}
+                                    <tr key={abs.id} className="hover:bg-gray-50 transition-colors">
+                                        <td className="px-4 py-4 text-center">
+                                            <span className="font-mono text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                                {abs.id}
                                             </span>
                                         </td>
-                                        <td>
-                                            <span className={`badge ${statusColors[abs.status] || 'bg-gray-100'}`}>
+                                        <td className="px-4 py-4">
+                                            <h5 className="font-medium text-gray-900 mb-1 line-clamp-2">{abs.title}</h5>
+                                            <p className="text-sm text-gray-500">{abs.author?.firstName} {abs.author?.lastName}</p>
+                                            {abs.author?.institution && (
+                                                <p className="text-xs text-gray-400">{abs.author.institution}</p>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-4 text-center">
+                                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${topicColors[abs.category] || 'bg-gray-100 text-gray-700'}`}>
+                                                {abs.category.replace(/_/g, ' ')}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-4 text-center">
+                                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[abs.status] || 'bg-gray-100 text-gray-700'}`}>
                                                 {abs.status.charAt(0).toUpperCase() + abs.status.slice(1)}
                                             </span>
                                         </td>
-                                        <td>
-                                            <div className="text-sm text-gray-500">
-                                                {new Date(abs.createdAt).toLocaleDateString()}
-                                            </div>
+                                        <td className="px-4 py-4 text-center">
+                                            <span className="text-sm text-gray-600">
+                                                {new Date(abs.createdAt).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                            </span>
                                         </td>
-                                        <td className="text-center">
-                                            <div className="flex gap-1 justify-center">
+                                        <td className="px-4 py-4 text-center">
+                                            <div className="flex gap-1 justify-center items-center">
                                                 <button
-                                                    className="p-1.5 hover:bg-gray-100 rounded text-gray-600"
-                                                    title="View"
-                                                    onClick={() => { setSelectedAbstract(abs); setShowViewModal(true); }}
+                                                    className="p-2 hover:bg-blue-50 rounded-lg text-gray-500 hover:text-blue-600 transition-colors"
+                                                    title="View Details"
+                                                    onClick={() => router.push(`/abstracts/${abs.id}`)}
                                                 >
                                                     <IconEye size={18} />
                                                 </button>
-                                                {abs.status === 'pending' && (
-                                                    <>
-                                                        <button
-                                                            className="p-1.5 hover:bg-green-100 rounded text-green-600"
-                                                            title="Approve"
-                                                            onClick={() => { setSelectedAbstract(abs); setShowApproveModal(true); }}
-                                                        >
-                                                            <IconCheck size={18} />
-                                                        </button>
-                                                        <button
-                                                            className="p-1.5 hover:bg-red-100 rounded text-red-600"
-                                                            title="Reject"
-                                                            onClick={() => { setSelectedAbstract(abs); setShowRejectModal(true); }}
-                                                        >
-                                                            <IconX size={18} />
-                                                        </button>
-                                                    </>
-                                                )}
+                                                <button
+                                                    className={`p-2 rounded-lg transition-colors ${abs.status === 'pending' ? 'hover:bg-green-50 text-gray-500 hover:text-green-600' : 'text-gray-200 cursor-not-allowed'}`}
+                                                    title="Approve"
+                                                    onClick={() => { if (abs.status === 'pending') { setSelectedAbstract(abs); setShowApproveModal(true); } }}
+                                                    disabled={abs.status !== 'pending'}
+                                                >
+                                                    <IconCheck size={18} />
+                                                </button>
+                                                <button
+                                                    className={`p-2 rounded-lg transition-colors ${abs.status === 'pending' ? 'hover:bg-red-50 text-gray-500 hover:text-red-600' : 'text-gray-200 cursor-not-allowed'}`}
+                                                    title="Reject"
+                                                    onClick={() => { if (abs.status === 'pending') { setSelectedAbstract(abs); setShowRejectModal(true); } }}
+                                                    disabled={abs.status !== 'pending'}
+                                                >
+                                                    <IconX size={18} />
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -274,93 +337,6 @@ export default function AbstractsPage() {
                 </div>
             </div>
 
-            {/* View Modal */}
-            {showViewModal && selectedAbstract && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                        <div className="p-6 border-b border-gray-100">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-semibold">Abstract Details</h3>
-                                <button onClick={() => setShowViewModal(false)} className="text-gray-400 hover:text-gray-600">
-                                    <IconX size={20} />
-                                </button>
-                            </div>
-                        </div>
-                        <div className="p-6">
-                            <div className="flex gap-2 mb-4">
-                                <span className="badge bg-gray-100 text-gray-700">ABS-{selectedAbstract.id}</span>
-                                <span className={`badge ${statusColors[selectedAbstract.status]}`}>
-                                    {selectedAbstract.status.charAt(0).toUpperCase() + selectedAbstract.status.slice(1)}
-                                </span>
-                            </div>
-                            <h4 className="text-xl font-semibold text-gray-800 mb-2">{selectedAbstract.title}</h4>
-                            <p className="text-gray-600 mb-4">
-                                <strong>{selectedAbstract.author?.firstName || 'Unknown'} {selectedAbstract.author?.lastName || ''}</strong>
-                                {selectedAbstract.author?.institution ? `, ${selectedAbstract.author.institution}` : ''}
-                            </p>
-
-                            <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-                                <div><strong>Event:</strong> {selectedAbstract.event?.name || 'N/A'}</div>
-                                <div><strong>Category:</strong> {selectedAbstract.category}</div>
-                                <div><strong>Submitted:</strong> {new Date(selectedAbstract.createdAt).toLocaleString()}</div>
-                                <div><strong>Presentation:</strong> {selectedAbstract.presentationType || 'Not assigned'}</div>
-                            </div>
-
-                            {/* Content would be fetched separately or we assume it's small enough to list. 
-                                NB: The list API usually returns fields. If content is large, might need separate GET.
-                                For now, assuming list schema didn't select content. 
-                                If we need content, we'd need a detail API endpoint or update list to include it.
-                                Let's assume for MVP we list it, but list query above included everything. 
-                                WAIT, list query in abstracts.ts included `title`, `category`, etc. but NOT `content`.
-                                So `selectedAbstract.content` will be undefined here unless we fetch it.
-                                MVP: Just show "Content viewing not implemented yet" or update API.
-                                I'll leave a placeholder.
-                            */}
-                            <div className="bg-gray-50 p-4 rounded-lg">
-                                <h5 className="font-semibold mb-2">Abstract Content:</h5>
-                                {selectedAbstract.fullPaperUrl ? (
-                                    <div className="flex flex-col gap-3">
-                                        <p className="text-gray-600">Full paper is available (PDF/Doc).</p>
-                                        <a 
-                                            href={selectedAbstract.fullPaperUrl} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="btn-primary inline-flex items-center gap-2 self-start"
-                                        >
-                                            <IconFileText size={20} />
-                                            View Full Paper
-                                        </a>
-                                    </div>
-                                ) : (
-                                    <p className="text-gray-500 italic flex items-center gap-2">
-                                        <IconX size={18} />
-                                        No abstract file uploaded.
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                        <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">
-                            <button onClick={() => setShowViewModal(false)} className="btn-secondary">Close</button>
-                            {selectedAbstract.status === 'pending' && (
-                                <>
-                                    <button
-                                        onClick={() => { setShowViewModal(false); setShowApproveModal(true); }}
-                                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
-                                    >
-                                        <IconCheck size={18} /> Approve
-                                    </button>
-                                    <button
-                                        onClick={() => { setShowViewModal(false); setShowRejectModal(true); }}
-                                        className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2"
-                                    >
-                                        <IconX size={18} /> Reject
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Approve Modal */}
             {showApproveModal && selectedAbstract && (
