@@ -67,7 +67,7 @@ interface Abstract {
         phone: string | null;
         country: string | null;
         institution: string | null;
-    };
+    } | null;
     event: {
         name: string;
         code: string;
