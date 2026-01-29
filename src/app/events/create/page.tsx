@@ -57,6 +57,7 @@ interface TicketData {
     saleEndDate: string;
     allowedRoles: string[];
     sessionIds?: number[];
+    sessionId?: number;
 }
 
 interface EventFormData {
