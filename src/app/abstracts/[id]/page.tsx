@@ -245,7 +245,7 @@ export default function AbstractDetailPage() {
                         <div className="space-y-3 text-sm">
                             <div className="flex items-center gap-3">
                                 <IconUser size={16} className="text-gray-400" />
-                                <span className="font-medium">{abstract.author.firstName} {abstract.author.lastName}</span>
+                                <span className="font-medium text-gray-800">{abstract.author.firstName} {abstract.author.lastName}</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <IconMail size={16} className="text-gray-400" />
@@ -256,19 +256,19 @@ export default function AbstractDetailPage() {
                             {abstract.author.phone && (
                                 <div className="flex items-center gap-3">
                                     <IconPhone size={16} className="text-gray-400" />
-                                    <span>{abstract.author.phone}</span>
+                                    <span className="text-gray-700">{abstract.author.phone}</span>
                                 </div>
                             )}
                             {abstract.author.institution && (
                                 <div className="flex items-center gap-3">
                                     <IconBuilding size={16} className="text-gray-400" />
-                                    <span>{abstract.author.institution}</span>
+                                    <span className="text-gray-700">{abstract.author.institution}</span>
                                 </div>
                             )}
                             {abstract.author.country && (
                                 <div className="flex items-center gap-3">
                                     <IconMapPin size={16} className="text-gray-400" />
-                                    <span>{abstract.author.country}</span>
+                                    <span className="text-gray-700">{abstract.author.country}</span>
                                 </div>
                             )}
                         </div>
@@ -284,8 +284,8 @@ export default function AbstractDetailPage() {
                             <div className="space-y-3">
                                 {abstract.coAuthors.map((ca, idx) => (
                                     <div key={ca.id} className="p-3 bg-gray-50 rounded-lg text-sm">
-                                        <div className="font-medium">{idx + 1}. {ca.firstName} {ca.lastName}</div>
-                                        <div className="text-gray-500">{ca.email}</div>
+                                        <div className="font-medium text-gray-800">{idx + 1}. {ca.firstName} {ca.lastName}</div>
+                                        <div className="text-gray-600">{ca.email}</div>
                                         {(ca.institution || ca.country) && (
                                             <div className="text-gray-400 text-xs mt-1">
                                                 {ca.institution}{ca.country && `, ${ca.country}`}
@@ -305,25 +305,25 @@ export default function AbstractDetailPage() {
                                 <span className="text-gray-500 flex items-center gap-2">
                                     <IconCalendar size={16} /> Event
                                 </span>
-                                <span className="font-medium">{abstract.event.name}</span>
+                                <span className="font-medium text-gray-800">{abstract.event.name}</span>
                             </div>
                             <div className="flex items-center justify-between py-2 border-b border-gray-100">
                                 <span className="text-gray-500 flex items-center gap-2">
                                     <IconTag size={16} /> Category
                                 </span>
-                                <span className="font-medium text-right">{categoryLabels[abstract.category] || abstract.category}</span>
+                                <span className="font-medium text-right text-gray-800">{categoryLabels[abstract.category] || abstract.category}</span>
                             </div>
                             <div className="flex items-center justify-between py-2 border-b border-gray-100">
                                 <span className="text-gray-500 flex items-center gap-2">
                                     <IconPresentation size={16} /> Presentation
                                 </span>
-                                <span className="font-medium capitalize">{abstract.presentationType || 'Not specified'}</span>
+                                <span className="font-medium capitalize text-gray-800">{abstract.presentationType || 'Not specified'}</span>
                             </div>
                             <div className="flex items-center justify-between py-2">
                                 <span className="text-gray-500 flex items-center gap-2">
                                     <IconCalendar size={16} /> Submitted
                                 </span>
-                                <span className="font-medium">{new Date(abstract.createdAt).toLocaleString()}</span>
+                                <span className="font-medium text-gray-800">{new Date(abstract.createdAt).toLocaleString()}</span>
                             </div>
                         </div>
                     </div>
@@ -358,7 +358,7 @@ export default function AbstractDetailPage() {
                             </h3>
                         </div>
                         <div className="p-6">
-                            <p className="mb-4">Are you sure you want to approve this abstract?</p>
+                            <p className="mb-4 text-gray-600">Are you sure you want to approve this abstract?</p>
                             <div className="text-left">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Comments (optional)</label>
                                 <textarea
@@ -396,7 +396,7 @@ export default function AbstractDetailPage() {
                             </h3>
                         </div>
                         <div className="p-6">
-                            <p className="mb-4">Are you sure you want to reject this abstract?</p>
+                            <p className="mb-4 text-gray-600">Are you sure you want to reject this abstract?</p>
                             <div className="text-left">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Reason / Comments</label>
                                 <textarea

@@ -57,13 +57,13 @@
   --color-foreground: var(--foreground);
   --color-primary: var(--primary-500);
   --color-primary-hover: var(--primary-600);
-  --font-sans: 'Inter', 'Noto Sans Thai', sans-serif;
+  --font-sans: "Inter", "Noto Sans Thai", sans-serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Inter', 'Noto Sans Thai', sans-serif;
+  font-family: "Inter", "Noto Sans Thai", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -82,7 +82,11 @@ body {
 }
 
 .input-field {
-  @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all;
+  @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-gray-800 bg-white;
+}
+
+.input-field::placeholder {
+  @apply text-gray-400;
 }
 
 /* Sidebar Styles */
@@ -126,6 +130,10 @@ body {
 
 .data-table tr:hover td {
   @apply bg-gray-50;
+}
+
+.data-table td {
+  @apply text-gray-700;
 }
 
 /* Badge Styles */

@@ -343,8 +343,8 @@ export default function VerificationPage() {
                     <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-semibold flex items-center gap-2">
-                                    <IconId size={20} /> Verification Details
+                                <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800">
+                                    <IconId size={20} /> -Verification Details
                                 </h3>
                                 <button onClick={() => setShowViewModal(false)} className="text-gray-400 hover:text-gray-600">
                                     <IconX size={20} />
@@ -371,35 +371,35 @@ export default function VerificationPage() {
                             <div className="grid grid-cols-2 gap-4 mb-6">
                                 <div>
                                     <p className="text-sm text-gray-500">Full Name</p>
-                                    <p className="font-semibold">{selectedVerification.name}</p>
+                                    <p className="font-semibold text-gray-800">{selectedVerification.name}</p>
                                 </div>
                                 <div>
                                     <p className="text-sm text-gray-500">Email</p>
-                                    <p>{selectedVerification.email}</p>
+                                    <p className="text-gray-700">{selectedVerification.email}</p>
                                 </div>
                                 <div>
                                     <p className="text-sm text-gray-500">University</p>
-                                    <p className="font-semibold">{selectedVerification.university}</p>
+                                    <p className="font-semibold text-gray-800">{selectedVerification.university}</p>
                                 </div>
                                 <div>
                                     <p className="text-sm text-gray-500">Student ID</p>
-                                    <p className="font-mono">{selectedVerification.studentId}</p>
+                                    <p className="font-mono text-gray-700">{selectedVerification.studentId}</p>
                                 </div>
                                 <div>
                                     <p className="text-sm text-gray-500">Registration Code</p>
-                                    <p className="font-mono">{selectedVerification.registrationCode}</p>
+                                    <p className="font-mono text-gray-700">{selectedVerification.registrationCode}</p>
                                 </div>
                                 <div>
                                     <p className="text-sm text-gray-500">Submitted</p>
-                                    <p>{new Date(selectedVerification.submittedAt).toLocaleString('th-TH')}</p>
+                                    <p className="text-gray-700">{new Date(selectedVerification.submittedAt).toLocaleString('th-TH')}</p>
                                 </div>
                             </div>
 
                             <div className="bg-gray-50 p-4 rounded-lg">
-                                <h5 className="font-semibold mb-3 flex items-center gap-2">
+                                <h5 className="font-semibold mb-3 flex items-center gap-2 text-gray-800">
                                     <IconPhoto size={18} /> Uploaded Document
                                 </h5>
-                                <p className="text-sm text-gray-500 mb-2">{selectedVerification.documentType}</p>
+                                <p className="text-sm text-gray-600 mb-2">{selectedVerification.documentType}</p>
                                 <div className="border border-gray-200 rounded-lg overflow-hidden bg-white p-8 text-center">
                                     {selectedVerification.documentUrl ? (
                                         <object
@@ -474,16 +474,16 @@ export default function VerificationPage() {
                             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <IconCheck size={32} className="text-green-600" />
                             </div>
-                            <p className="mb-2">Approve student verification for:</p>
+                            <p className="mb-2 text-gray-600">Approve student verification for:</p>
                             <p className="text-xl font-semibold text-gray-800">{selectedVerification.name}</p>
                             <p className="text-gray-500">{selectedVerification.university}</p>
 
-                            <div className="mt-4 bg-blue-50 p-3 rounded-lg text-left text-sm">
-                                <p className="font-semibold text-blue-800">What happens next:</p>
-                                <ul className="list-disc list-inside text-blue-700 mt-1">
+                            <div className="mt-4 bg-blue-50 p-3 rounded-lg text-left text-sm border border-blue-200">
+                                <p className="font-semibold text-blue-900">What happens next:</p>
+                                <ul className="list-disc list-inside text-blue-800 mt-1">
                                     <li>Registration will be updated to student rate</li>
                                     <li>User will receive confirmation email</li>
-                                    <li>Student badge will be added to registration</li>
+                                    <li className="text-blue-800">Student badge will be added to registration</li>
                                 </ul>
                             </div>
                         </div>
@@ -510,7 +510,7 @@ export default function VerificationPage() {
                             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <IconX size={32} className="text-red-600" />
                             </div>
-                            <p className="text-center mb-2">Reject verification for:</p>
+                            <p className="text-center mb-2 text-gray-600">Reject verification for:</p>
                             <p className="text-center text-xl font-semibold text-gray-800 mb-4">{selectedVerification.name}</p>
 
                             <div className="text-left">

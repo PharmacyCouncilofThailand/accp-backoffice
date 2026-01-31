@@ -344,7 +344,7 @@ export default function AbstractsPage() {
                     </p>
                     <div className="flex gap-2">
                         <button
-                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
+                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-black-600 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
                             disabled={page <= 1}
                             onClick={() => setPage(p => p - 1)}
                         >
@@ -352,7 +352,7 @@ export default function AbstractsPage() {
                         </button>
                         <span className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm">{page}</span>
                         <button
-                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
+                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-black-600 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
                             disabled={page >= totalPages}
                             onClick={() => setPage(p => p + 1)}
                         >
@@ -373,7 +373,7 @@ export default function AbstractsPage() {
                             </h3>
                         </div>
                         <div className="p-6 text-center">
-                            <p className="mb-2">Approve this abstract?</p>
+                            <p className="mb-2 text-gray-600">Approve this abstract?</p>
                             <p className="font-semibold text-gray-800">{selectedAbstract.title.substring(0, 50)}...</p>
 
                             <div className="mt-4 text-left">
@@ -411,7 +411,7 @@ export default function AbstractsPage() {
                             </h3>
                         </div>
                         <div className="p-6 text-center">
-                            <p className="mb-2">Reject this abstract?</p>
+                            <p className="mb-2 text-gray-600">Reject this abstract?</p>
                             <p className="font-semibold text-gray-800">{selectedAbstract.title.substring(0, 50)}...</p>
 
                             <div className="mt-4 text-left">
