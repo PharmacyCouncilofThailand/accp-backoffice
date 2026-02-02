@@ -12,7 +12,6 @@ import {
     IconSearch,
     IconCheck,
     IconX,
-    IconMail,
     IconBrandLinkedin,
     IconWorld,
     IconLoader2,
@@ -33,7 +32,6 @@ interface Speaker {
     id: number;
     firstName: string;
     lastName: string;
-    email: string | null;
     bio: string | null;
     organization: string | null;
     position: string | null;
@@ -58,6 +56,8 @@ export default function SpeakersPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [eventFilter, setEventFilter] = useState<number | null>(null);
+    const [sessionFilter, setSessionFilter] = useState<number | null>(null);
+    const [allSessions, setAllSessions] = useState<any[]>([]);
 
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
@@ -73,16 +73,16 @@ export default function SpeakersPage() {
         lastName: '',
         title: '',
         organization: '',
-        email: '',
         bio: '',
         photoUrl: '',
-        selectedEventIds: [] as number[],
+        assignments: [] as { eventId: number; sessionId: number | null }[],
     });
 
     useEffect(() => {
         fetchSpeakers();
         fetchEvents();
-    }, [eventFilter]);
+        fetchAllSessions();
+    }, [eventFilter, sessionFilter]);
 
     const fetchEvents = async () => {
         try {
@@ -98,24 +98,39 @@ export default function SpeakersPage() {
         }
     };
 
-    const [speakerEventMap, setSpeakerEventMap] = useState<{ [speakerId: number]: number[] }>({});
+    const fetchAllSessions = async () => {
+        try {
+            const token = localStorage.getItem('backoffice_token') || '';
+            const res = await api.sessions.list(token, 'limit=1000');
+            setAllSessions(res.sessions || []);
+        } catch (error) {
+            console.error('Failed to fetch all sessions:', error);
+        }
+    };
+
+    const [speakerAssignmentMap, setSpeakerAssignmentMap] = useState<{ [speakerId: number]: { eventId: number; sessionId: number | null }[] }>({});
 
     const fetchSpeakers = async () => {
         setIsLoading(true);
         try {
             const token = localStorage.getItem('backoffice_token') || '';
-            const query = eventFilter ? `eventId=${eventFilter}` : undefined;
-            
-            const data = await api.speakers.list(token, query);
+            const params = new URLSearchParams();
+            if (eventFilter) params.append('eventId', eventFilter.toString());
+            if (sessionFilter) params.append('sessionId', sessionFilter.toString());
+
+            const data = await api.speakers.list(token, params.toString());
             setSpeakers((data.speakers || []) as unknown as Speaker[]);
 
-            // Build speaker -> eventIds map
-            const map: { [speakerId: number]: number[] } = {};
+            // Build speaker -> assignments map
+            const map: { [speakerId: number]: { eventId: number; sessionId: number | null }[] } = {};
             (data.eventSpeakers || []).forEach((es: any) => {
                 if (!map[es.speakerId]) map[es.speakerId] = [];
-                map[es.speakerId].push(es.eventId);
+                map[es.speakerId].push({
+                    eventId: es.eventId,
+                    sessionId: es.sessionId
+                });
             });
-            setSpeakerEventMap(map);
+            setSpeakerAssignmentMap(map);
         } catch (error) {
             console.error('Failed to fetch speakers:', error);
         } finally {
@@ -141,12 +156,11 @@ export default function SpeakersPage() {
         const fullName = `${speaker.firstName} ${speaker.lastName}`.toLowerCase();
         const search = searchTerm.toLowerCase();
         return fullName.includes(search) ||
-            (speaker.organization?.toLowerCase() || '').includes(search) ||
-            (speaker.email?.toLowerCase() || '').includes(search);
+            (speaker.organization?.toLowerCase() || '').includes(search);
     });
 
     const resetForm = () => {
-        setFormData({ firstName: '', lastName: '', title: '', organization: '', email: '', bio: '', photoUrl: '', selectedEventIds: [] });
+        setFormData({ firstName: '', lastName: '', title: '', organization: '', bio: '', photoUrl: '', assignments: [] });
     };
 
     const openEditModal = (speaker: Speaker) => {
@@ -156,10 +170,9 @@ export default function SpeakersPage() {
             lastName: speaker.lastName,
             title: speaker.position || '',
             organization: speaker.organization || '',
-            email: speaker.email || '',
             bio: speaker.bio || '',
             photoUrl: speaker.photoUrl || '',
-            selectedEventIds: speakerEventMap[speaker.id] || [],
+            assignments: speakerAssignmentMap[speaker.id] || [],
         });
         setShowEditModal(true);
     };
@@ -171,7 +184,6 @@ export default function SpeakersPage() {
             const payload = {
                 firstName: formData.firstName,
                 lastName: formData.lastName,
-                email: formData.email,
                 organization: formData.organization,
                 position: formData.title,
                 bio: formData.bio,
@@ -179,15 +191,15 @@ export default function SpeakersPage() {
             };
             const result = await api.speakers.create(token, payload);
 
-            // Assign speaker to events if any selected
-            if (result?.speaker?.id && formData.selectedEventIds.length > 0) {
+            // Assign speaker to sessions/events if any selected
+            if (result?.speaker?.id && formData.assignments.length > 0) {
                 await fetch(`${API_URL}/api/backoffice/speakers/${result.speaker.id}/events`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ eventIds: formData.selectedEventIds }),
+                    body: JSON.stringify({ assignments: formData.assignments }),
                 });
             }
 
@@ -210,7 +222,6 @@ export default function SpeakersPage() {
             const payload = {
                 firstName: formData.firstName,
                 lastName: formData.lastName,
-                email: formData.email,
                 organization: formData.organization,
                 position: formData.title,
                 bio: formData.bio,
@@ -218,14 +229,14 @@ export default function SpeakersPage() {
             };
             await api.speakers.update(token, selectedSpeaker.id, payload);
 
-            // Update speaker event assignments
+            // Update speaker assignments
             await fetch(`${API_URL}/api/backoffice/speakers/${selectedSpeaker.id}/events`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ eventIds: formData.selectedEventIds }),
+                body: JSON.stringify({ assignments: formData.assignments }),
             });
 
             await fetchSpeakers();
@@ -278,8 +289,12 @@ export default function SpeakersPage() {
                 <span className="text-sm font-medium text-gray-700">Select Event:</span>
                 <select
                     value={eventFilter || ''}
-                    onChange={(e) => setEventFilter(e.target.value ? parseInt(e.target.value) : null)}
-                    className="input-field pr-8 min-w-[250px] font-semibold bg-white"
+                    onChange={(e) => {
+                        const val = e.target.value ? parseInt(e.target.value) : null;
+                        setEventFilter(val);
+                        setSessionFilter(null);
+                    }}
+                    className="input-field pr-8 min-w-[200px] font-semibold bg-white"
                 >
                     <option value="">All Events</option>
                     {events.map(event => (
@@ -287,6 +302,23 @@ export default function SpeakersPage() {
                             {event.eventName}
                         </option>
                     ))}
+                </select>
+
+                <span className="text-sm font-medium text-gray-700 ml-4">Select Session:</span>
+                <select
+                    value={sessionFilter || ''}
+                    onChange={(e) => setSessionFilter(e.target.value ? parseInt(e.target.value) : null)}
+                    className="input-field pr-8 min-w-[200px] font-semibold bg-white disabled:opacity-50"
+                    disabled={!eventFilter}
+                >
+                    <option value="">All Sessions</option>
+                    {allSessions
+                        .filter(s => !eventFilter || s.eventId === eventFilter)
+                        .map(session => (
+                            <option key={session.id} value={session.id}>
+                                {session.sessionName} ({session.sessionCode})
+                            </option>
+                        ))}
                 </select>
             </div>
 
@@ -334,17 +366,22 @@ export default function SpeakersPage() {
                         {filteredSpeakers.map((speaker) => (
                             <div key={speaker.id} className="border border-gray-100 rounded-xl p-4 hover:shadow-md transition-shadow">
                                 {/* Event badges - at top for visibility */}
-                                {speakerEventMap[speaker.id]?.length > 0 && (
+                                {speakerAssignmentMap[speaker.id]?.length > 0 && (
                                     <div className="mb-3 flex flex-wrap gap-1">
-                                        {speakerEventMap[speaker.id].map(eventId => {
-                                            const event = events.find(e => e.id === eventId);
+                                        {speakerAssignmentMap[speaker.id].map((asgn, idx) => {
+                                            const event = events.find(e => e.id === asgn.eventId);
+                                            const session = allSessions.find(s => s.id === asgn.sessionId);
                                             return event ? (
                                                 <span
-                                                    key={eventId}
-                                                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full"
+                                                    key={`${asgn.eventId}-${asgn.sessionId}-${idx}`}
+                                                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-100"
+                                                    title={session ? `Session: ${session.sessionName}` : 'Event assignment'}
                                                 >
                                                     <IconCalendarEvent size={12} />
                                                     {event.eventCode}
+                                                    {session && (
+                                                        <> - <span className="font-bold">{session.sessionCode}</span></>
+                                                    )}
                                                 </span>
                                             ) : null;
                                         })}
@@ -375,13 +412,7 @@ export default function SpeakersPage() {
                                 <div className="mt-4">
                                     <p className="text-sm text-gray-600 line-clamp-2">{speaker.bio}</p>
                                 </div>
-                                <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
-                                    <div className="flex gap-2">
-                                        {/* Social links placeholders */}
-                                        <button className="p-1.5 hover:bg-gray-100 rounded text-gray-500" title="Email">
-                                            <IconMail size={18} />
-                                        </button>
-                                    </div>
+                                <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end items-center">
                                     <div className="flex gap-1">
                                         <button
                                             onClick={() => openEditModal(speaker)}
@@ -466,17 +497,6 @@ export default function SpeakersPage() {
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                <input
-                                    type="email"
-                                    className="input-field"
-                                    placeholder="speaker@email.com"
-                                    value={formData.email}
-                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                // Make email optional if backend allows, schema says optional().or('')
-                                />
-                            </div>
-                            <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Bio</label>
                                 <textarea
                                     className="input-field h-24"
@@ -540,38 +560,80 @@ export default function SpeakersPage() {
                                 </div>
                             </div>
 
-                            {/* Event Assignment */}
+                            {/* Session Assignment */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    <IconCalendarEvent size={16} className="inline mr-1" /> Assign to Events
+                                    <IconCalendarEvent size={16} className="inline mr-1" /> Assign to Sessions
                                 </label>
-                                <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto">
+                                <div className="border border-gray-200 rounded-lg max-h-60 overflow-y-auto divide-y divide-gray-100">
                                     {events.length === 0 ? (
                                         <p className="p-3 text-sm text-gray-400">No events available</p>
                                     ) : (
-                                        events.map(event => (
-                                            <label key={event.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={formData.selectedEventIds.includes(event.id)}
-                                                    onChange={() => {
-                                                        const ids = formData.selectedEventIds.includes(event.id)
-                                                            ? formData.selectedEventIds.filter(id => id !== event.id)
-                                                            : [...formData.selectedEventIds, event.id];
-                                                        setFormData({ ...formData, selectedEventIds: ids });
-                                                    }}
-                                                    className="w-4 h-4 text-blue-600 rounded"
-                                                />
-                                                <div>
-                                                    <p className="font-medium text-sm">{event.eventCode}</p>
-                                                    <p className="text-xs text-gray-500">{event.eventName}</p>
+                                        events.map(event => {
+                                            const eventSessions = allSessions.filter(s => s.eventId === event.id);
+                                            const isEventSelected = formData.assignments.some(a => a.eventId === event.id && a.sessionId === null);
+
+                                            return (
+                                                <div key={event.id} className="p-3 bg-gray-50/50">
+                                                    <label className="flex items-center gap-3 cursor-pointer group">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isEventSelected}
+                                                            onChange={() => {
+                                                                const exists = formData.assignments.some(a => a.eventId === event.id && a.sessionId === null);
+                                                                const otherAssignments = formData.assignments.filter(a => !(a.eventId === event.id && a.sessionId === null));
+
+                                                                setFormData({
+                                                                    ...formData,
+                                                                    assignments: exists ? otherAssignments : [...otherAssignments, { eventId: event.id, sessionId: null }]
+                                                                });
+                                                            }}
+                                                            className="w-4 h-4 text-blue-600 rounded border-gray-300"
+                                                        />
+                                                        <div className="flex-1">
+                                                            <p className="font-bold text-sm text-blue-700">{event.eventCode}</p>
+                                                            <p className="text-xs text-gray-500">{event.eventName}</p>
+                                                        </div>
+                                                        <span className="text-[10px] font-bold text-gray-400 border border-gray-200 px-1 rounded bg-white">EVENT</span>
+                                                    </label>
+
+                                                    {/* Sessions for this event */}
+                                                    {eventSessions.length > 0 && (
+                                                        <div className="mt-2 ml-7 space-y-2 border-l-2 border-gray-100 pl-3">
+                                                            {eventSessions.map(session => {
+                                                                const isSessionSelected = formData.assignments.some(a => a.sessionId === session.id);
+                                                                return (
+                                                                    <label key={session.id} className="flex items-center gap-3 cursor-pointer group">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={isSessionSelected}
+                                                                            onChange={() => {
+                                                                                const exists = formData.assignments.some(a => a.sessionId === session.id);
+                                                                                const otherAssignments = formData.assignments.filter(a => a.sessionId !== session.id);
+
+                                                                                setFormData({
+                                                                                    ...formData,
+                                                                                    assignments: exists ? otherAssignments : [...otherAssignments, { eventId: event.id, sessionId: session.id }]
+                                                                                });
+                                                                            }}
+                                                                            className="w-4 h-4 text-indigo-600 rounded border-gray-300"
+                                                                        />
+                                                                        <div>
+                                                                            <p className="text-xs font-semibold text-gray-700">{session.sessionName}</p>
+                                                                            <p className="text-[10px] text-gray-400 font-mono">{session.sessionCode}</p>
+                                                                        </div>
+                                                                    </label>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            </label>
-                                        ))
+                                            );
+                                        })
                                     )}
                                 </div>
                                 <p className="text-xs text-gray-400 mt-1">
-                                    Selected: {formData.selectedEventIds.length} event(s)
+                                    Selected: {formData.assignments.length} assignment(s)
                                 </p>
                             </div>
                         </div>

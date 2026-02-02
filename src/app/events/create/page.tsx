@@ -38,11 +38,13 @@ interface SessionData {
     id?: number;
     sessionCode: string;
     sessionName: string;
+    sessionType: 'workshop' | 'gala_dinner' | 'lecture' | 'ceremony' | 'break' | 'other';
     description: string;
     room: string;
     startTime: string;
     endTime: string;
     maxCapacity: number;
+    isMainSession?: boolean;
     selectedSpeakerIds?: number[];
 }
 
@@ -116,6 +118,11 @@ export default function CreateEventPage() {
     const [editingTicketId, setEditingTicketId] = useState<number | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+    const [draftLoaded, setDraftLoaded] = useState(false);
+
+    // Draft storage key
+    const DRAFT_KEY = 'event_create_draft';
 
     // Event form data
     const [formData, setFormData] = useState<EventFormData>({
@@ -138,6 +145,53 @@ export default function CreateEventPage() {
     const [tickets, setTickets] = useState<TicketData[]>([]);
     const [speakers, setSpeakers] = useState<Speaker[]>([]);
 
+    // Load draft from localStorage on mount
+    useEffect(() => {
+        // Check if this is a reload vs fresh navigation
+        // We use sessionStorage to flag a reload
+        const isReload = sessionStorage.getItem('event_create_reload');
+
+        if (!isReload) {
+            // Fresh visit: Clear any stale draft
+            localStorage.removeItem(DRAFT_KEY);
+        } else {
+            // Reload: Consume the flag and allow draft to load
+            sessionStorage.removeItem('event_create_reload');
+        }
+
+        const saved = localStorage.getItem(DRAFT_KEY);
+        if (saved) {
+            try {
+                const draft = JSON.parse(saved);
+                if (draft.formData) setFormData(draft.formData);
+                const hasSessions = draft.sessions && draft.sessions.length > 0;
+                if (hasSessions) setSessions(draft.sessions);
+                if (draft.tickets) setTickets(draft.tickets);
+                // Only restore step if we have valid data, otherwise default to 1
+                if (draft.currentStep) setCurrentStep(draft.currentStep);
+
+                toast.success('Draft restored from previous session');
+            } catch (e) {
+                console.error('Failed to load draft:', e);
+            }
+        }
+        setDraftLoaded(true);
+
+        // Set up beforeunload handler to flag reloads
+        const handleBeforeUnload = () => {
+            sessionStorage.setItem('event_create_reload', 'true');
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, []);
+
+    // Save draft to localStorage when state changes
+    useEffect(() => {
+        if (!draftLoaded) return; // Don't save until initial load is complete
+        const draft = { formData, sessions, tickets, currentStep };
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    }, [formData, sessions, tickets, currentStep, draftLoaded]);
+
     useEffect(() => {
         const fetchSpeakers = async () => {
             try {
@@ -155,12 +209,14 @@ export default function CreateEventPage() {
     const [sessionForm, setSessionForm] = useState<SessionData>({
         sessionCode: '',
         sessionName: '',
+        sessionType: 'other',
         description: '',
         room: '',
         startTime: '',
         endTime: '',
         maxCapacity: 50,
         selectedSpeakerIds: [],
+        isMainSession: false,
     });
 
     // Ticket form data
@@ -192,23 +248,62 @@ export default function CreateEventPage() {
         { id: 4, icon: IconPhoto, label: 'Venue/Images' },
     ];
 
-    // Check if Sessions step should be shown (only for multi_session events)
-    const shouldShowSessions = formData.eventType === 'multi_session';
+    // Always show sessions step for all event types
+    const shouldShowSessions = true;
+
+    // Validate Step 1: Event Details
+    const validateStep1 = (): boolean => {
+        const errors: Record<string, string> = {};
+
+        if (!formData.eventCode.trim()) errors.eventCode = 'Event Code is required';
+        if (!formData.eventName.trim()) errors.eventName = 'Event Name is required';
+        if (!formData.startDate) errors.startDate = 'Start Date is required';
+        if (!formData.endDate) errors.endDate = 'End Date is required';
+        if (formData.startDate && formData.endDate && formData.startDate > formData.endDate) {
+            errors.endDate = 'End Date must be after Start Date';
+        }
+
+        setValidationErrors(errors);
+        return Object.keys(errors).length === 0;
+    };
 
     const goToStep = (step: Step) => {
         if (step >= 1 && step <= 4) {
-            // Skip step 2 if single room
-            if (!shouldShowSessions && step === 2) {
-                return;
+            // Only allow going to previous steps or current step
+            if (step <= currentStep) {
+                setCurrentStep(step);
             }
-            setCurrentStep(step);
         }
     };
 
-    // Navigate to next step, skipping Sessions if single room
+    // Navigate to next step with validation
     const goToNextStep = () => {
         if (currentStep === 1) {
-            setCurrentStep(shouldShowSessions ? 2 : 3);
+            if (!validateStep1()) {
+                toast.error('Please fill in all required fields');
+                return;
+            }
+
+            // Auto-create default MAIN session if no sessions exist
+            if (sessions.length === 0) {
+                const defaultSession: SessionData = {
+                    id: Date.now(),
+                    sessionCode: `${formData.eventCode}-MAIN`,
+                    sessionName: formData.eventName,
+                    sessionType: 'lecture', // Default for main session
+                    description: formData.description, // Copy event description to learning objectives
+                    room: formData.location || '',
+                    startTime: formData.startDate || '',
+                    endTime: formData.endDate || '',
+                    maxCapacity: formData.maxCapacity || 100,
+                    isMainSession: true, // Mark as Main Session
+                    selectedSpeakerIds: [],
+                };
+                setSessions([defaultSession]);
+                toast.success('Main session created automatically');
+            }
+
+            setCurrentStep(2);
         } else if (currentStep === 2) {
             setCurrentStep(3);
         } else if (currentStep === 3) {
@@ -216,12 +311,12 @@ export default function CreateEventPage() {
         }
     };
 
-    // Navigate to previous step, skipping Sessions if single room
+    // Navigate to previous step
     const goToPreviousStep = () => {
         if (currentStep === 4) {
             setCurrentStep(3);
         } else if (currentStep === 3) {
-            setCurrentStep(shouldShowSessions ? 2 : 1);
+            setCurrentStep(2);
         } else if (currentStep === 2) {
             setCurrentStep(1);
         }
@@ -239,18 +334,26 @@ export default function CreateEventPage() {
             setEditingSessionId(null);
         } else {
             // Add new session
-            setSessions(prev => [...prev, { ...sessionForm, id: Date.now() }]);
+            const newSession: SessionData = {
+                ...sessionForm,
+                id: Date.now(),
+                // If this is the first session, force it to be Main Session if none exists
+                isMainSession: sessions.length === 0 || sessionForm.isMainSession
+            };
+            setSessions(prev => [...prev, newSession]);
         }
 
         setSessionForm({
             sessionCode: '',
             sessionName: '',
+            sessionType: 'other',
             description: '',
             room: '',
             startTime: '',
             endTime: '',
             maxCapacity: 50,
             selectedSpeakerIds: [],
+            isMainSession: false,
         });
         setShowSessionModal(false);
     };
@@ -260,12 +363,14 @@ export default function CreateEventPage() {
         setSessionForm({
             sessionCode: session.sessionCode,
             sessionName: session.sessionName,
+            sessionType: session.sessionType as any || 'other',
             description: session.description || '',
             room: session.room || '',
             startTime: session.startTime,
             endTime: session.endTime,
             maxCapacity: session.maxCapacity,
             selectedSpeakerIds: session.selectedSpeakerIds || [],
+            isMainSession: session.isMainSession || false,
         });
         setEditingSessionId(session.id!);
         setShowSessionModal(true);
@@ -360,7 +465,7 @@ export default function CreateEventPage() {
 
             // Create sessions and track ID mapping
             const sessionIdMap = new Map<number, number>(); // local ID -> API ID
-            if (shouldShowSessions && sessions.length > 0) {
+            if (sessions.length > 0) {
                 for (const session of sessions) {
                     // Get speaker names from selected IDs
                     const speakerNames = (session.selectedSpeakerIds || []).map(id => {
@@ -377,6 +482,8 @@ export default function CreateEventPage() {
                         endTime: new Date(session.endTime).toISOString(),
                         speakers: JSON.stringify(speakerNames),
                         maxCapacity: session.maxCapacity,
+                        isMainSession: session.isMainSession || false,
+                        sessionType: session.sessionType,
                     });
                     // Map local session ID to API session ID
                     if (session.id && sessionResponse.session) {
@@ -387,9 +494,20 @@ export default function CreateEventPage() {
 
             // Create tickets
             for (const ticket of tickets) {
-                // Map local sessionIds to API sessionIds for add-on tickets
+                // Map local sessionIds to API sessionIds
                 let apiSessionIds: number[] = [];
-                if (ticket.category === 'addon' && ticket.sessionIds && ticket.sessionIds.length > 0) {
+
+                if (ticket.category === 'primary') {
+                    // Auto-link Primary tickets to ALL Main Sessions
+                    const mainSessions = sessions.filter(s => s.isMainSession);
+                    for (const mainSession of mainSessions) {
+                        if (mainSession.id) {
+                            const apiId = sessionIdMap.get(mainSession.id);
+                            if (apiId) apiSessionIds.push(apiId);
+                        }
+                    }
+                } else if (ticket.category === 'addon' && ticket.sessionIds && ticket.sessionIds.length > 0) {
+                    // Link Add-on tickets to selected sessions
                     apiSessionIds = ticket.sessionIds.map(localId => sessionIdMap.get(localId)).filter(id => id !== undefined) as number[];
                 } else if (ticket.category === 'addon' && ticket.sessionId) {
                     // Backward compat for local state if needed
@@ -416,9 +534,12 @@ export default function CreateEventPage() {
             }
 
             toast.success('Event created successfully!');
+            localStorage.removeItem(DRAFT_KEY); // Clear draft on success
             router.push('/events');
         } catch (err: any) {
-            setError(err.message || 'Failed to create event');
+            const errorMessage = err.message || 'Failed to create event';
+            setError(errorMessage);
+            toast.error(errorMessage); // Show toast as well since we might be on Step 4
         } finally {
             setIsSubmitting(false);
         }
@@ -501,7 +622,7 @@ export default function CreateEventPage() {
                             <div className="flex gap-2">
                                 <input
                                     type="text"
-                                    className="input-field flex-1"
+                                    className={`input-field flex-1 ${validationErrors.eventCode ? 'border-red-500' : ''}`}
                                     placeholder="e.g., EVT2026-ABCD"
                                     value={formData.eventCode}
                                     onChange={(e) => setFormData(prev => ({ ...prev, eventCode: e.target.value }))}
@@ -514,6 +635,9 @@ export default function CreateEventPage() {
                                     Generate
                                 </button>
                             </div>
+                            {validationErrors.eventCode && (
+                                <p className="text-red-500 text-xs mt-1">{validationErrors.eventCode}</p>
+                            )}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
@@ -532,11 +656,14 @@ export default function CreateEventPage() {
                         <label className="block text-sm font-medium text-gray-700 mb-1">Event Name *</label>
                         <input
                             type="text"
-                            className="input-field"
+                            className={`input-field ${validationErrors.eventName ? 'border-red-500' : ''}`}
                             placeholder="Enter event name"
                             value={formData.eventName}
                             onChange={(e) => setFormData(prev => ({ ...prev, eventName: e.target.value }))}
                         />
+                        {validationErrors.eventName && (
+                            <p className="text-red-500 text-xs mt-1">{validationErrors.eventName}</p>
+                        )}
                     </div>
 
                     <div className="mb-4">
@@ -551,22 +678,28 @@ export default function CreateEventPage() {
 
                     <div className="grid grid-cols-2 gap-4 mb-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Start Date & Time *</label>
                             <input
-                                type="date"
-                                className="input-field"
+                                type="datetime-local"
+                                className={`input-field ${validationErrors.startDate ? 'border-red-500' : ''}`}
                                 value={formData.startDate}
                                 onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
                             />
+                            {validationErrors.startDate && (
+                                <p className="text-red-500 text-xs mt-1">{validationErrors.startDate}</p>
+                            )}
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">End Date *</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">End Date & Time *</label>
                             <input
-                                type="date"
-                                className="input-field"
+                                type="datetime-local"
+                                className={`input-field ${validationErrors.endDate ? 'border-red-500' : ''}`}
                                 value={formData.endDate}
                                 onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
                             />
+                            {validationErrors.endDate && (
+                                <p className="text-red-500 text-xs mt-1">{validationErrors.endDate}</p>
+                            )}
                         </div>
                     </div>
 
@@ -617,7 +750,8 @@ export default function CreateEventPage() {
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">CPE Credits</label>
                             <input
-                                type="text"
+                                type="number"
+                                step="0.01"
                                 className="input-field"
                                 placeholder="e.g., 6.00"
                                 value={formData.cpeCredits}
@@ -659,61 +793,120 @@ export default function CreateEventPage() {
                         <IconLayoutGrid size={18} /> Add sessions for your multi-session event
                     </div>
 
-                    <button onClick={() => setShowSessionModal(true)} className="btn-secondary mb-4 flex items-center gap-2">
-                        <IconPlus size={18} /> Add Session
-                    </button>
-
-                    {/* Sessions Table */}
-                    {sessions.length > 0 ? (
-                        <div className="overflow-x-auto">
-                            <table className="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Code</th>
-                                        <th>Session Name</th>
-                                        <th>Room</th>
-                                        <th>Time</th>
-                                        <th>Capacity</th>
-                                        <th className="w-24">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {sessions.map((session) => (
-                                        <tr key={session.id}>
-                                            <td className="font-mono text-sm">{session.sessionCode}</td>
-                                            <td>
-                                                <p className="font-medium">{session.sessionName}</p>
-                                                <p className="text-sm text-gray-500">{session.description}</p>
-                                            </td>
-                                            <td>{session.room}</td>
-                                            <td className="text-sm">
-                                                {formatDateTime(session.startTime)}<br />to {formatTime(session.endTime)}
-                                            </td>
-                                            <td>{session.maxCapacity}</td>
-                                            <td className="flex gap-1">
-                                                <button
-                                                    onClick={() => handleEditSession(session)}
-                                                    className="p-1.5 hover:bg-blue-100 rounded"
-                                                >
-                                                    <IconPencil size={18} className="text-blue-600" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteSession(session.id!)}
-                                                    className="p-1.5 hover:bg-red-100 rounded"
-                                                >
-                                                    <IconTrash size={18} className="text-red-600" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : (
-                        <div className="text-center py-8 text-gray-500">
-                            No sessions added yet. Click "Add Session" to create one.
+                    {/* Main Session Section */}
+                    {sessions.filter(s => s.isMainSession).length > 0 && (
+                        <div className="mb-8">
+                            <h4 className="text-md font-semibold text-purple-700 mb-3 uppercase tracking-wider">Main Session</h4>
+                            <div className="grid gap-4">
+                                {sessions.filter(s => s.isMainSession).map(session => (
+                                    <div key={session.id} className="border border-purple-200 bg-purple-50 rounded-lg p-4 flex justify-between items-start">
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded font-mono">{session.sessionCode}</span>
+                                                <span className="bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded uppercase font-bold border border-purple-200">
+                                                    {session.sessionType?.replace('_', ' ') || 'OTHER'}
+                                                </span>
+                                                <h5 className="font-semibold text-gray-900">{session.sessionName}</h5>
+                                            </div>
+                                            <p className="text-sm text-gray-600 mb-2">{session.description || 'No description'}</p>
+                                            <div className="flex gap-4 text-sm text-gray-500">
+                                                <span className="flex items-center gap-1"><IconCheck size={14} /> {session.room || 'No Room'}</span>
+                                                <span className="flex items-center gap-1"><IconCalendarEvent size={14} /> {formatDateTime(session.startTime)} - {formatTime(session.endTime)}</span>
+                                                <span className="flex items-center gap-1"><IconTarget size={14} /> Cap: {session.maxCapacity}</span>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => handleEditSession(session)}
+                                            className="p-2 hover:bg-purple-200 rounded text-purple-700"
+                                            title="Edit Main Session"
+                                        >
+                                            <IconPencil size={18} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
+
+                    {/* Sub Sessions Section */}
+                    <div>
+                        <div className="flex justify-between items-end mb-4">
+                            <h4 className="text-md font-semibold text-gray-700 uppercase tracking-wider">Sub Sessions / Breakouts</h4>
+                            <button onClick={() => {
+                                setSessionForm({
+                                    sessionCode: '',
+                                    sessionName: '',
+                                    sessionType: 'other',
+                                    description: '',
+                                    room: '',
+                                    startTime: '',
+                                    endTime: '',
+                                    maxCapacity: 100,
+                                    selectedSpeakerIds: [],
+                                });
+                                setEditingSessionId(null);
+                                setShowSessionModal(true);
+                            }} className="btn-secondary text-sm py-1.5 px-3 flex items-center gap-1">
+                                <IconPlus size={16} /> Add Session
+                            </button>
+                        </div>
+
+                        {sessions.filter(s => !s.isMainSession).length > 0 ? (
+                            <div className="overflow-x-auto">
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Code</th>
+                                            <th>Session Name</th>
+                                            <th>Room</th>
+                                            <th>Time</th>
+                                            <th>Capacity</th>
+                                            <th className="w-24">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {sessions.filter(s => !s.isMainSession).map((session) => (
+                                            <tr key={session.id}>
+                                                <td className="font-mono text-sm">{session.sessionCode}</td>
+                                                <td>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-medium">{session.sessionName}</p>
+                                                        <span className="bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded uppercase font-bold border border-gray-200">
+                                                            {session.sessionType?.replace('_', ' ') || 'OTHER'}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm text-gray-500">{session.description}</p>
+                                                </td>
+                                                <td>{session.room}</td>
+                                                <td className="text-sm">
+                                                    {formatDateTime(session.startTime)}<br />to {formatTime(session.endTime)}
+                                                </td>
+                                                <td>{session.maxCapacity}</td>
+                                                <td className="flex gap-1">
+                                                    <button
+                                                        onClick={() => handleEditSession(session)}
+                                                        className="p-1.5 hover:bg-blue-100 rounded"
+                                                    >
+                                                        <IconPencil size={18} className="text-blue-600" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteSession(session.id!)}
+                                                        className="p-1.5 hover:bg-red-100 rounded"
+                                                    >
+                                                        <IconTrash size={18} className="text-red-600" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                                <p className="text-gray-500">No sub-sessions added yet.</p>
+                            </div>
+                        )}
+                    </div>
 
                     <hr className="my-6" />
 
@@ -771,6 +964,11 @@ export default function CreateEventPage() {
                                                 <span className="badge ml-1 bg-gray-100 text-gray-700">
                                                     {ticket.allowedRoles[0]?.replace('_', ' ').toUpperCase() || 'ALL'}
                                                 </span>
+                                                {ticket.category === 'primary' && (
+                                                    <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                                                        <IconCheck size={12} /> Includes Main Session
+                                                    </div>
+                                                )}
                                                 {ticket.category === 'addon' && ticket.sessionIds && ticket.sessionIds.length > 0 && (
                                                     <div className="text-xs text-purple-600 mt-1">
                                                         {ticket.sessionIds.length === 1 ? (
@@ -786,8 +984,8 @@ export default function CreateEventPage() {
                                             </td>
                                             <td>{ticket.quota}</td>
                                             <td className="text-sm text-gray-600">
-                                                {ticket.saleStartDate || 'N/A'}
-                                                <br />to {ticket.saleEndDate || 'N/A'}
+                                                {formatDateTime(ticket.saleStartDate)}
+                                                <br />to {formatDateTime(ticket.saleEndDate)}
                                             </td>
                                             <td>
                                                 <div className="flex gap-1">
@@ -937,6 +1135,22 @@ export default function CreateEventPage() {
                                 </div>
                             </div>
 
+                            {/* Primary Ticket - Auto-linked Main Sessions */}
+                            {ticketForm.category === 'primary' && sessions.filter(s => s.isMainSession).length > 0 && (
+                                <div className="mb-4 bg-purple-50 p-3 rounded-md border border-purple-100">
+                                    <p className="text-sm font-medium text-purple-700 mb-2 flex items-center gap-1">
+                                        <IconCheck size={16} /> Automatically linked to Main Session(s):
+                                    </p>
+                                    <div className="space-y-1">
+                                        {sessions.filter(s => s.isMainSession).map(session => (
+                                            <div key={session.id} className="text-sm text-purple-600 pl-5">
+                                                • {session.sessionName}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Session Selector - Only for Add-on tickets (Checkboxes) */}
                             {ticketForm.category === 'addon' && sessions.length > 0 && (
                                 <div className="mb-4">
@@ -944,7 +1158,7 @@ export default function CreateEventPage() {
                                         Link to Sessions/Workshops *
                                     </label>
                                     <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2">
-                                        {sessions.map(session => (
+                                        {sessions.filter(s => !s.isMainSession).map(session => (
                                             <label key={session.id} className="flex items-start gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
                                                 <input
                                                     type="checkbox"
@@ -1015,7 +1229,8 @@ export default function CreateEventPage() {
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Price *</label>
                                     <input
-                                        type="text"
+                                        type="number"
+                                        step="0.01"
                                         className="input-field"
                                         placeholder="3500"
                                         value={ticketForm.price}
@@ -1026,18 +1241,18 @@ export default function CreateEventPage() {
 
                             <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Sale Start Date</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Sale Start Date & Time</label>
                                     <input
-                                        type="date"
+                                        type="datetime-local"
                                         className="input-field"
                                         value={ticketForm.saleStartDate}
                                         onChange={(e) => setTicketForm(prev => ({ ...prev, saleStartDate: e.target.value }))}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Sale End Date</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Sale End Date & Time</label>
                                     <input
-                                        type="date"
+                                        type="datetime-local"
                                         className="input-field"
                                         value={ticketForm.saleEndDate}
                                         onChange={(e) => setTicketForm(prev => ({ ...prev, saleEndDate: e.target.value }))}
@@ -1068,6 +1283,32 @@ export default function CreateEventPage() {
                             </div>
                         </div>
                         <div className="p-6">
+                            {/* Main Session Checkbox - Logic: Show ONLY if it IS Main, OR if No Main exists */}
+                            {(sessionForm.isMainSession || !sessions.some(s => s.isMainSession && s.id !== editingSessionId)) && (
+                                <div className="mb-4">
+                                    <label className="flex items-center gap-2 cursor-pointer p-3 border rounded-lg hover:bg-gray-50 bg-blue-50/50 border-blue-100/50">
+                                        <input
+                                            type="checkbox"
+                                            className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            checked={sessionForm.isMainSession || false}
+                                            onChange={(e) => setSessionForm(prev => ({ ...prev, isMainSession: e.target.checked }))}
+                                            disabled={sessionForm.isMainSession} // Lock if checked
+                                        />
+                                        <div>
+                                            <div className="font-medium text-gray-900">
+                                                Main session
+                                                {sessionForm.isMainSession && (
+                                                    <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                                                        Default (Locked)
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="text-xs text-gray-500">Main sessions appear prominently and are auto-linked to Primary tickets.</div>
+                                        </div>
+                                    </label>
+                                </div>
+                            )}
+
                             {/* Session Code & Session Name */}
                             <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div>
@@ -1090,6 +1331,23 @@ export default function CreateEventPage() {
                                         onChange={(e) => setSessionForm(prev => ({ ...prev, sessionName: e.target.value }))}
                                     />
                                 </div>
+                            </div>
+
+                            {/* Session Type */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Session Type *</label>
+                                <select
+                                    className="input-field"
+                                    value={sessionForm.sessionType}
+                                    onChange={(e) => setSessionForm(prev => ({ ...prev, sessionType: e.target.value as any }))}
+                                >
+                                    <option value="workshop">Workshop</option>
+                                    <option value="gala_dinner">Gala Dinner</option>
+                                    <option value="lecture">Lecture</option>
+                                    <option value="ceremony">Ceremony</option>
+                                    <option value="break">Break</option>
+                                    <option value="other">Other</option>
+                                </select>
                             </div>
 
                             {/* Start Time & End Time */}

@@ -40,7 +40,6 @@ const menuStructure = [
         icon: IconCalendarEvent,
         children: [
             { href: '/events', label: 'All Events' },
-            { href: '/events/create', label: 'Create Event' },
             { href: '/sessions', label: 'Sessions' },
             { href: '/speakers', label: 'Speakers' },
         ],
@@ -126,7 +125,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     const pathname = usePathname();
     const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
     const { isAdmin, logout, user } = useAuth();
-    
+
     // Get user role at component level (not inside map callback)
     const role = user?.role;
 
@@ -196,14 +195,6 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         if (item.label === 'SYSTEM ADMINISTRATION') return null;
         if (item.href === '/users') return null;
         if (item.href === '/settings') return null;
-
-        // Hide Create Event in Event Management
-        if (item.label === 'Events' && item.children) {
-            return {
-                ...item,
-                children: item.children.filter(child => child.href !== '/events/create')
-            };
-        }
 
         return item;
     }).filter(Boolean);

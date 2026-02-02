@@ -148,7 +148,7 @@ export const api = {
 
   speakers: {
     list: (token: string, query?: string) =>
-      fetchAPI<{ speakers: Record<string, unknown>[]; eventSpeakers?: { speakerId: number; eventId: number }[] }>(`/api/backoffice/speakers${query ? `?${query}` : ''}`, { token }),
+      fetchAPI<{ speakers: Record<string, unknown>[]; eventSpeakers?: { speakerId: number; eventId: number; sessionId: number | null }[] }>(`/api/backoffice/speakers${query ? `?${query}` : ''}`, { token }),
     create: (token: string, data: Record<string, unknown>) =>
       fetchAPI<{ speaker: Record<string, unknown> }>('/api/backoffice/speakers', { method: 'POST', body: JSON.stringify(data), token }),
     update: (token: string, id: number, data: Record<string, unknown>) =>
