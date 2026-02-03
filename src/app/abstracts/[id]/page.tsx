@@ -52,6 +52,7 @@ interface AbstractDetail {
   presentationType: string | null;
   keywords: string | null;
   background: string;
+  objective: string;
   methods: string;
   results: string;
   conclusion: string;
@@ -208,6 +209,16 @@ export default function AbstractDetailPage() {
               </h3>
               <p className="text-gray-600 whitespace-pre-wrap leading-relaxed">
                 {abstract.background}
+              </p>
+            </div>
+
+            {/* Objectives */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-5">
+              <h3 className="font-semibold text-gray-700 mb-3 text-base">
+                Objectives
+              </h3>
+              <p className="text-gray-600 whitespace-pre-wrap leading-relaxed">
+                {abstract.objective}
               </p>
             </div>
 
