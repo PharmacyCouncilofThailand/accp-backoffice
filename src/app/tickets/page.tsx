@@ -14,6 +14,7 @@ import {
     IconCopy,
     IconLoader2,
     IconCalendarEvent,
+    IconStar,
 } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
 
@@ -53,6 +54,7 @@ interface EventSession {
     id: number;
     sessionCode: string;
     sessionName: string;
+    isMainSession?: boolean;
 }
 
 interface EventOption {
@@ -139,13 +141,22 @@ export default function TicketsPage() {
             const mappedSessions = res.sessions.map((s: any) => ({
                 id: s.id,
                 sessionCode: s.sessionCode,
-                sessionName: s.sessionName
+                sessionName: s.sessionName,
+                isMainSession: s.isMainSession || false
             }));
             setSessions(mappedSessions);
         } catch (error) {
             console.error('Failed to fetch sessions:', error);
             setSessions([]);
         }
+    };
+
+    const formatDateTimeLocal = (dateStr: string | null | undefined) => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return '';
+        const offset = d.getTimezoneOffset() * 60000;
+        return (new Date(d.getTime() - offset)).toISOString().slice(0, 16);
     };
 
     const fetchTickets = async () => {
@@ -209,6 +220,13 @@ export default function TicketsPage() {
         setIsSubmitting(true);
         try {
             const token = localStorage.getItem('backoffice_token') || '';
+            // Auto-link Primary tickets to Main Sessions
+            let finalSessionIds = formData.category === 'addon' ? formData.sessionIds : [];
+            if (formData.category === 'primary') {
+                const mainSessions = sessions.filter(s => s.isMainSession);
+                finalSessionIds = mainSessions.map(s => s.id);
+            }
+
             // Build payload with only schema-valid fields
             const payload: Record<string, unknown> = {
                 name: formData.name,
@@ -217,7 +235,7 @@ export default function TicketsPage() {
                 currency: formData.currency,
                 quota: formData.quota,
                 allowedRoles: JSON.stringify(formData.allowedRoles),
-                sessionIds: formData.category === 'addon' ? formData.sessionIds : [],
+                sessionIds: finalSessionIds,
             };
             // Convert dates to ISO format only if provided
             if (formData.saleStartDate) {
@@ -247,6 +265,13 @@ export default function TicketsPage() {
         setIsSubmitting(true);
         try {
             const token = localStorage.getItem('backoffice_token') || '';
+            // Auto-link Primary tickets to Main Sessions
+            let finalSessionIds = formData.category === 'addon' ? formData.sessionIds : [];
+            if (formData.category === 'primary') {
+                const mainSessions = sessions.filter(s => s.isMainSession);
+                finalSessionIds = mainSessions.map(s => s.id);
+            }
+
             // Build payload with only schema-valid fields
             const payload: Record<string, unknown> = {
                 name: formData.name,
@@ -255,7 +280,7 @@ export default function TicketsPage() {
                 currency: formData.currency,
                 quota: formData.quota,
                 allowedRoles: JSON.stringify(formData.allowedRoles),
-                sessionIds: formData.category === 'addon' ? formData.sessionIds : [],
+                sessionIds: finalSessionIds,
             };
             // Convert dates to ISO format only if provided
             if (formData.saleStartDate) {
@@ -302,8 +327,8 @@ export default function TicketsPage() {
             price: ticket.price,
             currency: ticket.currency,
             quota: ticket.quota,
-            saleStartDate: ticket.startDate ? new Date(ticket.startDate).toISOString().split('T')[0] : '',
-            saleEndDate: ticket.endDate ? new Date(ticket.endDate).toISOString().split('T')[0] : '',
+            saleStartDate: formatDateTimeLocal(ticket.startDate),
+            saleEndDate: formatDateTimeLocal(ticket.endDate),
             allowedRoles: ticket.allowedRoles,
             sessionIds: ticket.sessionIds || [],
         });
@@ -319,9 +344,9 @@ export default function TicketsPage() {
             price: ticket.price,
             currency: ticket.currency,
             quota: ticket.quota,
-            saleStartDate: ticket.startDate ? new Date(ticket.startDate).toISOString().split('T')[0] : '',
-            saleEndDate: ticket.endDate ? new Date(ticket.endDate).toISOString().split('T')[0] : '',
-            allowedRoles: ticket.type === 'general' ? ['thai_pharmacy'] : [ticket.type], // Simplify for now
+            saleStartDate: formatDateTimeLocal(ticket.startDate),
+            saleEndDate: formatDateTimeLocal(ticket.endDate),
+            allowedRoles: (ticket.allowedRoles && ticket.allowedRoles.length > 0) ? ticket.allowedRoles : ['thai_pharmacy'],
             sessionIds: ticket.sessionIds || [],
         });
         setShowEditModal(true);
@@ -477,7 +502,11 @@ export default function TicketsPage() {
                                                     <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${typeColors[ticket.type] || 'bg-gray-100 text-gray-600'}`}>
                                                         {ticket.type.replace('_', ' ')}
                                                     </span>
-                                                    {ticket.category === 'addon' && ticket.sessionIds && ticket.sessionIds.length > 0 && (
+                                                    {ticket.category === 'primary' ? (
+                                                        <span className="text-[10px] text-blue-600 mt-1 flex items-center gap-1 justify-center">
+                                                            <IconStar size={10} /> Linked to Main
+                                                        </span>
+                                                    ) : ticket.sessionIds && ticket.sessionIds.length > 0 && (
                                                         <span className="text-xs text-purple-600 mt-1">
                                                             → {ticket.sessionIds.length} sessions linked
                                                         </span>
@@ -590,7 +619,7 @@ export default function TicketsPage() {
                                         className="input-field"
                                         value={formData.eventId}
                                         onChange={(e) => setFormData({ ...formData, eventId: Number(e.target.value) })}
-                                        disabled={!showCreateModal} // Disable creating/moving ticket to another event if editing (usually locked)
+                                        disabled={!showCreateModal}
                                     >
                                         {events.map((event) => (
                                             <option key={event.id} value={event.id}>{event.code}</option>
@@ -609,6 +638,23 @@ export default function TicketsPage() {
                                     </select>
                                 </div>
                             </div>
+
+                            {/* Auto-link Notice for Primary Tickets */}
+                            {formData.category === 'primary' && (
+                                <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                                    <div className="flex items-start gap-2">
+                                        <div className="mt-0.5 text-blue-600">
+                                            <IconCheck size={16} />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium text-blue-900">Auto-linked to Main Sessions</p>
+                                            <p className="text-xs text-blue-700 mt-0.5">
+                                                Primary tickets are automatically linked to all Main Sessions of the selected event.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Session Linking for Add-on Tickets */}
                             {formData.category === 'addon' && (
@@ -637,7 +683,14 @@ export default function TicketsPage() {
                                                         }}
                                                     />
                                                     <div>
-                                                        <div className="text-sm font-medium">{session.sessionCode}</div>
+                                                        <div className="text-sm font-medium flex items-center gap-2">
+                                                            {session.sessionCode}
+                                                            {session.isMainSession && (
+                                                                <span className="flex items-center gap-1 text-[10px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 uppercase">
+                                                                    <IconStar size={10} /> Main
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <div className="text-xs text-gray-500">{session.sessionName}</div>
                                                     </div>
                                                 </label>
@@ -714,18 +767,18 @@ export default function TicketsPage() {
 
                             <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Sale Start Date & Time</label>
                                     <input
-                                        type="date"
+                                        type="datetime-local"
                                         className="input-field"
                                         value={formData.saleStartDate}
                                         onChange={(e) => setFormData({ ...formData, saleStartDate: e.target.value })}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Sale End Date & Time</label>
                                     <input
-                                        type="date"
+                                        type="datetime-local"
                                         className="input-field"
                                         value={formData.saleEndDate}
                                         onChange={(e) => setFormData({ ...formData, saleEndDate: e.target.value })}
