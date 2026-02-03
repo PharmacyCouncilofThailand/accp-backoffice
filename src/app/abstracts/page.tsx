@@ -105,6 +105,22 @@ export default function AbstractsPage() {
     return abstractCategories.filter((cat) => assignedCats.includes(cat.id));
   }, [user, isAdmin]);
 
+  // Filter presentation types based on user role
+  // Admin sees all, Reviewer sees only assigned presentation types
+  const availablePresentationTypes = useMemo(() => {
+    if (isAdmin || !user || user.role !== "reviewer") {
+      // Admin and other roles see all presentation types
+      return presentationTypes;
+    }
+    // Reviewer only sees assigned presentation types
+    const assignedTypes = user.assignedPresentationTypes || [];
+    if (assignedTypes.length === 0) {
+      // If no types assigned, show all
+      return presentationTypes;
+    }
+    return presentationTypes.filter((type) => assignedTypes.includes(type.id));
+  }, [user, isAdmin]);
+
   const [selectedAbstract, setSelectedAbstract] = useState<Abstract | null>(
     null,
   );
@@ -250,10 +266,11 @@ export default function AbstractsPage() {
               // Single category - show only that one
               <option value="">{availableCategories[0].label}</option>
             ) : (
-              // Multiple categories - show "All" and individual options
+              // Multiple categories - show "All Categories" if all assigned or if admin
               <>
                 <option value="">
-                  {isAdmin
+                  {isAdmin ||
+                  availableCategories.length === abstractCategories.length
                     ? "All Categories"
                     : `All (${availableCategories.map((c) => c.label).join(", ")})`}
                 </option>
@@ -273,13 +290,22 @@ export default function AbstractsPage() {
               setPage(1);
             }}
             className="input-field w-auto"
+            disabled={availablePresentationTypes.length === 1}
           >
-            <option value="">All Presentation Types</option>
-            {presentationTypes.map((type) => (
-              <option key={type.id} value={type.id}>
-                {type.label}
-              </option>
-            ))}
+            {availablePresentationTypes.length === 1 ? (
+              // Single presentation type - show only that one
+              <option value="">{availablePresentationTypes[0].label}</option>
+            ) : (
+              // Multiple presentation types - show "All Presentation Types"
+              <>
+                <option value="">All Presentation Types</option>
+                {availablePresentationTypes.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.label}
+                  </option>
+                ))}
+              </>
+            )}
           </select>
         </div>
 
