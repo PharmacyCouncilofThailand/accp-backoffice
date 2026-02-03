@@ -43,6 +43,7 @@ interface Verification {
   verifiedAt?: string;
   verifiedBy?: string;
   rejectionReason?: string;
+  resubmissionCount?: number;
 }
 
 // Helper to get proxy URL for Google Drive files
@@ -301,11 +302,19 @@ export default function VerificationPage() {
                               {v.name}
                             </p>
                             <p className="text-sm text-gray-500">{v.email}</p>
-                            <span
-                              className={`inline-flex items-center mt-1 px-2 py-0.5 rounded text-xs font-medium ${roleLabels[v.role]?.className}`}
-                            >
-                              {roleLabels[v.role]?.label}
-                            </span>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${roleLabels[v.role]?.className}`}
+                              >
+                                {roleLabels[v.role]?.label}
+                              </span>
+                              {v.resubmissionCount &&
+                                v.resubmissionCount > 0 && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                                    🔄 Resubmitted ({v.resubmissionCount})
+                                  </span>
+                                )}
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-4">
