@@ -46,6 +46,14 @@ interface Verification {
   resubmissionCount?: number;
 }
 
+interface RejectionHistory {
+  id: number;
+  reason: string;
+  rejectedAt: string;
+  rejectedBy: number | null;
+  rejectedByName: string | null;
+}
+
 // Helper to get proxy URL for Google Drive files
 function getProxyUrl(url: string | null | undefined): string {
   if (!url) return "";
@@ -66,6 +74,10 @@ export default function VerificationPage() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [approveComment, setApproveComment] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [rejectionHistory, setRejectionHistory] = useState<RejectionHistory[]>(
+    [],
+  );
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   // Fetch verifications
   const fetchVerifications = async () => {
@@ -79,6 +91,21 @@ export default function VerificationPage() {
       toast.error("Failed to load verification requests.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Fetch rejection history for a specific user
+  const fetchRejectionHistory = async (userId: string) => {
+    if (!token) return;
+    setIsLoadingHistory(true);
+    try {
+      const data = await api.verifications.getRejectionHistory(token, userId);
+      setRejectionHistory(data.history || []);
+    } catch (error) {
+      console.error("Failed to fetch rejection history:", error);
+      setRejectionHistory([]);
+    } finally {
+      setIsLoadingHistory(false);
     }
   };
 
@@ -378,6 +405,7 @@ export default function VerificationPage() {
                               onClick={() => {
                                 setSelectedVerification(v);
                                 setShowViewModal(true);
+                                fetchRejectionHistory(v.id);
                               }}
                             >
                               <IconEye size={18} />
@@ -557,13 +585,68 @@ export default function VerificationPage() {
                 selectedVerification.rejectionReason && (
                   <div className="mt-4 bg-red-50 p-4 rounded-lg">
                     <p className="text-sm font-semibold text-red-800">
-                      Rejection Reason:
+                      Latest Rejection Reason:
                     </p>
                     <p className="text-red-700">
                       {selectedVerification.rejectionReason}
                     </p>
                   </div>
                 )}
+
+              {/* Rejection History Section */}
+              {isLoadingHistory ? (
+                <div className="mt-4 flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-600"></div>
+                  <span className="ml-2 text-sm text-gray-500">
+                    Loading history...
+                  </span>
+                </div>
+              ) : (
+                rejectionHistory.length > 0 && (
+                  <div className="mt-4 bg-orange-50 p-4 rounded-lg border border-orange-200">
+                    <p className="text-sm font-semibold text-orange-800 mb-3 flex items-center gap-2">
+                      📋 Rejection History ({rejectionHistory.length})
+                    </p>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {rejectionHistory.map((history, index) => (
+                        <div
+                          key={history.id}
+                          className="bg-white p-3 rounded-lg border border-orange-100 shadow-sm"
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-orange-600">
+                              #{rejectionHistory.length - index}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {new Date(history.rejectedAt).toLocaleString(
+                                "th-TH",
+                                {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                },
+                              )}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-700">
+                            {history.reason}
+                          </p>
+                          {history.rejectedByName && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Rejected by:{" "}
+                              <span className="font-medium">
+                                {history.rejectedByName}
+                              </span>
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              )}
             </div>
             <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">
               <button

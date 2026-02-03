@@ -103,6 +103,8 @@ export const api = {
       fetchAPI<{ success: boolean; user: User }>(`/api/backoffice/verifications/${id}/approve`, { method: "POST", body: JSON.stringify({ comment }), token }),
     reject: (token: string, id: string, reason: string) =>
       fetchAPI<{ success: boolean; user: User }>(`/api/backoffice/verifications/${id}/reject`, { method: "POST", body: JSON.stringify({ reason }), token }),
+    getRejectionHistory: (token: string, id: string) =>
+      fetchAPI<{ history: { id: number; reason: string; rejectedAt: string; rejectedBy: number | null; rejectedByName: string | null }[] }>(`/api/backoffice/verifications/${id}/rejection-history`, { token }),
   },
 
   backofficeEvents: {
