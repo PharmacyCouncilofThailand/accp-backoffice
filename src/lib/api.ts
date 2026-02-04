@@ -212,6 +212,15 @@ export const api = {
       fetchAPI<{ promoCode: Record<string, unknown> }>(`/api/backoffice/promo-codes/${id}/toggle`, { method: 'PATCH', token }),
   },
 
+  members: {
+    list: (token: string, query?: string) =>
+      fetchAPI<{ members: Record<string, unknown>[]; pagination: Pagination }>(`/api/backoffice/members${query ? `?${query}` : ''}`, { token }),
+    get: (token: string, id: number) =>
+      fetchAPI<{ member: Record<string, unknown> }>(`/api/backoffice/members/${id}`, { token }),
+    stats: (token: string) =>
+      fetchAPI<{ total: number; byRole: { role: string; count: number }[]; byStatus: { status: string; count: number }[] }>('/api/backoffice/members/stats/summary', { token }),
+  },
+
   // File Upload
   uploadFile: (token: string, file: File, folder: string = 'general') => {
     const formData = new FormData();
