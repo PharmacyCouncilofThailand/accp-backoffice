@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
 import toast from 'react-hot-toast';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import {
     IconCalendarEvent,
     IconPlus,
@@ -506,17 +508,17 @@ export default function SessionsPage() {
                             <p style={{ margin: '0 0 3px 0', fontSize: '11px', color: '#999', textTransform: 'uppercase', fontWeight: 600 }}>
                                 Session Date
                             </p>
-                            <p style={{ margin: 0, fontWeight: 600, fontSize: '13px' }}>
+                            <p style={{ margin: 0, fontWeight: 600, fontSize: '13px', color: '#333' }}>
                                 {new Date(session.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                 <br />
-                                {new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {new Date(session.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} - {new Date(session.endTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
                             </p>
                         </div>
                         <div>
                             <p style={{ margin: '0 0 3px 0', fontSize: '11px', color: '#999', textTransform: 'uppercase', fontWeight: 600 }}>
                                 Duration
                             </p>
-                            <p style={{ margin: 0, fontWeight: 600, fontSize: '13px' }}>
+                            <p style={{ margin: 0, fontWeight: 600, fontSize: '13px', color: '#333' }}>
                                 {(() => {
                                     const start = new Date(session.startTime);
                                     const end = new Date(session.endTime);
@@ -532,7 +534,7 @@ export default function SessionsPage() {
                             <p style={{ margin: '0 0 3px 0', fontSize: '11px', color: '#999', textTransform: 'uppercase', fontWeight: 600 }}>
                                 Room
                             </p>
-                            <p style={{ margin: 0, fontWeight: 600, fontSize: '13px' }}>
+                            <p style={{ margin: 0, fontWeight: 600, fontSize: '13px', color: '#333' }}>
                                 {session.room || 'TBA'}
                             </p>
                         </div>
@@ -555,7 +557,7 @@ export default function SessionsPage() {
                         {(session.speakers || []).length > 0 ? (
                             (session.speakers || []).map((speaker, i) => (
                                 <div key={i} style={{ marginBottom: '8px' }}>
-                                    <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>{speaker}</p>
+                                    <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#333' }}>{speaker}</p>
                                 </div>
                             ))
                         ) : (
@@ -687,7 +689,7 @@ export default function SessionsPage() {
                             placeholder="Search sessions..."
                             value={searchTerm}
                             onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-                            className="input-field pl-10 h-10"
+                            className="input-field-search h-10"
                         />
                     </div>
                     <button
@@ -806,7 +808,7 @@ export default function SessionsPage() {
                 totalPages > 1 && (
                     <div className="flex items-center justify-center gap-2 mt-8">
                         <button
-                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
+                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
                             disabled={page <= 1}
                             onClick={() => setPage(p => p - 1)}
                         >
@@ -814,7 +816,7 @@ export default function SessionsPage() {
                         </button>
                         <span className="text-sm text-gray-600">Page {page} of {totalPages}</span>
                         <button
-                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
+                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
                             disabled={page >= totalPages}
                             onClick={() => setPage(p => p + 1)}
                         >
@@ -924,22 +926,28 @@ export default function SessionsPage() {
                                 {/* Session Date - Start Time */}
                                 <div className="col-span-2 md:col-span-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
-                                    <input
-                                        type="datetime-local"
-                                        className="input-field"
-                                        value={formData.startTime}
-                                        onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                                    <DatePicker
+                                        selected={formData.startTime ? new Date(formData.startTime) : null}
+                                        onChange={(date: Date | null) => setFormData({ ...formData, startTime: date ? date.toISOString() : '' })}
+                                        showTimeSelect
+                                        dateFormat="d MMM yyyy, h:mm aa"
+                                        className="input-field w-full"
+                                        placeholderText="Select start time"
+                                        wrapperClassName="w-full"
                                     />
                                 </div>
 
                                 {/* Session Date - End Time */}
                                 <div className="col-span-2 md:col-span-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
-                                    <input
-                                        type="datetime-local"
-                                        className="input-field"
-                                        value={formData.endTime}
-                                        onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                                    <DatePicker
+                                        selected={formData.endTime ? new Date(formData.endTime) : null}
+                                        onChange={(date: Date | null) => setFormData({ ...formData, endTime: date ? date.toISOString() : '' })}
+                                        showTimeSelect
+                                        dateFormat="d MMM yyyy, h:mm aa"
+                                        className="input-field w-full"
+                                        placeholderText="Select end time"
+                                        wrapperClassName="w-full"
                                     />
                                 </div>
 
@@ -1045,9 +1053,9 @@ export default function SessionsPage() {
                                 </h3>
                             </div>
                             <div className="p-6 text-center">
-                                <p className="mb-2">Are you sure you want to delete this session?</p>
-                                <p className="font-bold text-gray-800 text-lg">{selectedSession.sessionName}</p>
-                                <p className="text-gray-500 text-sm mb-4">{selectedSession.sessionCode}</p>
+                                <p className="mb-2 text-gray-900 font-medium">Are you sure you want to delete this session?</p>
+                                <p className="font-bold text-gray-900 text-lg">{selectedSession.sessionName}</p>
+                                <p className="text-gray-700 text-sm mb-4">{selectedSession.sessionCode}</p>
                             </div>
                             <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
                                 <button onClick={() => setShowDeleteModal(false)} className="btn-secondary" disabled={isSubmitting}>Cancel</button>

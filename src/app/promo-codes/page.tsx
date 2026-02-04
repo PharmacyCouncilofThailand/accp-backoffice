@@ -18,6 +18,8 @@ import {
 } from '@tabler/icons-react';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 const statusColors: { [key: string]: string } = {
     active: 'badge-success',
@@ -198,8 +200,8 @@ export default function PromoCodesPage() {
             discountType: promo.discountType,
             discountValue: parseFloat(promo.discountValue),
             maxUses: promo.maxUses,
-            validFrom: promo.validFrom ? promo.validFrom.split('T')[0] : '',
-            validUntil: promo.validUntil ? promo.validUntil.split('T')[0] : '',
+            validFrom: promo.validFrom || '',
+            validUntil: promo.validUntil || '',
             isActive: true,
         });
         setShowCreateModal(true);
@@ -228,8 +230,8 @@ export default function PromoCodesPage() {
             discountType: promo.discountType,
             discountValue: parseFloat(promo.discountValue),
             maxUses: promo.maxUses,
-            validFrom: promo.validFrom ? promo.validFrom.split('T')[0] : '',
-            validUntil: promo.validUntil ? promo.validUntil.split('T')[0] : '',
+            validFrom: promo.validFrom || '',
+            validUntil: promo.validUntil || '',
             isActive: promo.isActive,
         });
         setShowEditModal(true);
@@ -342,7 +344,7 @@ export default function PromoCodesPage() {
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                            className="input-field pl-10"
+                            className="input-field-search"
                         />
                     </div>
 
@@ -467,14 +469,14 @@ export default function PromoCodesPage() {
                             <button
                                 onClick={() => setPage(p => Math.max(1, p - 1))}
                                 disabled={page === 1}
-                                className="btn-secondary px-3 py-1 disabled:opacity-50"
+                                className="btn-secondary px-3 py-1 text-gray-700 disabled:opacity-50 disabled:text-gray-400"
                             >
                                 Previous
                             </button>
                             <button
                                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                                 disabled={page === totalPages}
-                                className="btn-secondary px-3 py-1 disabled:opacity-50"
+                                className="btn-secondary px-3 py-1 text-gray-700 disabled:opacity-50 disabled:text-gray-400"
                             >
                                 Next
                             </button>
@@ -489,7 +491,7 @@ export default function PromoCodesPage() {
                     <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-semibold flex items-center gap-2">
+                                <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900">
                                     <IconDiscount size={20} /> {showCreateModal ? 'Create Promo Code' : 'Edit Promo Code'}
                                 </h3>
                                 <button
@@ -585,20 +587,26 @@ export default function PromoCodesPage() {
                             <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Valid From</label>
-                                    <input
-                                        type="date"
-                                        className="input-field"
-                                        value={formData.validFrom}
-                                        onChange={(e) => setFormData({ ...formData, validFrom: e.target.value })}
+                                    <DatePicker
+                                        selected={formData.validFrom ? new Date(formData.validFrom) : null}
+                                        onChange={(date: Date | null) => setFormData({ ...formData, validFrom: date ? date.toISOString() : '' })}
+                                        showTimeSelect
+                                        dateFormat="d MMM yyyy, h:mm aa"
+                                        className="input-field w-full"
+                                        placeholderText="Select start date & time"
+                                        wrapperClassName="w-full"
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Valid Until</label>
-                                    <input
-                                        type="date"
-                                        className="input-field"
-                                        value={formData.validUntil}
-                                        onChange={(e) => setFormData({ ...formData, validUntil: e.target.value })}
+                                    <DatePicker
+                                        selected={formData.validUntil ? new Date(formData.validUntil) : null}
+                                        onChange={(date: Date | null) => setFormData({ ...formData, validUntil: date ? date.toISOString() : '' })}
+                                        showTimeSelect
+                                        dateFormat="d MMM yyyy, h:mm aa"
+                                        className="input-field w-full"
+                                        placeholderText="Select end date & time"
+                                        wrapperClassName="w-full"
                                     />
                                 </div>
                             </div>
@@ -649,7 +657,7 @@ export default function PromoCodesPage() {
                             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <IconTrash size={32} className="text-red-600" />
                             </div>
-                            <p className="mb-2">Are you sure you want to delete this promo code?</p>
+                            <p className="mb-2 text-gray-900 font-medium">Are you sure you want to delete this promo code?</p>
                             <p className="font-mono font-semibold text-gray-800 text-lg">{selectedPromo.code}</p>
                             {selectedPromo.usedCount > 0 && (
                                 <p className="text-sm text-yellow-600 mt-2 bg-yellow-50 p-2 rounded">

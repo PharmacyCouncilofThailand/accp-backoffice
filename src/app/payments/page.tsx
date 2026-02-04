@@ -198,7 +198,7 @@ export default function PaymentsPage() {
                             placeholder="Search transaction ID, name, email..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="input-field pl-10 bg-white"
+                            className="input-field-search bg-white"
                         />
                     </div>
 

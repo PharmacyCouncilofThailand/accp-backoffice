@@ -346,7 +346,7 @@ export default function SpeakersPage() {
                             placeholder="Search speakers..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="input-field pl-10"
+                            className="input-field-search"
                         />
                     </div>
                 </div>

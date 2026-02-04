@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/layout';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import { api } from '@/lib/api';
 import {
     IconTicket,
@@ -433,7 +435,7 @@ export default function TicketsPage() {
                             placeholder="Search by name..."
                             value={searchTerm}
                             onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-                            className="input-field pl-10"
+                            className="input-field-search"
                         />
                     </div>
                     <select
@@ -576,7 +578,7 @@ export default function TicketsPage() {
                     </p>
                     <div className="flex gap-2">
                         <button
-                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
+                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
                             disabled={page <= 1}
                             onClick={() => setPage(p => p - 1)}
                         >
@@ -584,7 +586,7 @@ export default function TicketsPage() {
                         </button>
                         <span className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm">{page}</span>
                         <button
-                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
+                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
                             disabled={page >= totalPages}
                             onClick={() => setPage(p => p + 1)}
                         >
@@ -600,7 +602,7 @@ export default function TicketsPage() {
                     <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-semibold flex items-center gap-2">
+                                <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900">
                                     <IconTicket size={20} /> {showCreateModal ? 'Create Ticket' : 'Edit Ticket'}
                                 </h3>
                                 <button
@@ -768,20 +770,26 @@ export default function TicketsPage() {
                             <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Sale Start Date & Time</label>
-                                    <input
-                                        type="datetime-local"
-                                        className="input-field"
-                                        value={formData.saleStartDate}
-                                        onChange={(e) => setFormData({ ...formData, saleStartDate: e.target.value })}
+                                    <DatePicker
+                                        selected={formData.saleStartDate ? new Date(formData.saleStartDate) : null}
+                                        onChange={(date: Date | null) => setFormData({ ...formData, saleStartDate: date ? date.toISOString() : '' })}
+                                        showTimeSelect
+                                        dateFormat="d MMM yyyy, h:mm aa"
+                                        className="input-field w-full"
+                                        placeholderText="Select start date & time"
+                                        wrapperClassName="w-full"
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Sale End Date & Time</label>
-                                    <input
-                                        type="datetime-local"
-                                        className="input-field"
-                                        value={formData.saleEndDate}
-                                        onChange={(e) => setFormData({ ...formData, saleEndDate: e.target.value })}
+                                    <DatePicker
+                                        selected={formData.saleEndDate ? new Date(formData.saleEndDate) : null}
+                                        onChange={(date: Date | null) => setFormData({ ...formData, saleEndDate: date ? date.toISOString() : '' })}
+                                        showTimeSelect
+                                        dateFormat="d MMM yyyy, h:mm aa"
+                                        className="input-field w-full"
+                                        placeholderText="Select end date & time"
+                                        wrapperClassName="w-full"
                                     />
                                 </div>
                             </div>

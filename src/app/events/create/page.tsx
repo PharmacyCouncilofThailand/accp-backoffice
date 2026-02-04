@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import toast from 'react-hot-toast';
 import {
     IconCalendarEvent,
@@ -679,11 +681,14 @@ export default function CreateEventPage() {
                     <div className="grid grid-cols-2 gap-4 mb-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Start Date & Time *</label>
-                            <input
-                                type="datetime-local"
-                                className={`input-field ${validationErrors.startDate ? 'border-red-500' : ''}`}
-                                value={formData.startDate}
-                                onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                            <DatePicker
+                                selected={formData.startDate ? new Date(formData.startDate) : null}
+                                onChange={(date: Date | null) => setFormData(prev => ({ ...prev, startDate: date ? date.toISOString() : '' }))}
+                                showTimeSelect
+                                dateFormat="d MMM yyyy, h:mm aa"
+                                className={`input-field w-full ${validationErrors.startDate ? 'border-red-500' : ''}`}
+                                placeholderText="Select start date"
+                                wrapperClassName="w-full"
                             />
                             {validationErrors.startDate && (
                                 <p className="text-red-500 text-xs mt-1">{validationErrors.startDate}</p>
@@ -691,11 +696,14 @@ export default function CreateEventPage() {
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">End Date & Time *</label>
-                            <input
-                                type="datetime-local"
-                                className={`input-field ${validationErrors.endDate ? 'border-red-500' : ''}`}
-                                value={formData.endDate}
-                                onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                            <DatePicker
+                                selected={formData.endDate ? new Date(formData.endDate) : null}
+                                onChange={(date: Date | null) => setFormData(prev => ({ ...prev, endDate: date ? date.toISOString() : '' }))}
+                                showTimeSelect
+                                dateFormat="d MMM yyyy, h:mm aa"
+                                className={`input-field w-full ${validationErrors.endDate ? 'border-red-500' : ''}`}
+                                placeholderText="Select end date"
+                                wrapperClassName="w-full"
                             />
                             {validationErrors.endDate && (
                                 <p className="text-red-500 text-xs mt-1">{validationErrors.endDate}</p>
@@ -1242,20 +1250,26 @@ export default function CreateEventPage() {
                             <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Sale Start Date & Time</label>
-                                    <input
-                                        type="datetime-local"
-                                        className="input-field"
-                                        value={ticketForm.saleStartDate}
-                                        onChange={(e) => setTicketForm(prev => ({ ...prev, saleStartDate: e.target.value }))}
+                                    <DatePicker
+                                        selected={ticketForm.saleStartDate ? new Date(ticketForm.saleStartDate) : null}
+                                        onChange={(date: Date | null) => setTicketForm(prev => ({ ...prev, saleStartDate: date ? date.toISOString() : '' }))}
+                                        showTimeSelect
+                                        dateFormat="d MMM yyyy, h:mm aa"
+                                        className="input-field w-full"
+                                        placeholderText="Select start date"
+                                        wrapperClassName="w-full"
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Sale End Date & Time</label>
-                                    <input
-                                        type="datetime-local"
-                                        className="input-field"
-                                        value={ticketForm.saleEndDate}
-                                        onChange={(e) => setTicketForm(prev => ({ ...prev, saleEndDate: e.target.value }))}
+                                    <DatePicker
+                                        selected={ticketForm.saleEndDate ? new Date(ticketForm.saleEndDate) : null}
+                                        onChange={(date: Date | null) => setTicketForm(prev => ({ ...prev, saleEndDate: date ? date.toISOString() : '' }))}
+                                        showTimeSelect
+                                        dateFormat="d MMM yyyy, h:mm aa"
+                                        className="input-field w-full"
+                                        placeholderText="Select end date"
+                                        wrapperClassName="w-full"
                                     />
                                 </div>
                             </div>
@@ -1354,20 +1368,26 @@ export default function CreateEventPage() {
                             <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
-                                    <input
-                                        type="datetime-local"
-                                        className="input-field"
-                                        value={sessionForm.startTime}
-                                        onChange={(e) => setSessionForm(prev => ({ ...prev, startTime: e.target.value }))}
+                                    <DatePicker
+                                        selected={sessionForm.startTime ? new Date(sessionForm.startTime) : null}
+                                        onChange={(date: Date | null) => setSessionForm(prev => ({ ...prev, startTime: date ? date.toISOString() : '' }))}
+                                        showTimeSelect
+                                        dateFormat="d MMM yyyy, h:mm aa"
+                                        className="input-field w-full"
+                                        placeholderText="Select start time"
+                                        wrapperClassName="w-full"
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
-                                    <input
-                                        type="datetime-local"
-                                        className="input-field"
-                                        value={sessionForm.endTime}
-                                        onChange={(e) => setSessionForm(prev => ({ ...prev, endTime: e.target.value }))}
+                                    <DatePicker
+                                        selected={sessionForm.endTime ? new Date(sessionForm.endTime) : null}
+                                        onChange={(date: Date | null) => setSessionForm(prev => ({ ...prev, endTime: date ? date.toISOString() : '' }))}
+                                        showTimeSelect
+                                        dateFormat="d MMM yyyy, h:mm aa"
+                                        className="input-field w-full"
+                                        placeholderText="Select end time"
+                                        wrapperClassName="w-full"
                                     />
                                 </div>
                             </div>

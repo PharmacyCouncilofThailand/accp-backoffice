@@ -251,7 +251,7 @@ export default function VerificationPage() {
               placeholder="Search by name, email, or ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="input-field pl-10"
+              className="input-field-search"
             />
           </div>
 
@@ -362,13 +362,12 @@ export default function VerificationPage() {
                         </td>
                         <td className="px-4 py-4 text-center">
                           <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
-                              v.status === "approved"
-                                ? "bg-green-50 text-green-700 border-green-200"
-                                : v.status === "pending"
-                                  ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                                  : "bg-red-50 text-red-700 border-red-200"
-                            }`}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${v.status === "approved"
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : v.status === "pending"
+                                ? "bg-yellow-50 text-yellow-700 border-yellow-200"
+                                : "bg-red-50 text-red-700 border-red-200"
+                              }`}
                           >
                             {v.status === "approved" && (
                               <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
@@ -477,13 +476,12 @@ export default function VerificationPage() {
                   {selectedVerification.id}
                 </span>
                 <span
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
-                    selectedVerification.status === "approved"
-                      ? "bg-green-50 text-green-700 border-green-200"
-                      : selectedVerification.status === "pending"
-                        ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                        : "bg-red-50 text-red-700 border-red-200"
-                  }`}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${selectedVerification.status === "approved"
+                    ? "bg-green-50 text-green-700 border-green-200"
+                    : selectedVerification.status === "pending"
+                      ? "bg-yellow-50 text-yellow-700 border-yellow-200"
+                      : "bg-red-50 text-red-700 border-red-200"
+                    }`}
                 >
                   {selectedVerification.status === "approved" && (
                     <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
