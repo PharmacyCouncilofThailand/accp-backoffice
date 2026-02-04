@@ -47,6 +47,7 @@ interface CoAuthor {
 
 interface AbstractDetail {
   id: number;
+  trackingId: string | null;
   title: string;
   category: string;
   presentationType: string | null;
@@ -154,7 +155,7 @@ export default function AbstractDetailPage() {
   }
 
   return (
-    <AdminLayout title={`Abstract #${abstract.id}`}>
+    <AdminLayout title={`Abstract ${abstract.trackingId || "#" + abstract.id}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <button
@@ -174,7 +175,7 @@ export default function AbstractDetailPage() {
           <div className="card">
             <div className="flex items-start justify-between mb-4">
               <span className="text-sm text-gray-500 font-mono">
-                ABS-{abstract.id}
+                {abstract.trackingId || `ABS-${abstract.id}`}
               </span>
               <span
                 className={`px-3 py-1 rounded-full text-sm font-medium border ${statusColors[abstract.status]}`}
