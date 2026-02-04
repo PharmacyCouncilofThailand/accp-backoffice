@@ -471,7 +471,7 @@ export default function UsersPage() {
               placeholder="Search by name or email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="input-field pl-10"
+              className="input-field-search"
             />
           </div>
 
@@ -567,11 +567,10 @@ export default function UsersPage() {
                       </td>
                       <td className="px-4 py-4 text-center">
                         <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
-                            user.status === "active"
-                              ? "bg-green-50 text-green-700 border-green-200"
-                              : "bg-red-50 text-red-700 border-red-200"
-                          }`}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${user.status === "active"
+                            ? "bg-green-50 text-green-700 border-green-200"
+                            : "bg-red-50 text-red-700 border-red-200"
+                            }`}
                         >
                           <span
                             className={`w-1.5 h-1.5 rounded-full ${user.status === "active" ? "bg-green-500" : "bg-red-500"}`}
@@ -658,7 +657,7 @@ export default function UsersPage() {
           <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-100">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
+                <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900">
                   <IconUserPlus size={20} /> Add New User
                 </h3>
                 <button
@@ -825,7 +824,7 @@ export default function UsersPage() {
                     <input
                       type="text"
                       placeholder="Search events..."
-                      className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full pl-11 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                       value={eventSearchTerm}
                       onChange={(e) => setEventSearchTerm(e.target.value)}
                     />
@@ -880,7 +879,7 @@ export default function UsersPage() {
           <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-100">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
+                <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900">
                   <IconPencil size={20} /> Edit User
                 </h3>
                 <button
@@ -963,14 +962,12 @@ export default function UsersPage() {
                     onClick={() =>
                       setFormData({ ...formData, isActive: !formData.isActive })
                     }
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                      formData.isActive ? "bg-green-500" : "bg-gray-200"
-                    }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${formData.isActive ? "bg-green-500" : "bg-gray-200"
+                      }`}
                   >
                     <span
-                      className={`${
-                        formData.isActive ? "translate-x-6" : "translate-x-1"
-                      } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                      className={`${formData.isActive ? "translate-x-6" : "translate-x-1"
+                        } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
                     />
                   </button>
                   <span
@@ -1072,7 +1069,7 @@ export default function UsersPage() {
                     <input
                       type="text"
                       placeholder="Search events..."
-                      className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full pl-11 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                       value={eventSearchTerm}
                       onChange={(e) => setEventSearchTerm(e.target.value)}
                     />
@@ -1143,7 +1140,7 @@ export default function UsersPage() {
                 <input
                   type="text"
                   placeholder="Search events..."
-                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full pl-11 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                   value={eventSearchTerm}
                   onChange={(e) => setEventSearchTerm(e.target.value)}
                 />
@@ -1202,7 +1199,7 @@ export default function UsersPage() {
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <IconTrash size={32} className="text-red-600" />
               </div>
-              <p className="mb-2">Are you sure you want to delete this user?</p>
+              <p className="mb-2 text-gray-900 font-medium">Are you sure you want to delete this user?</p>
               <p className="font-semibold text-gray-800">{selectedUser.name}</p>
               <p className="text-sm text-gray-500">{selectedUser.email}</p>
             </div>

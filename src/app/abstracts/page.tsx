@@ -215,9 +215,9 @@ export default function AbstractsPage() {
           <h2 className="text-lg font-semibold text-gray-800">
             All Submissions
           </h2>
-          <button className="btn-secondary flex items-center gap-2">
+          {/* <button className="btn-secondary flex items-center gap-2">
             <IconDownload size={18} /> Export
-          </button>
+          </button> */}
         </div>
 
         {/* Filters */}
@@ -235,7 +235,7 @@ export default function AbstractsPage() {
                 setSearchTerm(e.target.value);
                 setPage(1);
               }}
-              className="input-field pl-10"
+              className="input-field-search"
             />
           </div>
 
@@ -270,7 +270,7 @@ export default function AbstractsPage() {
               <>
                 <option value="">
                   {isAdmin ||
-                  availableCategories.length === abstractCategories.length
+                    availableCategories.length === abstractCategories.length
                     ? "All Categories"
                     : `All (${availableCategories.map((c) => c.label).join(", ")})`}
                 </option>
@@ -452,7 +452,7 @@ export default function AbstractsPage() {
           </p>
           <div className="flex gap-2">
             <button
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-black-600 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
               disabled={page <= 1}
               onClick={() => setPage((p) => p - 1)}
             >
@@ -462,7 +462,7 @@ export default function AbstractsPage() {
               {page}
             </span>
             <button
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-black-600 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
               disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
             >

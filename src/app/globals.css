@@ -89,6 +89,15 @@ body {
   @apply text-gray-400;
 }
 
+.input-field-search {
+  @apply w-full py-2 pr-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-gray-800 bg-white;
+  padding-left: 2.75rem !important;
+}
+
+.input-field-search::placeholder {
+  @apply text-gray-400;
+}
+
 /* Sidebar Styles */
 .sidebar {
   @apply fixed left-0 top-0 h-full w-64 bg-slate-800 text-slate-300 flex flex-col z-50 transition-transform duration-300;

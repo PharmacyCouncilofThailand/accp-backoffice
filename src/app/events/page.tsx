@@ -194,7 +194,7 @@ export default function EventsPage() {
                             placeholder="Search events..."
                             value={searchTerm}
                             onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-                            className="input-field pl-10"
+                            className="input-field-search"
                         />
                     </div>
 
@@ -330,7 +330,7 @@ export default function EventsPage() {
                     </p>
                     <div className="flex gap-2">
                         <button
-                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
+                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
                             disabled={page <= 1}
                             onClick={() => setPage(p => p - 1)}
                         >
@@ -338,7 +338,7 @@ export default function EventsPage() {
                         </button>
                         <span className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm">{page}</span>
                         <button
-                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
+                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
                             disabled={page >= totalPages}
                             onClick={() => setPage(p => p + 1)}
                         >
@@ -354,7 +354,7 @@ export default function EventsPage() {
                     <div className="bg-white rounded-2xl max-w-2xl w-full">
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-semibold">Event Details</h3>
+                                <h3 className="text-lg font-semibold text-gray-900">Event Details</h3>
                                 <button onClick={() => setShowViewModal(false)} className="text-gray-400 hover:text-gray-600">
                                     <IconX size={20} />
                                 </button>
@@ -372,19 +372,19 @@ export default function EventsPage() {
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div>
                                             <p className="text-gray-500">Type</p>
-                                            <p className="font-medium">{typeLabels[selectedEvent.eventType]?.label}</p>
+                                            <p className="font-medium text-gray-900">{typeLabels[selectedEvent.eventType]?.label}</p>
                                         </div>
                                         <div>
                                             <p className="text-gray-500">Date</p>
-                                            <p className="font-medium">{formatDate(selectedEvent.startDate)}</p>
+                                            <p className="font-medium text-gray-900">{formatDate(selectedEvent.startDate)}</p>
                                         </div>
                                         <div>
                                             <p className="text-gray-500">Location</p>
-                                            <p className="font-medium">{selectedEvent.location || 'TBD'}</p>
+                                            <p className="font-medium text-gray-900">{selectedEvent.location || 'TBD'}</p>
                                         </div>
                                         <div>
                                             <p className="text-gray-500">Capacity</p>
-                                            <p className="font-medium">{selectedEvent.maxCapacity || '-'}</p>
+                                            <p className="font-medium text-gray-900">{selectedEvent.maxCapacity || '-'}</p>
                                         </div>
                                         <div>
                                             <p className="text-gray-500">Status</p>
@@ -419,7 +419,7 @@ export default function EventsPage() {
                             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <IconAlertTriangle size={32} className="text-red-600" />
                             </div>
-                            <p className="mb-2">Are you sure you want to delete this event?</p>
+                            <p className="mb-2 text-gray-700">Are you sure you want to delete this event?</p>
                             <p className="font-semibold text-gray-800">{selectedEvent.eventName}</p>
                             <p className="text-sm text-gray-500 mt-4">
                                 This action cannot be undone. All registrations and related data will be permanently deleted.

@@ -94,7 +94,7 @@ export default function RegistrationsPage() {
                                 placeholder="Search by name, email, or code..."
                                 value={searchTerm}
                                 onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-                                className="input-field pl-10"
+                                className="input-field-search"
                             />
                         </div>
 
@@ -204,7 +204,7 @@ export default function RegistrationsPage() {
                             </p>
                             <div className="flex gap-2">
                                 <button
-                                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
                                     disabled={page <= 1}
                                     onClick={() => setPage(p => p - 1)}
                                 >
@@ -212,7 +212,7 @@ export default function RegistrationsPage() {
                                 </button>
                                 <span className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm font-medium shadow-sm">{page}</span>
                                 <button
-                                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
                                     disabled={page >= totalPages}
                                     onClick={() => setPage(p => p + 1)}
                                 >
@@ -245,8 +245,8 @@ export default function RegistrationsPage() {
                                 <div>
                                     <p className="text-sm text-gray-500">Status</p>
                                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${selectedReg.status === 'confirmed' ? 'bg-green-50 text-green-700 border-green-200' :
-                                            selectedReg.status === 'pending' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                                                'bg-red-50 text-red-700 border-red-200'
+                                        selectedReg.status === 'pending' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                            'bg-red-50 text-red-700 border-red-200'
                                         }`}>
                                         {selectedReg.status === 'confirmed' && <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>}
                                         {selectedReg.status === 'pending' && <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>}
