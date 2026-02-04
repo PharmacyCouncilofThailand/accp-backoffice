@@ -55,6 +55,7 @@ const presentationTypes = [
 
 interface Abstract {
   id: number;
+  trackingId: string | null;
   title: string;
   category: string;
   presentationType: string | null;
@@ -324,7 +325,7 @@ export default function AbstractsPage() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    ID
+                    Tracking ID
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[300px]">
                     Title & Author
@@ -354,7 +355,7 @@ export default function AbstractsPage() {
                   >
                     <td className="px-4 py-4 text-center">
                       <span className="font-mono text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                        {abs.id}
+                        {abs.trackingId || abs.id}
                       </span>
                     </td>
                     <td className="px-4 py-4">
