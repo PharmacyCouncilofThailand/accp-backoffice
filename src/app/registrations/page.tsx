@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import { useDebounce } from '@/hooks/useDebounce';
 import {
     IconUsers,
     IconSearch,
@@ -43,9 +44,12 @@ export default function RegistrationsPage() {
     const [selectedReg, setSelectedReg] = useState<Registration | null>(null);
     const [showViewModal, setShowViewModal] = useState(false);
 
+    // Debounce search term to avoid API calls on every keystroke
+    const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
     useEffect(() => {
         fetchRegistrations();
-    }, [page, searchTerm, statusFilter]);
+    }, [page, debouncedSearchTerm, statusFilter]);
 
     const fetchRegistrations = async () => {
         setIsLoading(true);

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AdminLayout } from "@/components/layout";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDebounce } from "@/hooks/useDebounce";
 import {
   IconFileText,
   IconClock,
@@ -94,6 +95,9 @@ export default function AbstractsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
+  // Debounce search term to avoid API calls on every keystroke
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
   // Filter categories based on user role
   // Admin sees all, Reviewer sees only assigned categories
   const availableCategories = useMemo(() => {
@@ -132,7 +136,7 @@ export default function AbstractsPage() {
 
   useEffect(() => {
     fetchAbstracts();
-  }, [page, searchTerm, statusFilter, categoryFilter, presentationTypeFilter]);
+  }, [page, debouncedSearchTerm, statusFilter, categoryFilter, presentationTypeFilter]);
 
   const fetchAbstracts = async () => {
     setIsLoading(true);

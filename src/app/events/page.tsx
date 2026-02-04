@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import { useDebounce } from '@/hooks/useDebounce';
 import toast from 'react-hot-toast';
 import {
     IconCalendarEvent,
@@ -77,6 +78,9 @@ export default function EventsPage() {
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
 
+    // Debounce search term to avoid API calls on every keystroke
+    const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
     // Fetch events
     useEffect(() => {
         const fetchEvents = async () => {
@@ -87,7 +91,7 @@ export default function EventsPage() {
                 const params: any = { page, limit: 10 };
                 if (statusFilter) params.status = statusFilter;
                 if (typeFilter) params.eventType = typeFilter;
-                if (searchTerm) params.search = searchTerm;
+                if (debouncedSearchTerm) params.search = debouncedSearchTerm;
 
                 const response = await api.backofficeEvents.list(token, params);
                 setEvents(response.events as unknown as Event[]);
@@ -101,7 +105,7 @@ export default function EventsPage() {
         };
 
         fetchEvents();
-    }, [page, statusFilter, typeFilter, searchTerm]);
+    }, [page, statusFilter, typeFilter, debouncedSearchTerm]);
 
     // Calculate stats
     const stats = {
