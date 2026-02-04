@@ -10,6 +10,7 @@ import {
   IconCheck,
   IconX,
   IconCalendarEvent,
+  IconLoader2,
 } from "@tabler/icons-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -490,138 +491,154 @@ export default function UsersPage() {
         </div>
 
         {/* Table */}
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    User
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Role
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Assigned Events
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-[100px]">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredUsers.map((user) => {
-                  const roleInfo = getRoleInfo(user.role);
-                  const eventCodes = getEventNames(user.assignedEventIds);
-                  return (
-                    <tr
-                      key={user.id}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 font-medium text-sm">
-                            {user.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">
-                              {user.name}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {user.email}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${roleInfo.color}`}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <IconLoader2 size={32} className="animate-spin text-blue-600" />
+            <span className="ml-2 text-gray-500">Loading users...</span>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      User
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Role
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Assigned Events
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-[100px]">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredUsers.length > 0 ? (
+                    filteredUsers.map((user) => {
+                      const roleInfo = getRoleInfo(user.role);
+                      const eventCodes = getEventNames(user.assignedEventIds);
+                      return (
+                        <tr
+                          key={user.id}
+                          className="hover:bg-gray-50 transition-colors"
                         >
-                          {roleInfo.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        {user.role === "admin" ? (
-                          <span className="text-xs text-gray-400 italic">
-                            All Events Access
-                          </span>
-                        ) : eventCodes.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {eventCodes.map((code) => (
-                              <span
-                                key={code}
-                                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100"
-                              >
-                                {code}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400">
-                            No events assigned
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${user.status === "active"
-                            ? "bg-green-50 text-green-700 border-green-200"
-                            : "bg-red-50 text-red-700 border-red-200"
-                            }`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${user.status === "active" ? "bg-green-500" : "bg-red-500"}`}
-                          ></span>
-                          {user.status === "active" ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <div className="flex gap-1 justify-center items-center">
-                          {user.role !== "admin" && (
-                            <button
-                              className="p-2 hover:bg-blue-50 rounded-lg text-gray-500 hover:text-blue-600 transition-colors"
-                              title="Assign Events"
-                              onClick={() => openAssignModal(user)}
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 font-medium text-sm">
+                                {user.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">
+                                  {user.name}
+                                </p>
+                                <p className="text-sm text-gray-500">{user.email}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${roleInfo.color}`}
                             >
-                              <IconCalendarEvent size={18} />
-                            </button>
-                          )}
-                          <button
-                            className="p-2 hover:bg-yellow-50 rounded-lg text-gray-500 hover:text-yellow-600 transition-colors"
-                            title="Edit"
-                            onClick={() => openEditModal(user)}
-                          >
-                            <IconPencil size={18} />
-                          </button>
-                          <button
-                            className="p-2 hover:bg-red-50 rounded-lg text-gray-500 hover:text-red-600 transition-colors"
-                            title="Delete"
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setShowDeleteModal(true);
-                            }}
-                          >
-                            <IconTrash size={18} />
-                          </button>
-                        </div>
+                              {roleInfo.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4">
+                            {user.role === "admin" ? (
+                              <span className="text-xs text-gray-400 italic">
+                                All Events Access
+                              </span>
+                            ) : eventCodes.length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5">
+                                {eventCodes.map((code) => (
+                                  <span
+                                    key={code}
+                                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100"
+                                  >
+                                    {code}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400">
+                                No events assigned
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${user.status === "active"
+                                  ? "bg-green-50 text-green-700 border-green-200"
+                                  : "bg-red-50 text-red-700 border-red-200"
+                                }`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${user.status === "active"
+                                    ? "bg-green-500"
+                                    : "bg-red-500"
+                                  }`}
+                              ></span>
+                              {user.status === "active" ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            <div className="flex gap-1 justify-center items-center">
+                              {user.role !== "admin" && (
+                                <button
+                                  className="p-2 hover:bg-blue-50 rounded-lg text-gray-500 hover:text-blue-600 transition-colors"
+                                  title="Assign Events"
+                                  onClick={() => openAssignModal(user)}
+                                >
+                                  <IconCalendarEvent size={18} />
+                                </button>
+                              )}
+                              <button
+                                className="p-2 hover:bg-yellow-50 rounded-lg text-gray-500 hover:text-yellow-600 transition-colors"
+                                title="Edit"
+                                onClick={() => openEditModal(user)}
+                              >
+                                <IconPencil size={18} />
+                              </button>
+                              <button
+                                className="p-2 hover:bg-red-50 rounded-lg text-gray-500 hover:text-red-600 transition-colors"
+                                title="Delete"
+                                onClick={() => {
+                                  setSelectedUser(user);
+                                  setShowDeleteModal(true);
+                                }}
+                              >
+                                <IconTrash size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-gray-500">
+                        No users found matching your search.
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50">
-            <p className="text-sm text-gray-500">
-              Showing {filteredUsers.length} of {users.length} users
-            </p>
+            {/* Pagination */}
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50">
+              <p className="text-sm text-gray-500">
+                Showing {filteredUsers.length} of {users.length} users
+              </p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Role Permissions Info */}
