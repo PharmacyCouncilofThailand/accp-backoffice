@@ -98,7 +98,7 @@ export const api = {
 
   verifications: {
     list: (token: string, query?: string) =>
-      fetchAPI<{ pendingUsers: VerificationRequest[] }>(`/api/backoffice/verifications${query ? `?${query}` : ''}`, { token }),
+      fetchAPI<{ verifications: VerificationRequest[]; pagination: Pagination }>(`/api/backoffice/verifications${query ? `?${query}` : ''}`, { token }),
     approve: (token: string, id: string, comment?: string) =>
       fetchAPI<{ success: boolean; user: User }>(`/api/backoffice/verifications/${id}/approve`, { method: "POST", body: JSON.stringify({ comment }), token }),
     reject: (token: string, id: string, reason: string) =>

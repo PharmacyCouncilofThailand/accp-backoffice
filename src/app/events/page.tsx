@@ -6,6 +6,7 @@ import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
 import { useDebounce } from '@/hooks/useDebounce';
 import toast from 'react-hot-toast';
+import { Pagination } from "@/components/common";
 import {
     IconCalendarEvent,
     IconCheck,
@@ -324,32 +325,17 @@ export default function EventsPage() {
                                 ))}
                             </tbody>
                         </table>
+
+                        {/* Pagination */}
+                        <Pagination
+                            currentPage={page}
+                            totalPages={totalPages}
+                            totalCount={totalCount}
+                            onPageChange={setPage}
+                            itemName="events"
+                        />
                     </div>
                 )}
-
-                {/* Pagination */}
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-                    <p className="text-sm text-gray-500">
-                        Showing {events.length} of {totalCount} events
-                    </p>
-                    <div className="flex gap-2">
-                        <button
-                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
-                            disabled={page <= 1}
-                            onClick={() => setPage(p => p - 1)}
-                        >
-                            Previous
-                        </button>
-                        <span className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm">{page}</span>
-                        <button
-                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
-                            disabled={page >= totalPages}
-                            onClick={() => setPage(p => p + 1)}
-                        >
-                            Next
-                        </button>
-                    </div>
-                </div>
             </div>
 
             {/* View Modal */}

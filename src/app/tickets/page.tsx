@@ -5,6 +5,7 @@ import { AdminLayout } from '@/components/layout';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { api } from '@/lib/api';
+import { Pagination } from "@/components/common";
 import {
     IconTicket,
     IconPlus,
@@ -568,32 +569,17 @@ export default function TicketsPage() {
                                 })}
                             </tbody>
                         </table>
+
+                        {/* Pagination */}
+                        <Pagination
+                            currentPage={page}
+                            totalPages={totalPages}
+                            totalCount={totalCount}
+                            onPageChange={setPage}
+                            itemName="tickets"
+                        />
                     </div>
                 )}
-
-                {/* Pagination */}
-                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-                    <p className="text-sm text-gray-500">
-                        Showing {tickets.length} of {totalCount} tickets
-                    </p>
-                    <div className="flex gap-2">
-                        <button
-                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
-                            disabled={page <= 1}
-                            onClick={() => setPage(p => p - 1)}
-                        >
-                            Previous
-                        </button>
-                        <span className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm">{page}</span>
-                        <button
-                            className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
-                            disabled={page >= totalPages}
-                            onClick={() => setPage(p => p + 1)}
-                        >
-                            Next
-                        </button>
-                    </div>
-                </div>
             </div>
 
             {/* Create/Edit Modal */}

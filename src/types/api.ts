@@ -262,8 +262,10 @@ export interface EventsResponse {
 
 export interface UsersResponse {
     users: User[];
+    pagination: Pagination;
 }
 
 export interface VerificationsResponse {
-    pendingUsers: VerificationRequest[];
+    verifications: VerificationRequest[];
+    pagination: Pagination;
 }

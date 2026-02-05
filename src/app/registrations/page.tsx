@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
 import { useDebounce } from '@/hooks/useDebounce';
+import { Pagination } from '@/components/common';
 import {
     IconUsers,
     IconSearch,
@@ -199,30 +200,15 @@ export default function RegistrationsPage() {
                                     ))}
                                 </tbody>
                             </table>
-                        </div>
 
-                        {/* Pagination */}
-                        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50">
-                            <p className="text-sm text-gray-500">
-                                Showing <span className="font-medium">{registrations.length}</span> of <span className="font-medium">{totalCount}</span> registrations
-                            </p>
-                            <div className="flex gap-2">
-                                <button
-                                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
-                                    disabled={page <= 1}
-                                    onClick={() => setPage(p => p - 1)}
-                                >
-                                    Previous
-                                </button>
-                                <span className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm font-medium shadow-sm">{page}</span>
-                                <button
-                                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
-                                    disabled={page >= totalPages}
-                                    onClick={() => setPage(p => p + 1)}
-                                >
-                                    Next
-                                </button>
-                            </div>
+                            {/* Pagination */}
+                            <Pagination
+                                currentPage={page}
+                                totalPages={totalPages}
+                                totalCount={totalCount}
+                                onPageChange={setPage}
+                                itemName="registrations"
+                            />
                         </div>
                     </>
                 )}

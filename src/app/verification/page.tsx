@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { AdminLayout } from "@/components/layout";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { Pagination } from "@/components/common";
 import toast from "react-hot-toast";
 import {
   IconId,
@@ -79,13 +80,26 @@ export default function VerificationPage() {
   );
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-  // Fetch verifications
+  // Pagination (Server-side)
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
+  // Fetch verifications (Server-side pagination)
   const fetchVerifications = async () => {
     if (!token) return;
     setIsLoading(true);
     try {
-      const data = await api.verifications.list(token);
-      setVerifications((data.pendingUsers || []) as unknown as Verification[]);
+      const params = new URLSearchParams();
+      params.append("page", page.toString());
+      params.append("limit", "10");
+      if (searchTerm) params.append("search", searchTerm);
+      if (statusFilter) params.append("status", statusFilter);
+
+      const data = await api.verifications.list(token, params.toString());
+      setVerifications(data.verifications as unknown as Verification[]);
+      setTotalCount(data.pagination.total);
+      setTotalPages(data.pagination.totalPages);
     } catch (error) {
       console.error("Failed to fetch verifications:", error);
       toast.error("Failed to load verification requests.");
@@ -109,29 +123,49 @@ export default function VerificationPage() {
     }
   };
 
+  // Fetch when page, search, or filter changes
   useEffect(() => {
     if (token) {
       fetchVerifications();
     }
+  }, [token, page]);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setPage(1);
+    if (token) {
+      fetchVerifications();
+    }
+  }, [searchTerm, statusFilter]);
+
+  // Stats (fetch all for stats, or use separate endpoint)
+  const [allVerifications, setAllVerifications] = useState<Verification[]>([]);
+  
+  const fetchStats = async () => {
+    if (!token) return;
+    try {
+      // Fetch all for stats only (max limit=100)
+      const params = new URLSearchParams();
+      params.append("page", "1");
+      params.append("limit", "100");
+      const data = await api.verifications.list(token, params.toString());
+      setAllVerifications(data.verifications as unknown as Verification[]);
+    } catch (error) {
+      console.error("Failed to fetch stats:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchStats();
+    }
   }, [token]);
 
-  const filteredVerifications = verifications.filter((v) => {
-    const matchesSearch =
-      v.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      v.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      v.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      v.registrationCode.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesStatus = !statusFilter || v.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-
   const stats = {
-    total: verifications.length,
-    pending: verifications.filter((v) => v.status === "pending").length,
-    approved: verifications.filter((v) => v.status === "approved").length,
-    rejected: verifications.filter((v) => v.status === "rejected").length,
+    total: allVerifications.length,
+    pending: allVerifications.filter((v) => v.status === "pending").length,
+    approved: allVerifications.filter((v) => v.status === "approved").length,
+    rejected: allVerifications.filter((v) => v.status === "rejected").length,
   };
 
   const handleApprove = async () => {
@@ -303,7 +337,7 @@ export default function VerificationPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredVerifications.length === 0 ? (
+                  {verifications.length === 0 ? (
                     <tr>
                       <td
                         colSpan={7}
@@ -313,7 +347,7 @@ export default function VerificationPage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredVerifications.map((v) => (
+                    verifications.map((v) => (
                       <tr
                         key={v.id}
                         className="hover:bg-gray-50 transition-colors"
@@ -443,12 +477,13 @@ export default function VerificationPage() {
             </div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50">
-              <p className="text-sm text-gray-500">
-                Showing {filteredVerifications.length} of {verifications.length}{" "}
-                requests
-              </p>
-            </div>
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              itemName="requests"
+            />
           </div>
         )}
       </div>

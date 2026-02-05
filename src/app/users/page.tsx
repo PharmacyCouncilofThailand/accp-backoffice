@@ -14,6 +14,7 @@ import {
 } from "@tabler/icons-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { Pagination } from "@/components/common";
 import toast from "react-hot-toast";
 
 // User roles
@@ -111,7 +112,7 @@ interface User {
 export default function UsersPage() {
   const { token } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
-  const [events, setEvents] = useState<any[]>([]); // Using any for events to match API response flexibility
+  const [events, setEvents] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -123,47 +124,81 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [eventSearchTerm, setEventSearchTerm] = useState("");
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!token) return;
-      setIsLoading(true);
-      try {
-        // Fetch users
-        // Note: api.users.list returns { users: any[] }
-        const usersData = await api.users
-          .list(token)
-          .catch(() => ({ users: [] }));
+  // Pagination (Server-side)
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
-        // Fetch events - use backoffice endpoint with token
-        const eventsData = await api.backofficeEvents
-          .list(token)
-          .catch(() => ({ events: [], pagination: {} }));
+  // Fetch users (Server-side pagination)
+  const fetchUsers = async () => {
+    if (!token) return;
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.append("page", page.toString());
+      params.append("limit", "10");
+      if (searchTerm) params.append("search", searchTerm);
+      if (roleFilter) params.append("role", roleFilter);
 
-        if (usersData?.users) {
-          // Adapt API user to local User interface if needed
-          setUsers(
-            usersData.users.map((u: any) => ({
-              ...u,
-              name: u.name || `${u.firstName} ${u.lastName}`.trim(),
-              status: u.isActive ? "active" : "inactive",
-              assignedEventIds: u.assignedEventIds || [],
-              assignedCategories: u.assignedCategories || [],
-              assignedPresentationTypes: u.assignedPresentationTypes || [],
-            })),
-          );
-        }
-
-        if (eventsData?.events) {
-          setEvents(eventsData.events);
-        }
-      } catch (error) {
-        console.error("Failed to fetch data:", error);
-      } finally {
-        setIsLoading(false);
+      const usersData = await api.users.list(token, params.toString());
+      
+      if (usersData?.users) {
+        setUsers(
+          usersData.users.map((u: any) => ({
+            ...u,
+            name: u.name || `${u.firstName} ${u.lastName}`.trim(),
+            status: u.isActive ? "active" : "inactive",
+            assignedEventIds: u.assignedEventIds || [],
+            assignedCategories: u.assignedCategories || [],
+            assignedPresentationTypes: u.assignedPresentationTypes || [],
+          })),
+        );
+        setTotalCount(usersData.pagination.total);
+        setTotalPages(usersData.pagination.totalPages);
       }
-    };
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    fetchData();
+  // Fetch events (for assignment dropdown)
+  const fetchEvents = async () => {
+    if (!token) return;
+    try {
+      const eventsData = await api.backofficeEvents
+        .list(token)
+        .catch(() => ({ events: [], pagination: {} }));
+
+      if (eventsData?.events) {
+        setEvents(eventsData.events);
+      }
+    } catch (error) {
+      console.error("Failed to fetch events:", error);
+    }
+  };
+
+  // Fetch when page changes
+  useEffect(() => {
+    if (token) {
+      fetchUsers();
+    }
+  }, [token, page]);
+
+  // Reset to page 1 and fetch when filter changes
+  useEffect(() => {
+    setPage(1);
+    if (token) {
+      fetchUsers();
+    }
+  }, [searchTerm, roleFilter]);
+
+  // Initial fetch events
+  useEffect(() => {
+    if (token) {
+      fetchEvents();
+    }
   }, [token]);
 
   // Form state
@@ -172,18 +207,10 @@ export default function UsersPage() {
     email: "",
     password: "",
     role: "staff",
-    isActive: true, // Default to true
+    isActive: true,
     assignedEventIds: [] as number[],
-    assignedCategories: [] as string[], // For reviewers
-    assignedPresentationTypes: [] as string[], // For reviewers
-  });
-
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = !roleFilter || user.role === roleFilter;
-    return matchesSearch && matchesRole;
+    assignedCategories: [] as string[],
+    assignedPresentationTypes: [] as string[],
   });
 
   const filteredEvents = events.filter(
@@ -193,6 +220,11 @@ export default function UsersPage() {
         .includes(eventSearchTerm.toLowerCase()) ||
       (e.eventName || "").toLowerCase().includes(eventSearchTerm.toLowerCase()),
   );
+
+  // Refresh users after CRUD operations
+  const refreshUsers = () => {
+    fetchUsers();
+  };
 
   const getRoleInfo = (roleId: string) => {
     return roles.find((r) => r.id === roleId) || roles[0];
@@ -251,19 +283,7 @@ export default function UsersPage() {
       toast.success("User created successfully!");
 
       // Refresh list
-      const usersData = await api.users
-        .list(token)
-        .catch(() => ({ users: [] }));
-      if (usersData?.users) {
-        setUsers(
-          usersData.users.map((u: any) => ({
-            ...u,
-            name: u.name || `${u.firstName} ${u.lastName}`.trim(),
-            status: u.isActive ? "active" : "inactive",
-            assignedEventIds: u.assignedEventIds || [],
-          })),
-        );
-      }
+      refreshUsers();
     } catch (error: any) {
       console.error("Failed to create user:", error);
       toast.error(`Failed to create user: ${error.message || "Unknown error"}`);
@@ -307,19 +327,7 @@ export default function UsersPage() {
       toast.success("User updated successfully!");
 
       // Refresh list
-      const usersData = await api.users
-        .list(token)
-        .catch(() => ({ users: [] }));
-      if (usersData?.users) {
-        setUsers(
-          usersData.users.map((u: any) => ({
-            ...u,
-            name: u.name || `${u.firstName} ${u.lastName}`.trim(),
-            status: u.isActive ? "active" : "inactive",
-            assignedEventIds: u.assignedEventIds || [],
-          })),
-        );
-      }
+      refreshUsers();
     } catch (error) {
       console.error("Failed to update user:", error);
       toast.error("Failed to update user");
@@ -336,7 +344,7 @@ export default function UsersPage() {
       toast.success("User deleted successfully!");
 
       // Refresh list
-      setUsers(users.filter((u) => u.id !== selectedUser.id));
+      refreshUsers();
     } catch (error) {
       console.error("Failed to delete user:", error);
       toast.error("Failed to delete user");
@@ -357,19 +365,7 @@ export default function UsersPage() {
       toast.success("Event assignments updated!");
 
       // Refresh list
-      const usersData = await api.users
-        .list(token)
-        .catch(() => ({ users: [] }));
-      if (usersData?.users) {
-        setUsers(
-          usersData.users.map((u: any) => ({
-            ...u,
-            name: u.name || `${u.firstName} ${u.lastName}`.trim(),
-            status: u.isActive ? "active" : "inactive",
-            assignedEventIds: u.assignedEventIds || [],
-          })),
-        );
-      }
+      refreshUsers();
     } catch (error) {
       console.error("Failed to assign events:", error);
       toast.error("Failed to assign events");
@@ -520,8 +516,8 @@ export default function UsersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredUsers.length > 0 ? (
-                    filteredUsers.map((user) => {
+                  {users.length > 0 ? (
+                    users.map((user) => {
                       const roleInfo = getRoleInfo(user.role);
                       const eventCodes = getEventNames(user.assignedEventIds);
                       return (
@@ -538,7 +534,9 @@ export default function UsersPage() {
                                 <p className="font-medium text-gray-900">
                                   {user.name}
                                 </p>
-                                <p className="text-sm text-gray-500">{user.email}</p>
+                                <p className="text-sm text-gray-500">
+                                  {user.email}
+                                </p>
                               </div>
                             </div>
                           </td>
@@ -573,16 +571,18 @@ export default function UsersPage() {
                           </td>
                           <td className="px-4 py-4 text-center">
                             <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${user.status === "active"
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
+                                user.status === "active"
                                   ? "bg-green-50 text-green-700 border-green-200"
                                   : "bg-red-50 text-red-700 border-red-200"
-                                }`}
+                              }`}
                             >
                               <span
-                                className={`w-1.5 h-1.5 rounded-full ${user.status === "active"
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  user.status === "active"
                                     ? "bg-green-500"
                                     : "bg-red-500"
-                                  }`}
+                                }`}
                               ></span>
                               {user.status === "active" ? "Active" : "Inactive"}
                             </span>
@@ -622,7 +622,10 @@ export default function UsersPage() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-gray-500">
+                      <td
+                        colSpan={5}
+                        className="py-8 text-center text-gray-500"
+                      >
                         No users found matching your search.
                       </td>
                     </tr>
@@ -632,11 +635,13 @@ export default function UsersPage() {
             </div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50">
-              <p className="text-sm text-gray-500">
-                Showing {filteredUsers.length} of {users.length} users
-              </p>
-            </div>
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              itemName="users"
+            />
           </div>
         )}
       </div>
@@ -979,12 +984,14 @@ export default function UsersPage() {
                     onClick={() =>
                       setFormData({ ...formData, isActive: !formData.isActive })
                     }
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${formData.isActive ? "bg-green-500" : "bg-gray-200"
-                      }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                      formData.isActive ? "bg-green-500" : "bg-gray-200"
+                    }`}
                   >
                     <span
-                      className={`${formData.isActive ? "translate-x-6" : "translate-x-1"
-                        } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                      className={`${
+                        formData.isActive ? "translate-x-6" : "translate-x-1"
+                      } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
                     />
                   </button>
                   <span
@@ -1216,7 +1223,9 @@ export default function UsersPage() {
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <IconTrash size={32} className="text-red-600" />
               </div>
-              <p className="mb-2 text-gray-900 font-medium">Are you sure you want to delete this user?</p>
+              <p className="mb-2 text-gray-900 font-medium">
+                Are you sure you want to delete this user?
+              </p>
               <p className="font-semibold text-gray-800">{selectedUser.name}</p>
               <p className="text-sm text-gray-500">{selectedUser.email}</p>
             </div>
