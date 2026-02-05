@@ -6,6 +6,7 @@ import { AdminLayout } from "@/components/layout";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDebounce } from "@/hooks/useDebounce";
+import { Pagination } from "@/components/common";
 import {
   IconFileText,
   IconClock,
@@ -447,34 +448,17 @@ export default function AbstractsPage() {
                 ))}
               </tbody>
             </table>
+
+            {/* Pagination */}
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              itemName="abstracts"
+            />
           </div>
         )}
-
-        {/* Pagination */}
-        <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-          <p className="text-sm text-gray-500">
-            Showing {abstracts.length} of {totalCount} abstracts
-          </p>
-          <div className="flex gap-2">
-            <button
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Previous
-            </button>
-            <span className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm">
-              {page}
-            </span>
-            <button
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:text-gray-400"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Approve Modal */}

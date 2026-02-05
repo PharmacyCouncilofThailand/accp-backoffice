@@ -20,6 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { Pagination } from "@/components/common";
 
 const statusColors: { [key: string]: string } = {
     active: 'badge-success',
@@ -460,29 +461,15 @@ export default function PromoCodesPage() {
                 )}
 
                 {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-                        <p className="text-sm text-gray-500">
-                            Showing page {page} of {totalPages} ({totalCount} total)
-                        </p>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setPage(p => Math.max(1, p - 1))}
-                                disabled={page === 1}
-                                className="btn-secondary px-3 py-1 text-gray-700 disabled:opacity-50 disabled:text-gray-400"
-                            >
-                                Previous
-                            </button>
-                            <button
-                                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                                disabled={page === totalPages}
-                                className="btn-secondary px-3 py-1 text-gray-700 disabled:opacity-50 disabled:text-gray-400"
-                            >
-                                Next
-                            </button>
-                        </div>
-                    </div>
-                )}
+                <Pagination
+                    currentPage={page}
+                    totalPages={totalPages}
+                    totalCount={totalCount}
+                    onPageChange={setPage}
+                    itemName="promo codes"
+                    hideIfSinglePage={true}
+                    showPageInfo={true}
+                />
             </div>
 
             {/* Create/Edit Modal */}

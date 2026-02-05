@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { AdminLayout } from "@/components/layout";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { Pagination } from "@/components/common";
 import {
   IconSearch,
   IconRefresh,
@@ -380,38 +381,13 @@ export default function MembersPage() {
             </div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50">
-              <p className="text-sm text-gray-500">
-                {pagination
-                  ? `Showing ${members.length} of ${pagination.total} members`
-                  : "Loading..."}
-              </p>
-              {pagination && pagination.totalPages > 1 && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="btn-secondary px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Previous
-                  </button>
-                  <span className="px-3 py-1 text-sm text-gray-600">
-                    Page {pagination.page} of {pagination.totalPages}
-                  </span>
-                  <button
-                    onClick={() =>
-                      setCurrentPage((p) =>
-                        Math.min(pagination.totalPages, p + 1),
-                      )
-                    }
-                    disabled={currentPage === pagination.totalPages}
-                    className="btn-secondary px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
-            </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={pagination?.totalPages || 1}
+              totalCount={pagination?.total || 0}
+              onPageChange={setCurrentPage}
+              itemName="members"
+            />
           </div>
         )}
       </div>
