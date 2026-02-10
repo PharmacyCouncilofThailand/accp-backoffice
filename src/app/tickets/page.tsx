@@ -510,6 +510,9 @@ export default function TicketsPage() {
           <button
             onClick={() => {
               resetForm();
+              // Auto-suggest next displayOrder
+              const maxOrder = tickets.reduce((max, t) => Math.max(max, t.displayOrder || 0), 0);
+              setFormData((prev) => ({ ...prev, displayOrder: maxOrder + 1 }));
               setShowCreateModal(true);
             }}
             className="btn-primary flex items-center gap-2"
@@ -951,6 +954,26 @@ export default function TicketsPage() {
                   min="0"
                   placeholder="0 = highest priority"
                 />
+                <p className="text-xs text-gray-400 mt-1">
+                  Lower number = shown first. Early Bird should have lower order than Regular.
+                </p>
+                {tickets.length > 0 && (
+                  <details className="mt-1">
+                    <summary className="text-xs text-blue-500 cursor-pointer hover:underline">
+                      View existing display orders
+                    </summary>
+                    <div className="mt-1 max-h-32 overflow-y-auto bg-gray-50 rounded p-2 text-xs text-gray-600">
+                      {[...tickets]
+                        .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+                        .map((t) => (
+                          <div key={t.id} className="flex justify-between py-0.5">
+                            <span className="truncate mr-2">{t.name}</span>
+                            <span className="font-mono text-gray-800 shrink-0">{t.displayOrder}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </details>
+                )}
               </div>
 
               <div className="mb-4">
