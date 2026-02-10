@@ -39,9 +39,13 @@ interface Ticket {
   eventId: number;
   name: string; // ticketTypes.name
   category: string;
+  groupName: string | null;
   price: number;
   currency: string;
-  originalPrice?: number | null; // not standard in schema, maybe omitted or custom
+  originalPrice?: number | null;
+  description?: string | null;
+  features?: string[];
+  badgeText?: string | null;
   quota: number;
   sold: number;
   status?: string;
@@ -50,6 +54,7 @@ interface Ticket {
   type: string; // mapped from allowedRoles? or just logic
   allowedRoles: string[];
   displayOrder: number;
+  isActive: boolean;
   eventCode?: string;
   sessionIds?: number[];
 }
@@ -96,15 +101,22 @@ export default function TicketsPage() {
     eventId: 0,
     name: "",
     category: "primary",
+    groupName: "",
     price: 0,
     currency: "THB",
+    originalPrice: "" as string | number,
+    description: "",
+    features: [] as string[],
+    badgeText: "",
     quota: 100,
     saleStartDate: "",
     saleEndDate: "",
     allowedRoles: ["thstd"], // Default
     displayOrder: 0,
+    isActive: true,
     sessionIds: [] as number[],
   });
+  const [featureInput, setFeatureInput] = useState("");
 
   useEffect(() => {
     fetchEvents();
@@ -181,16 +193,17 @@ export default function TicketsPage() {
       );
 
       const mappedTickets = res.tickets.map((t: any) => {
-        // Parse allowedRoles - could be JSON string or array
+        // Parse allowedRoles - could be JSON array, CSV string, or JS array
         let roles: string[] = [];
         if (t.allowedRoles) {
-          try {
-            roles =
-              typeof t.allowedRoles === "string"
-                ? JSON.parse(t.allowedRoles)
-                : t.allowedRoles;
-          } catch {
-            roles = [];
+          if (Array.isArray(t.allowedRoles)) {
+            roles = t.allowedRoles;
+          } else if (typeof t.allowedRoles === "string") {
+            if (t.allowedRoles.startsWith("[")) {
+              try { roles = JSON.parse(t.allowedRoles); } catch { roles = []; }
+            } else {
+              roles = t.allowedRoles.split(",").map((r: string) => r.trim()).filter(Boolean);
+            }
           }
         }
         return {
@@ -198,8 +211,13 @@ export default function TicketsPage() {
           eventId: t.eventId,
           name: t.name,
           category: t.category,
+          groupName: t.groupName || null,
           price: parseFloat(t.price),
           currency: t.currency || "THB",
+          originalPrice: t.originalPrice ? parseFloat(t.originalPrice) : null,
+          description: t.description || null,
+          features: t.features || [],
+          badgeText: t.badgeText || null,
           quota: t.quota,
           sold: t.sold,
           startDate: t.startDate,
@@ -207,6 +225,7 @@ export default function TicketsPage() {
           type: roles.length > 0 ? roles[0] : "general",
           allowedRoles: roles,
           displayOrder: t.displayOrder ?? 0,
+          isActive: t.isActive ?? true,
           eventCode: t.eventCode,
           sessionIds: t.sessionIds || [],
         };
@@ -246,11 +265,17 @@ export default function TicketsPage() {
       const payload: Record<string, unknown> = {
         name: formData.name,
         category: formData.category,
+        groupName: formData.groupName || undefined,
         price: String(formData.price),
         currency: formData.currency,
+        originalPrice: formData.originalPrice !== "" ? Number(formData.originalPrice) : undefined,
+        description: formData.description || undefined,
+        features: formData.features.length > 0 ? formData.features : [],
+        badgeText: formData.badgeText || undefined,
         quota: formData.quota,
         allowedRoles: JSON.stringify(formData.allowedRoles),
         displayOrder: formData.displayOrder,
+        isActive: formData.isActive,
         sessionIds: finalSessionIds,
       };
       // Convert dates to ISO format only if provided
@@ -293,11 +318,17 @@ export default function TicketsPage() {
       const payload: Record<string, unknown> = {
         name: formData.name,
         category: formData.category,
+        groupName: formData.groupName || undefined,
         price: String(formData.price),
         currency: formData.currency,
+        originalPrice: formData.originalPrice !== "" ? Number(formData.originalPrice) : undefined,
+        description: formData.description || undefined,
+        features: formData.features.length > 0 ? formData.features : [],
+        badgeText: formData.badgeText || undefined,
         quota: formData.quota,
         allowedRoles: JSON.stringify(formData.allowedRoles),
         displayOrder: formData.displayOrder,
+        isActive: formData.isActive,
         sessionIds: finalSessionIds,
       };
       // Convert dates to ISO format only if provided
@@ -351,13 +382,19 @@ export default function TicketsPage() {
       eventId: ticket.eventId,
       name: ticket.name + " (Copy)",
       category: ticket.category,
+      groupName: ticket.groupName || "",
       price: ticket.price,
       currency: ticket.currency,
+      originalPrice: ticket.originalPrice ?? "",
+      description: ticket.description || "",
+      features: ticket.features || [],
+      badgeText: ticket.badgeText || "",
       quota: ticket.quota,
       saleStartDate: formatDateTimeLocal(ticket.startDate),
       saleEndDate: formatDateTimeLocal(ticket.endDate),
       allowedRoles: ticket.allowedRoles,
       displayOrder: ticket.displayOrder ?? 0,
+      isActive: true,
       sessionIds: ticket.sessionIds || [],
     });
     setShowCreateModal(true);
@@ -369,8 +406,13 @@ export default function TicketsPage() {
       eventId: ticket.eventId,
       name: ticket.name,
       category: ticket.category,
+      groupName: ticket.groupName || "",
       price: ticket.price,
       currency: ticket.currency,
+      originalPrice: ticket.originalPrice ?? "",
+      description: ticket.description || "",
+      features: ticket.features || [],
+      badgeText: ticket.badgeText || "",
       quota: ticket.quota,
       saleStartDate: formatDateTimeLocal(ticket.startDate),
       saleEndDate: formatDateTimeLocal(ticket.endDate),
@@ -379,6 +421,7 @@ export default function TicketsPage() {
           ? ticket.allowedRoles
           : ["thstd"],
       displayOrder: ticket.displayOrder ?? 0,
+      isActive: ticket.isActive ?? true,
       sessionIds: ticket.sessionIds || [],
     });
     setShowEditModal(true);
@@ -389,15 +432,22 @@ export default function TicketsPage() {
       eventId: events[0]?.id || 1,
       name: "",
       category: "primary",
+      groupName: "",
       price: 0,
       currency: "THB",
+      originalPrice: "",
+      description: "",
+      features: [],
+      badgeText: "",
       quota: 100,
       saleStartDate: "",
       saleEndDate: "",
       allowedRoles: ["thstd"],
       displayOrder: 0,
+      isActive: true,
       sessionIds: [],
     });
+    setFeatureInput("");
   };
 
   // Calculate stats from loaded tickets (approximate since paginated, but real API would need stat endpoint)
@@ -904,6 +954,20 @@ export default function TicketsPage() {
               </div>
 
               <div className="mb-4">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={formData.isActive}
+                    onChange={(e) =>
+                      setFormData({ ...formData, isActive: e.target.checked })
+                    }
+                    className="rounded border-gray-300"
+                  />
+                  Active (visible to public)
+                </label>
+              </div>
+
+              <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Ticket Name *
                 </label>
@@ -951,6 +1015,138 @@ export default function TicketsPage() {
                     }
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Original Price
+                  </label>
+                  <input
+                    type="number"
+                    className="input-field"
+                    value={formData.originalPrice}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        originalPrice: e.target.value === "" ? "" : Number(e.target.value),
+                      })
+                    }
+                    placeholder="Show as strikethrough price"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Group Name
+                  </label>
+                  <select
+                    className="input-field"
+                    value={formData.groupName}
+                    onChange={(e) =>
+                      setFormData({ ...formData, groupName: e.target.value })
+                    }
+                  >
+                    <option value="">-- None --</option>
+                    <option value="workshop">workshop</option>
+                    <option value="gala">gala</option>
+                    <option value="registration">registration</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Badge Text
+                </label>
+                <input
+                  type="text"
+                  className="input-field"
+                  value={formData.badgeText}
+                  onChange={(e) =>
+                    setFormData({ ...formData, badgeText: e.target.value })
+                  }
+                  placeholder='e.g. "Early Bird", "Best Value"'
+                  maxLength={50}
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  className="input-field"
+                  rows={2}
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  placeholder="Optional ticket description"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Features
+                </label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    className="input-field flex-1"
+                    value={featureInput}
+                    onChange={(e) => setFeatureInput(e.target.value)}
+                    placeholder="Add a feature..."
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && featureInput.trim()) {
+                        e.preventDefault();
+                        setFormData({
+                          ...formData,
+                          features: [...formData.features, featureInput.trim()],
+                        });
+                        setFeatureInput("");
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary text-sm px-3"
+                    onClick={() => {
+                      if (featureInput.trim()) {
+                        setFormData({
+                          ...formData,
+                          features: [...formData.features, featureInput.trim()],
+                        });
+                        setFeatureInput("");
+                      }
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+                {formData.features.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {formData.features.map((f, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
+                      >
+                        {f}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFormData({
+                              ...formData,
+                              features: formData.features.filter((_, idx) => idx !== i),
+                            })
+                          }
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          <IconX size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-4">

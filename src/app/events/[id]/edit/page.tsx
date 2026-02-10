@@ -50,13 +50,19 @@ interface TicketData {
   id?: number;
   name: string;
   category: "primary" | "addon";
+  groupName?: string;
   price: string;
   currency: "THB" | "USD";
+  originalPrice?: string;
+  description?: string;
+  features?: string[];
+  badgeText?: string;
   quota: string;
   saleStartDate: string;
   saleEndDate: string;
   allowedRoles: string[];
   displayOrder: number;
+  isActive?: boolean;
   sessionIds?: number[];
   sessionId?: number;
   isNew?: boolean;
@@ -177,15 +183,22 @@ export default function EditEventPage() {
   const [ticketForm, setTicketForm] = useState<TicketData>({
     name: "",
     category: "primary",
+    groupName: "",
     price: "",
     currency: "THB",
+    originalPrice: "",
+    description: "",
+    features: [],
+    badgeText: "",
     quota: "100",
     saleStartDate: "",
     saleEndDate: "",
     allowedRoles: [],
     displayOrder: 0,
+    isActive: true,
     sessionIds: [],
   });
+  const [ticketFeatureInput, setTicketFeatureInput] = useState("");
 
   const shouldShowSessions = formData.eventType === "multi_session";
 
@@ -248,24 +261,30 @@ export default function EditEventPage() {
         if (response.tickets) {
           setTickets(
             response.tickets.map((t: any) => {
-              // Parse allowedRoles from JSON string
+              // Parse allowedRoles - could be JSON array, CSV string, or JS array
               let roles: string[] = [];
               if (t.allowedRoles) {
-                try {
-                  roles =
-                    typeof t.allowedRoles === "string"
-                      ? JSON.parse(t.allowedRoles)
-                      : t.allowedRoles;
-                } catch {
-                  roles = [];
+                if (Array.isArray(t.allowedRoles)) {
+                  roles = t.allowedRoles;
+                } else if (typeof t.allowedRoles === "string") {
+                  if (t.allowedRoles.startsWith("[")) {
+                    try { roles = JSON.parse(t.allowedRoles); } catch { roles = []; }
+                  } else {
+                    roles = t.allowedRoles.split(",").map((r: string) => r.trim()).filter(Boolean);
+                  }
                 }
               }
               return {
                 id: t.id,
                 name: t.name,
                 category: t.category,
+                groupName: t.groupName || "",
                 price: t.price,
                 currency: t.currency || "THB",
+                originalPrice: t.originalPrice ? String(t.originalPrice) : "",
+                description: t.description || "",
+                features: t.features || [],
+                badgeText: t.badgeText || "",
                 quota: String(t.quota || 0),
                 saleStartDate: t.saleStartDate
                   ? toDateTimeLocal(t.saleStartDate)
@@ -275,6 +294,7 @@ export default function EditEventPage() {
                   : "",
                 allowedRoles: roles,
                 displayOrder: t.displayOrder ?? 0,
+                isActive: t.isActive ?? true,
                 sessionIds: t.sessionIds || (t.sessionId ? [t.sessionId] : []),
               };
             }),
@@ -437,11 +457,17 @@ export default function EditEventPage() {
       const ticketPayload: Record<string, unknown> = {
         name: ticketForm.name,
         category: ticketForm.category,
+        groupName: ticketForm.groupName || undefined,
         price: ticketForm.price, // Keep as string
         currency: ticketForm.currency,
+        originalPrice: ticketForm.originalPrice ? Number(ticketForm.originalPrice) : undefined,
+        description: ticketForm.description || undefined,
+        features: ticketForm.features && ticketForm.features.length > 0 ? ticketForm.features : [],
+        badgeText: ticketForm.badgeText || undefined,
         quota: parseInt(ticketForm.quota) || 0,
         allowedRoles: JSON.stringify(ticketForm.allowedRoles),
         displayOrder: ticketForm.displayOrder,
+        isActive: ticketForm.isActive ?? true,
         // Handle session linking:
         // - Add-on: use selected IDs
         // - Primary: find and link all Main Sessions
@@ -485,8 +511,13 @@ export default function EditEventPage() {
                   id: editingTicketId,
                   name: ticketForm.name,
                   category: ticketForm.category,
+                  groupName: ticketForm.groupName,
                   price: ticketForm.price,
                   currency: ticketForm.currency,
+                  originalPrice: ticketForm.originalPrice,
+                  description: ticketForm.description,
+                  features: ticketForm.features,
+                  badgeText: ticketForm.badgeText,
                   quota: ticketForm.quota,
                   allowedRoles: ticketForm.allowedRoles,
                   saleStartDate: ticketForm.saleStartDate,
@@ -527,8 +558,13 @@ export default function EditEventPage() {
             id: ticket.id as number,
             name: ticket.name as string,
             category: ticket.category as "primary" | "addon",
+            groupName: (ticket.groupName as string) || "",
             price: String(ticket.price),
             currency: (ticket.currency as "THB" | "USD") || "THB",
+            originalPrice: ticket.originalPrice ? String(ticket.originalPrice) : "",
+            description: (ticket.description as string) || "",
+            features: (ticket.features as string[]) || [],
+            badgeText: (ticket.badgeText as string) || "",
             quota: String(ticket.quota || 0),
             saleStartDate: ticket.saleStartDate
               ? toDateTimeLocal(ticket.saleStartDate as string)
@@ -549,15 +585,22 @@ export default function EditEventPage() {
       setTicketForm({
         name: "",
         category: "primary",
+        groupName: "",
         price: "",
         currency: "THB",
+        originalPrice: "",
+        description: "",
+        features: [],
+        badgeText: "",
         quota: "100",
         saleStartDate: "",
         saleEndDate: "",
         allowedRoles: [],
         displayOrder: 0,
+        isActive: true,
         sessionIds: [],
       });
+      setTicketFeatureInput("");
       setShowTicketModal(false);
     } catch (err: any) {
       toast.error(err.message || "Failed to save ticket");
@@ -569,13 +612,19 @@ export default function EditEventPage() {
     setTicketForm({
       name: ticket.name,
       category: ticket.category,
+      groupName: ticket.groupName || "",
       price: ticket.price,
       currency: ticket.currency,
+      originalPrice: ticket.originalPrice || "",
+      description: ticket.description || "",
+      features: ticket.features || [],
+      badgeText: ticket.badgeText || "",
       quota: ticket.quota,
       saleStartDate: ticket.saleStartDate,
       saleEndDate: ticket.saleEndDate,
       allowedRoles: ticket.allowedRoles || [],
       displayOrder: ticket.displayOrder ?? 0,
+      isActive: ticket.isActive ?? true,
       sessionIds:
         ticket.sessionIds || (ticket.sessionId ? [ticket.sessionId] : []),
     });
@@ -1612,6 +1661,148 @@ export default function EditEventPage() {
                     }
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Original Price
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="input-field"
+                    placeholder="Show as strikethrough price"
+                    value={ticketForm.originalPrice}
+                    onChange={(e) =>
+                      setTicketForm((prev) => ({
+                        ...prev,
+                        originalPrice: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Group Name
+                  </label>
+                  <select
+                    className="input-field"
+                    value={ticketForm.groupName}
+                    onChange={(e) =>
+                      setTicketForm((prev) => ({
+                        ...prev,
+                        groupName: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">-- None --</option>
+                    <option value="workshop">workshop</option>
+                    <option value="gala">gala</option>
+                    <option value="registration">registration</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Badge Text
+                </label>
+                <input
+                  type="text"
+                  className="input-field"
+                  value={ticketForm.badgeText}
+                  onChange={(e) =>
+                    setTicketForm((prev) => ({
+                      ...prev,
+                      badgeText: e.target.value,
+                    }))
+                  }
+                  placeholder='e.g. "Early Bird", "Best Value"'
+                  maxLength={50}
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  className="input-field"
+                  rows={2}
+                  value={ticketForm.description}
+                  onChange={(e) =>
+                    setTicketForm((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  placeholder="Optional ticket description"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Features
+                </label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    className="input-field flex-1"
+                    value={ticketFeatureInput}
+                    onChange={(e) => setTicketFeatureInput(e.target.value)}
+                    placeholder="Add a feature..."
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && ticketFeatureInput.trim()) {
+                        e.preventDefault();
+                        setTicketForm((prev) => ({
+                          ...prev,
+                          features: [...(prev.features || []), ticketFeatureInput.trim()],
+                        }));
+                        setTicketFeatureInput("");
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary text-sm px-3"
+                    onClick={() => {
+                      if (ticketFeatureInput.trim()) {
+                        setTicketForm((prev) => ({
+                          ...prev,
+                          features: [...(prev.features || []), ticketFeatureInput.trim()],
+                        }));
+                        setTicketFeatureInput("");
+                      }
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+                {(ticketForm.features || []).length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {(ticketForm.features || []).map((f, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
+                      >
+                        {f}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setTicketForm((prev) => ({
+                              ...prev,
+                              features: (prev.features || []).filter((_, idx) => idx !== i),
+                            }))
+                          }
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-4">

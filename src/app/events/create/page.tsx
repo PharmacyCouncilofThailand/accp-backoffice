@@ -60,13 +60,19 @@ interface TicketData {
   id?: number;
   name: string;
   category: "primary" | "addon";
+  groupName?: string;
   price: string;
   currency: "THB" | "USD";
+  originalPrice?: string;
+  description?: string;
+  features?: string[];
+  badgeText?: string;
   quota: string;
   saleStartDate: string;
   saleEndDate: string;
   allowedRoles: string[];
   displayOrder: number;
+  isActive?: boolean;
   sessionIds?: number[];
   sessionId?: number;
 }
@@ -234,15 +240,22 @@ export default function CreateEventPage() {
   const [ticketForm, setTicketForm] = useState<TicketData>({
     name: "",
     category: "primary",
+    groupName: "",
     price: "",
     currency: "THB",
+    originalPrice: "",
+    description: "",
+    features: [],
+    badgeText: "",
     quota: "100",
     saleStartDate: "",
     saleEndDate: "",
     allowedRoles: ["thstd"],
     displayOrder: 0,
+    isActive: true,
     sessionIds: [],
   });
+  const [ticketFeatureInput, setTicketFeatureInput] = useState("");
 
   // Generate a unique event code
   const generateEventCode = () => {
@@ -426,15 +439,22 @@ export default function CreateEventPage() {
     setTicketForm({
       name: "",
       category: "primary",
+      groupName: "",
       price: "",
       currency: "THB",
+      originalPrice: "",
+      description: "",
+      features: [],
+      badgeText: "",
       quota: "100",
       saleStartDate: "",
       saleEndDate: "",
       allowedRoles: ["thstd"],
       displayOrder: 0,
+      isActive: true,
       sessionIds: [],
     });
+    setTicketFeatureInput("");
     setShowTicketModal(false);
   };
 
@@ -443,13 +463,19 @@ export default function CreateEventPage() {
     setTicketForm({
       name: ticket.name,
       category: ticket.category,
+      groupName: ticket.groupName || "",
       price: ticket.price,
       currency: ticket.currency,
+      originalPrice: ticket.originalPrice || "",
+      description: ticket.description || "",
+      features: ticket.features || [],
+      badgeText: ticket.badgeText || "",
       quota: ticket.quota,
       saleStartDate: ticket.saleStartDate,
       saleEndDate: ticket.saleEndDate,
       allowedRoles: ticket.allowedRoles,
       displayOrder: ticket.displayOrder ?? 0,
+      isActive: ticket.isActive ?? true,
       sessionIds:
         ticket.sessionIds || (ticket.sessionId ? [ticket.sessionId] : []),
     });
@@ -555,11 +581,17 @@ export default function CreateEventPage() {
         const ticketPayload: Record<string, unknown> = {
           name: ticket.name,
           category: ticket.category,
+          groupName: ticket.groupName || undefined,
           price: ticket.price, // Already a string
           currency: ticket.currency,
+          originalPrice: ticket.originalPrice ? Number(ticket.originalPrice) : undefined,
+          description: ticket.description || undefined,
+          features: ticket.features && ticket.features.length > 0 ? ticket.features : [],
+          badgeText: ticket.badgeText || undefined,
           quota: parseInt(ticket.quota) || 0,
           allowedRoles: JSON.stringify(ticket.allowedRoles),
           displayOrder: ticket.displayOrder,
+          isActive: ticket.isActive ?? true,
           sessionIds: apiSessionIds,
         };
         if (ticket.saleStartDate) {
@@ -1570,6 +1602,148 @@ export default function CreateEventPage() {
                     }
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Original Price
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="input-field"
+                    placeholder="Show as strikethrough price"
+                    value={ticketForm.originalPrice}
+                    onChange={(e) =>
+                      setTicketForm((prev) => ({
+                        ...prev,
+                        originalPrice: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Group Name
+                  </label>
+                  <select
+                    className="input-field"
+                    value={ticketForm.groupName}
+                    onChange={(e) =>
+                      setTicketForm((prev) => ({
+                        ...prev,
+                        groupName: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">-- None --</option>
+                    <option value="workshop">workshop</option>
+                    <option value="gala">gala</option>
+                    <option value="registration">registration</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Badge Text
+                </label>
+                <input
+                  type="text"
+                  className="input-field"
+                  value={ticketForm.badgeText}
+                  onChange={(e) =>
+                    setTicketForm((prev) => ({
+                      ...prev,
+                      badgeText: e.target.value,
+                    }))
+                  }
+                  placeholder='e.g. "Early Bird", "Best Value"'
+                  maxLength={50}
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  className="input-field"
+                  rows={2}
+                  value={ticketForm.description}
+                  onChange={(e) =>
+                    setTicketForm((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  placeholder="Optional ticket description"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Features
+                </label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    className="input-field flex-1"
+                    value={ticketFeatureInput}
+                    onChange={(e) => setTicketFeatureInput(e.target.value)}
+                    placeholder="Add a feature..."
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && ticketFeatureInput.trim()) {
+                        e.preventDefault();
+                        setTicketForm((prev) => ({
+                          ...prev,
+                          features: [...(prev.features || []), ticketFeatureInput.trim()],
+                        }));
+                        setTicketFeatureInput("");
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary text-sm px-3"
+                    onClick={() => {
+                      if (ticketFeatureInput.trim()) {
+                        setTicketForm((prev) => ({
+                          ...prev,
+                          features: [...(prev.features || []), ticketFeatureInput.trim()],
+                        }));
+                        setTicketFeatureInput("");
+                      }
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+                {(ticketForm.features || []).length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {(ticketForm.features || []).map((f, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
+                      >
+                        {f}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setTicketForm((prev) => ({
+                              ...prev,
+                              features: (prev.features || []).filter((_, idx) => idx !== i),
+                            }))
+                          }
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-4">

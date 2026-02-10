@@ -108,11 +108,21 @@ export interface Ticket {
     eventId: number;
     name: string;
     category: TicketCategory;
+    groupName: string | null;
     price: string;
-    thaiPrice?: string;
+    originalPrice: string | null;
+    currency: string;
+    description: string | null;
+    features: string[];
+    badgeText: string | null;
+    allowedRoles: string | null;
     quota: number;
     soldCount: number;
+    displayOrder: number;
+    saleStartDate: string | null;
+    saleEndDate: string | null;
     isActive: boolean;
+    sessionIds?: number[];
 }
 
 // ============================================================================
