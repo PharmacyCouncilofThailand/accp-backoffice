@@ -39,6 +39,7 @@ interface Ticket {
   eventId: number;
   name: string; // ticketTypes.name
   category: string;
+  priority: string;
   groupName: string | null;
   price: number;
   currency: string;
@@ -112,7 +113,7 @@ export default function TicketsPage() {
     saleStartDate: "",
     saleEndDate: "",
     allowedRoles: ["thstd"], // Default
-    displayOrder: 0,
+    priority: "regular",
     isActive: true,
     sessionIds: [] as number[],
   });
@@ -211,6 +212,7 @@ export default function TicketsPage() {
           eventId: t.eventId,
           name: t.name,
           category: t.category,
+          priority: t.priority || "regular",
           groupName: t.groupName || null,
           price: parseFloat(t.price),
           currency: t.currency || "THB",
@@ -274,7 +276,7 @@ export default function TicketsPage() {
         badgeText: formData.badgeText || undefined,
         quota: formData.quota,
         allowedRoles: JSON.stringify(formData.allowedRoles),
-        displayOrder: formData.displayOrder,
+        priority: formData.priority,
         isActive: formData.isActive,
         sessionIds: finalSessionIds,
       };
@@ -327,7 +329,7 @@ export default function TicketsPage() {
         badgeText: formData.badgeText || undefined,
         quota: formData.quota,
         allowedRoles: JSON.stringify(formData.allowedRoles),
-        displayOrder: formData.displayOrder,
+        priority: formData.priority,
         isActive: formData.isActive,
         sessionIds: finalSessionIds,
       };
@@ -393,7 +395,7 @@ export default function TicketsPage() {
       saleStartDate: formatDateTimeLocal(ticket.startDate),
       saleEndDate: formatDateTimeLocal(ticket.endDate),
       allowedRoles: ticket.allowedRoles,
-      displayOrder: ticket.displayOrder ?? 0,
+      priority: ticket.priority || "regular",
       isActive: true,
       sessionIds: ticket.sessionIds || [],
     });
@@ -420,7 +422,7 @@ export default function TicketsPage() {
         ticket.allowedRoles && ticket.allowedRoles.length > 0
           ? ticket.allowedRoles
           : ["thstd"],
-      displayOrder: ticket.displayOrder ?? 0,
+      priority: ticket.priority || "regular",
       isActive: ticket.isActive ?? true,
       sessionIds: ticket.sessionIds || [],
     });
@@ -443,7 +445,7 @@ export default function TicketsPage() {
       saleStartDate: "",
       saleEndDate: "",
       allowedRoles: ["thstd"],
-      displayOrder: 0,
+      priority: "regular",
       isActive: true,
       sessionIds: [],
     });
@@ -510,9 +512,6 @@ export default function TicketsPage() {
           <button
             onClick={() => {
               resetForm();
-              // Auto-suggest next displayOrder
-              const maxOrder = tickets.reduce((max, t) => Math.max(max, t.displayOrder || 0), 0);
-              setFormData((prev) => ({ ...prev, displayOrder: maxOrder + 1 }));
               setShowCreateModal(true);
             }}
             className="btn-primary flex items-center gap-2"
@@ -598,7 +597,7 @@ export default function TicketsPage() {
                     Quota
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Order
+                    Priority
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Sales Period
@@ -692,8 +691,14 @@ export default function TicketsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-4 text-center">
-                        <span className="text-sm text-gray-600">
-                          {ticket.displayOrder}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          ticket.priority === 'early_bird' ? 'bg-orange-100 text-orange-800' :
+                          ticket.priority === 'regular' ? 'bg-gray-100 text-gray-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {ticket.priority === 'early_bird' ? 'Early Bird' :
+                           ticket.priority === 'regular' ? 'Regular' :
+                           'Regular'}
                         </span>
                       </td>
                       <td className="px-4 py-4 text-center">
@@ -939,41 +944,21 @@ export default function TicketsPage() {
 
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Display Order
+                  Ticket Priority *
                 </label>
-                <input
-                  type="number"
+                <select
                   className="input-field"
-                  value={formData.displayOrder}
+                  value={formData.priority}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      displayOrder: Number(e.target.value) || 0,
-                    })
+                    setFormData({ ...formData, priority: e.target.value })
                   }
-                  min="0"
-                  placeholder="0 = highest priority"
-                />
+                >
+                  <option value="early_bird">Early Bird</option>
+                  <option value="regular">Regular</option>
+                </select>
                 <p className="text-xs text-gray-400 mt-1">
-                  Lower number = shown first. Early Bird should have lower order than Regular.
+                  Display order is auto-calculated from priority + sale start date.
                 </p>
-                {tickets.length > 0 && (
-                  <details className="mt-1">
-                    <summary className="text-xs text-blue-500 cursor-pointer hover:underline">
-                      View existing display orders
-                    </summary>
-                    <div className="mt-1 max-h-32 overflow-y-auto bg-gray-50 rounded p-2 text-xs text-gray-600">
-                      {[...tickets]
-                        .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
-                        .map((t) => (
-                          <div key={t.id} className="flex justify-between py-0.5">
-                            <span className="truncate mr-2">{t.name}</span>
-                            <span className="font-mono text-gray-800 shrink-0">{t.displayOrder}</span>
-                          </div>
-                        ))}
-                    </div>
-                  </details>
-                )}
               </div>
 
               <div className="mb-4">

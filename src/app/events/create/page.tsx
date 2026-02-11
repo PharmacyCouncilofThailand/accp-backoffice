@@ -71,7 +71,7 @@ interface TicketData {
   saleStartDate: string;
   saleEndDate: string;
   allowedRoles: string[];
-  displayOrder: number;
+  priority: string;
   isActive?: boolean;
   sessionIds?: number[];
   sessionId?: number;
@@ -251,7 +251,7 @@ export default function CreateEventPage() {
     saleStartDate: "",
     saleEndDate: "",
     allowedRoles: ["thstd"],
-    displayOrder: 0,
+    priority: "regular",
     isActive: true,
     sessionIds: [],
   });
@@ -450,7 +450,7 @@ export default function CreateEventPage() {
       saleStartDate: "",
       saleEndDate: "",
       allowedRoles: ["thstd"],
-      displayOrder: 0,
+      priority: "regular",
       isActive: true,
       sessionIds: [],
     });
@@ -474,7 +474,7 @@ export default function CreateEventPage() {
       saleStartDate: ticket.saleStartDate,
       saleEndDate: ticket.saleEndDate,
       allowedRoles: ticket.allowedRoles,
-      displayOrder: ticket.displayOrder ?? 0,
+      priority: ticket.priority || "regular",
       isActive: ticket.isActive ?? true,
       sessionIds:
         ticket.sessionIds || (ticket.sessionId ? [ticket.sessionId] : []),
@@ -590,7 +590,7 @@ export default function CreateEventPage() {
           badgeText: ticket.badgeText || undefined,
           quota: parseInt(ticket.quota) || 0,
           allowedRoles: JSON.stringify(ticket.allowedRoles),
-          displayOrder: ticket.displayOrder,
+          priority: ticket.priority || "regular",
           isActive: ticket.isActive ?? true,
           sessionIds: apiSessionIds,
         };
@@ -1236,7 +1236,17 @@ export default function CreateEventPage() {
                         {ticket.price}
                       </td>
                       <td>{ticket.quota}</td>
-                      <td>{ticket.displayOrder}</td>
+                      <td>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          ticket.priority === 'early_bird' ? 'bg-orange-100 text-orange-800' :
+                          ticket.priority === 'regular' ? 'bg-gray-100 text-gray-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {ticket.priority === 'early_bird' ? 'Early Bird' :
+                           ticket.priority === 'regular' ? 'Regular' :
+                           'Regular'}
+                        </span>
+                      </td>
                       <td className="text-sm text-gray-600">
                         {formatDateTime(ticket.saleStartDate)}
                         <br />
@@ -1531,21 +1541,21 @@ export default function CreateEventPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Display Order
+                    Ticket Priority
                   </label>
-                  <input
-                    type="number"
+                  <select
                     className="input-field"
-                    value={ticketForm.displayOrder}
+                    value={ticketForm.priority}
                     onChange={(e) =>
                       setTicketForm((prev) => ({
                         ...prev,
-                        displayOrder: parseInt(e.target.value) || 0,
+                        priority: e.target.value,
                       }))
                     }
-                    min="0"
-                    placeholder="0 = highest priority"
-                  />
+                  >
+                    <option value="early_bird">Early Bird</option>
+                    <option value="regular">Regular</option>
+                  </select>
                 </div>
               </div>
 
