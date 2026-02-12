@@ -177,9 +177,9 @@ export const api = {
 
   checkins: {
     list: (token: string, query?: string) =>
-      fetchAPI<{ checkins: { id: number; registrationId: number; checkedInAt: string }[]; pagination: Pagination }>(`/api/backoffice/checkins${query ? `?${query}` : ''}`, { token }),
-    create: (token: string, regCode: string) =>
-      fetchAPI<{ success: boolean; checkin: { id: number }; registration: Registration }>(`/api/backoffice/checkins`, { method: 'POST', body: JSON.stringify({ regCode }), token }),
+      fetchAPI<{ checkins: any[]; pagination: Pagination }>(`/api/backoffice/checkins${query ? `?${query}` : ''}`, { token }),
+    create: (token: string, data: { regCode: string; sessionId?: number; checkInAll?: boolean }) =>
+      fetchAPI<any>(`/api/backoffice/checkins`, { method: 'POST', body: JSON.stringify(data), token }),
   },
 
   tickets: {

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 import {
     IconScan,
     IconCheck,
@@ -15,6 +16,7 @@ import {
     IconTicket,
     IconCalendarEvent,
     IconLoader2,
+    IconDoor,
 } from '@tabler/icons-react';
 
 type ScanResult = null | {
@@ -26,14 +28,33 @@ type ScanResult = null | {
     eventName?: string;
 };
 
+interface SessionInfo {
+    id: number;
+    sessionId: number;
+    sessionName: string;
+    sessionType?: string;
+    ticketName: string;
+    checkedInAt: string | null;
+}
+
+interface PendingRegistration {
+    id: number;
+    regCode: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    ticketName: string;
+    eventName: string;
+}
+
 interface RecentCheckin {
     id: number;
     regCode: string;
     firstName: string;
     lastName: string;
     ticketName: string;
+    sessionName?: string;
     scannedAt: string;
-    status: 'success' | 'duplicate'; // API mainly returns success, but sidebar might want to show errors if we logged them. The endpoint currently returns successful checkins.
 }
 
 export default function CheckinPage() {
@@ -42,6 +63,10 @@ export default function CheckinPage() {
     const [scanResult, setScanResult] = useState<ScanResult>(null);
     const [isCameraActive, setIsCameraActive] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+
+    // Session selection state (new flow)
+    const [pendingSessions, setPendingSessions] = useState<SessionInfo[] | null>(null);
+    const [pendingRegistration, setPendingRegistration] = useState<PendingRegistration | null>(null);
 
     // Data stats
     const [stats, setStats] = useState({
@@ -79,8 +104,8 @@ export default function CheckinPage() {
                 firstName: c.firstName,
                 lastName: c.lastName,
                 ticketName: c.ticketName,
+                sessionName: c.sessionName,
                 scannedAt: new Date(c.scannedAt).toLocaleTimeString(),
-                status: 'success', // We only fetch successful ones usually
             })));
 
         } catch (error) {
@@ -90,9 +115,20 @@ export default function CheckinPage() {
 
     const processScan = async (code: string) => {
         setIsLoading(true);
+        setScanResult(null);
+        setPendingSessions(null);
+        setPendingRegistration(null);
         try {
             const token = localStorage.getItem('backoffice_token') || '';
-            const res = await api.checkins.create(token, code);
+            const res = await api.checkins.create(token, { regCode: code });
+
+            // Case 3: API returns session list (no sessionId sent)
+            if (res.sessions) {
+                setPendingRegistration(res.registration);
+                setPendingSessions(res.sessions);
+                setIsLoading(false);
+                return;
+            }
 
             if (res.success) {
                 setScanResult({
@@ -101,15 +137,14 @@ export default function CheckinPage() {
                     name: `${res.registration.firstName} ${res.registration.lastName}`,
                     ticketType: res.registration.ticketName,
                     eventName: res.registration.eventName,
-                    message: 'Check-in successful!',
+                    message: res.checkedInCount
+                        ? `Checked in ${res.checkedInCount} sessions!`
+                        : 'Check-in successful!',
                 });
-                // Refresh stats
                 fetchData();
             }
         } catch (error: any) {
             console.error('Scan error:', error);
-            // Check for specific error codes if available in error message or response
-            // The fetchAPI throws Error with message.
             if (error.message.includes('Already checked in')) {
                 setScanResult({
                     status: 'duplicate',
@@ -128,6 +163,69 @@ export default function CheckinPage() {
                     code: code,
                     message: error.message || 'Scan failed',
                 });
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const checkInSession = async (sessionId: number) => {
+        if (!pendingRegistration) return;
+        setIsLoading(true);
+        try {
+            const token = localStorage.getItem('backoffice_token') || '';
+            const res = await api.checkins.create(token, {
+                regCode: pendingRegistration.regCode,
+                sessionId,
+            });
+            if (res.success) {
+                setPendingSessions(prev =>
+                    prev?.map(s => s.sessionId === sessionId
+                        ? { ...s, checkedInAt: new Date().toISOString() }
+                        : s
+                    ) || null
+                );
+                toast.success(`Checked in: ${res.checkedInSession?.sessionName}`);
+                fetchData();
+            }
+        } catch (error: any) {
+            if (error.message.includes('Already checked in')) {
+                toast.error('Already checked in for this session');
+            } else {
+                toast.error(error.message || 'Check-in failed');
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const checkInAllSessions = async () => {
+        if (!pendingRegistration) return;
+        setIsLoading(true);
+        try {
+            const token = localStorage.getItem('backoffice_token') || '';
+            const res = await api.checkins.create(token, {
+                regCode: pendingRegistration.regCode,
+                checkInAll: true,
+            });
+            if (res.success) {
+                setScanResult({
+                    status: 'success',
+                    code: pendingRegistration.regCode,
+                    name: `${pendingRegistration.firstName} ${pendingRegistration.lastName}`,
+                    ticketType: pendingRegistration.ticketName,
+                    eventName: pendingRegistration.eventName,
+                    message: `Checked in ${res.checkedInCount} sessions!`,
+                });
+                setPendingSessions(null);
+                setPendingRegistration(null);
+                fetchData();
+            }
+        } catch (error: any) {
+            if (error.message.includes('Already checked in')) {
+                toast.error('All sessions already checked in');
+            } else {
+                toast.error(error.message || 'Check-in failed');
             }
         } finally {
             setIsLoading(false);
@@ -158,6 +256,8 @@ export default function CheckinPage() {
 
     const clearResult = () => {
         setScanResult(null);
+        setPendingSessions(null);
+        setPendingRegistration(null);
     };
 
     return (
@@ -197,7 +297,7 @@ export default function CheckinPage() {
                         )}
 
                         {/* Camera Mode */}
-                        {!isLoading && scanMode === 'camera' && !scanResult && (
+                        {!isLoading && scanMode === 'camera' && !scanResult && !pendingSessions && (
                             <div className="relative flex-1 flex flex-col items-center justify-center bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 p-8">
                                 <div className="text-center text-gray-400">
                                     <IconCamera size={64} className="mx-auto mb-4 opacity-50" />
@@ -213,7 +313,7 @@ export default function CheckinPage() {
                         )}
 
                         {/* Manual Mode */}
-                        {!isLoading && scanMode === 'manual' && !scanResult && (
+                        {!isLoading && scanMode === 'manual' && !scanResult && !pendingSessions && (
                             <div className="flex-1 flex flex-col items-center justify-center py-8">
                                 <form onSubmit={handleManualSubmit} className="max-w-md w-full mx-auto">
                                     <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
@@ -234,6 +334,77 @@ export default function CheckinPage() {
                                     </div>
                                     <p className="text-xs text-gray-400 text-center">Press Enter to submit</p>
                                 </form>
+                            </div>
+                        )}
+
+                        {/* Session Selection (new flow) */}
+                        {!isLoading && pendingSessions && pendingRegistration && (
+                            <div className="flex-1 flex flex-col py-6 animate-fade-in">
+                                <div className="max-w-md w-full mx-auto">
+                                    <div className="bg-white rounded-xl p-5 shadow-sm border mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                                <IconUser size={20} className="text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-gray-800">
+                                                    {pendingRegistration.firstName} {pendingRegistration.lastName}
+                                                </p>
+                                                <p className="text-xs text-gray-500 font-mono">{pendingRegistration.regCode}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                                        <IconDoor size={20} className="text-blue-600" />
+                                        Select Session to Check-in
+                                    </h3>
+
+                                    <div className="space-y-2 mb-4">
+                                        {pendingSessions.map(session => (
+                                            <button
+                                                key={session.id}
+                                                disabled={!!session.checkedInAt || isLoading}
+                                                onClick={() => checkInSession(session.sessionId)}
+                                                className={`w-full p-4 rounded-lg border text-left transition-colors ${
+                                                    session.checkedInAt
+                                                        ? 'bg-green-50 border-green-200 cursor-default'
+                                                        : 'bg-white border-gray-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer'
+                                                }`}
+                                            >
+                                                <div className="flex justify-between items-center">
+                                                    <div>
+                                                        <p className="font-medium text-gray-800">{session.sessionName}</p>
+                                                        <p className="text-xs text-gray-500">{session.ticketName}</p>
+                                                    </div>
+                                                    {session.checkedInAt ? (
+                                                        <span className="text-green-600 flex items-center gap-1 text-sm font-medium">
+                                                            <IconCheck size={16} /> Done
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-blue-600 text-sm">Tap to check-in</span>
+                                                    )}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={checkInAllSessions}
+                                            disabled={pendingSessions.every(s => !!s.checkedInAt) || isLoading}
+                                            className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white py-3 rounded-lg font-medium transition-colors"
+                                        >
+                                            Check-in All Sessions
+                                        </button>
+                                        <button
+                                            onClick={clearResult}
+                                            className="px-4 py-3 bg-gray-100 rounded-lg hover:bg-gray-200 text-gray-600 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         )}
 
@@ -380,6 +551,9 @@ export default function CheckinPage() {
                                                     {checkin.firstName} {checkin.lastName}
                                                 </p>
                                                 <p className="text-xs text-gray-500 font-mono">{checkin.regCode}</p>
+                                                {checkin.sessionName && (
+                                                    <p className="text-xs text-gray-400">{checkin.sessionName}</p>
+                                                )}
                                             </div>
                                         </div>
                                         <span className="text-xs text-gray-400">{checkin.scannedAt}</span>

@@ -41,6 +41,7 @@ interface Session {
     speakers: string[]; // Aggregated names from backend
     speakerIds?: number[]; // New way: link to speakers table
     maxCapacity: number;
+    enrolledCount: number;
     eventCode?: string;
     tags?: string[]; // Not in schema, mocked or derived
     isMainSession?: boolean; // Added for Main Session Logic
@@ -180,6 +181,7 @@ export default function SessionsPage() {
                     speakers: s.speakers || [],
                     speakerIds: s.speakerIds || [],
                     maxCapacity: s.maxCapacity,
+                    enrolledCount: s.enrolledCount || 0,
                     isMainSession: s.isMainSession || false
                 }));
                 setEventSessions(mapped);
@@ -226,6 +228,7 @@ export default function SessionsPage() {
                     speakers: s.speakers || [],
                     speakerIds: s.speakerIds || [],
                     maxCapacity: s.maxCapacity || 100,
+                    enrolledCount: s.enrolledCount || 0,
                     eventCode: s.eventCode,
                     isMainSession: s.isMainSession || false // Map from API
                 };
@@ -414,7 +417,7 @@ export default function SessionsPage() {
     const renderSessionCard = (session: Session, index: number, isMain: boolean) => {
         const colors = isMain ? ['#8B5CF6'] : ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#6366F1'];
         const sessionColor = colors[index % colors.length];
-        const capacityPercentage = session.maxCapacity > 0 ? Math.min((0 / session.maxCapacity) * 100, 100) : 0;
+        const capacityPercentage = session.maxCapacity > 0 ? Math.min((session.enrolledCount / session.maxCapacity) * 100, 100) : 0;
 
         return (
             <div
@@ -595,7 +598,7 @@ export default function SessionsPage() {
                         <div>
                             <span style={{ fontSize: '12px', color: '#666' }}>
                                 <IconUsers size={14} style={{ display: 'inline', marginRight: '5px', verticalAlign: 'middle' }} />
-                                0/{session.maxCapacity || '∞'} enrolled
+                                {session.enrolledCount}/{session.maxCapacity || '∞'} enrolled
                             </span>
                             {session.maxCapacity > 0 && (
                                 <div
