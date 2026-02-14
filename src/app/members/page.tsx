@@ -16,6 +16,7 @@ import {
   IconPhone,
   IconBuilding,
   IconWorld,
+  IconTrash,
 } from "@tabler/icons-react";
 
 // Types
@@ -81,6 +82,8 @@ export default function MembersPage() {
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Member | null>(null);
 
   // Stats
   const stats = {
@@ -121,6 +124,21 @@ export default function MembersPage() {
     setRoleFilter("");
     setStatusFilter("");
     setCurrentPage(1);
+  };
+
+  const handleDelete = async () => {
+    if (!token || !deleteConfirm) return;
+    setDeletingId(deleteConfirm.id);
+    try {
+      await api.members.delete(token, deleteConfirm.id);
+      setDeleteConfirm(null);
+      fetchMembers();
+    } catch (error) {
+      console.error("Failed to delete member:", error);
+      alert(error instanceof Error ? error.message : "Failed to delete member");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -272,13 +290,16 @@ export default function MembersPage() {
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                       Joined
                     </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {members.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={8}
                         className="text-center py-8 text-gray-500"
                       >
                         No members found
@@ -373,6 +394,21 @@ export default function MembersPage() {
                             )}
                           </span>
                         </td>
+                        <td className="px-4 py-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirm(member)}
+                            disabled={deletingId === member.id}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Delete member"
+                          >
+                            {deletingId === member.id ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                            ) : (
+                              <IconTrash size={18} stroke={1.5} />
+                            )}
+                          </button>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -391,6 +427,51 @@ export default function MembersPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-red-600">
+                <IconTrash size={20} />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Delete Member
+              </h3>
+            </div>
+            <p className="text-gray-600 mb-2">
+              Are you sure you want to delete{" "}
+              <span className="font-medium text-gray-900">
+                {deleteConfirm.firstName} {deleteConfirm.lastName}
+              </span>
+              ?
+            </p>
+            <p className="text-sm text-red-600 mb-6">
+              This will permanently remove the member and all related data
+              (orders, registrations, abstracts, etc.).
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm(null)}
+                className="btn-secondary"
+                disabled={deletingId !== null}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deletingId !== null}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {deletingId !== null ? "Deleting..." : "Confirm Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

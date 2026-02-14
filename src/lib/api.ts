@@ -219,6 +219,8 @@ export const api = {
       fetchAPI<{ member: Record<string, unknown> }>(`/api/backoffice/members/${id}`, { token }),
     stats: (token: string) =>
       fetchAPI<{ total: number; byRole: { role: string; count: number }[]; byStatus: { status: string; count: number }[] }>('/api/backoffice/members/stats/summary', { token }),
+    delete: (token: string, id: number) =>
+      fetchAPI<{ success: boolean }>(`/api/backoffice/members/${id}`, { method: 'DELETE', token }),
   },
 
   // File Upload
