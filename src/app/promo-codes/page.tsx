@@ -16,7 +16,6 @@ import {
     IconPercentage,
     IconLoader2,
 } from '@tabler/icons-react';
-import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -28,14 +27,25 @@ const statusColors: { [key: string]: string } = {
     inactive: 'badge-warning',
 };
 
+interface PromoCodeRuleSetResponse {
+    matchType: 'all' | 'any' | 'only';
+    items?: { ticketTypeId: number }[];
+    ticketTypeIds?: number[];
+}
+
 interface PromoCode {
     id: number;
     eventId: number | null;
     code: string;
     description: string | null;
-    discountType: string;
+    discountType: 'percentage' | 'fixed';
     discountValue: string;
+    fixedValueThb?: string | null;
+    fixedValueUsd?: string | null;
+    minPurchase?: string | null;
+    maxDiscount?: string | null;
     maxUses: number;
+    maxUsesPerUser?: number;
     usedCount: number;
     validFrom: string | null;
     validUntil: string | null;
@@ -43,6 +53,7 @@ interface PromoCode {
     status: string;
     eventCode?: string;
     eventName?: string;
+    ruleSets?: PromoCodeRuleSetResponse[];
 }
 
 interface EventOption {
@@ -51,12 +62,27 @@ interface EventOption {
     name: string;
 }
 
+interface PromoRuleSet {
+    matchType: 'all' | 'any' | 'only';
+    ticketTypeIds: number[];
+}
+
+interface TicketOption {
+    id: number;
+    name: string;
+    category: string;
+    currency?: string;
+    price?: string | number | null;
+}
+
 export default function PromoCodesPage() {
-    const { isAdmin } = useAuth();
     const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
     const [events, setEvents] = useState<EventOption[]>([]);
+    const [ticketOptions, setTicketOptions] = useState<TicketOption[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isFetchingDetails, setIsFetchingDetails] = useState(false);
+    const [isLoadingTickets, setIsLoadingTickets] = useState(false);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [eventFilter, setEventFilter] = useState<number | ''>('');
@@ -77,10 +103,16 @@ export default function PromoCodesPage() {
         description: '',
         discountType: 'percentage',
         discountValue: 10,
+        fixedValueThb: '' as number | '',
+        fixedValueUsd: '' as number | '',
+        minPurchase: 0,
+        maxDiscount: '' as number | '',
         maxUses: 100,
+        maxUsesPerUser: 1,
         validFrom: '',
         validUntil: '',
         isActive: true,
+        ruleSets: [] as PromoRuleSet[],
     });
 
     useEffect(() => {
@@ -90,6 +122,14 @@ export default function PromoCodesPage() {
     useEffect(() => {
         fetchPromoCodes();
     }, [page, eventFilter, statusFilter]);
+
+    useEffect(() => {
+        if (showCreateModal || showEditModal) {
+            fetchTickets(formData.eventId);
+        } else {
+            setTicketOptions([]);
+        }
+    }, [formData.eventId, showCreateModal, showEditModal]);
 
     const fetchEvents = async () => {
         try {
@@ -125,6 +165,144 @@ export default function PromoCodesPage() {
         }
     };
 
+    const fetchTickets = async (eventId: number | null) => {
+        setIsLoadingTickets(true);
+        try {
+            const token = localStorage.getItem('backoffice_token') || '';
+            const params: any = { page: 1, limit: 100 };
+            if (eventId) params.eventId = eventId;
+            const res = await api.tickets.list(token, new URLSearchParams(params).toString());
+            const mapped = (res.tickets || []).map((t: any) => ({
+                id: t.id,
+                name: t.name,
+                category: t.category,
+                currency: t.currency,
+                price: t.price,
+            }));
+            setTicketOptions(mapped);
+        } catch (error) {
+            console.error('Failed to fetch tickets:', error);
+            setTicketOptions([]);
+        } finally {
+            setIsLoadingTickets(false);
+        }
+    };
+
+    const normalizeRuleSets = (ruleSets?: PromoCodeRuleSetResponse[]): PromoRuleSet[] => {
+        if (!ruleSets || ruleSets.length === 0) return [];
+        return ruleSets
+            .map((rs) => ({
+                matchType: rs.matchType,
+                ticketTypeIds: rs.ticketTypeIds || rs.items?.map((item) => item.ticketTypeId) || [],
+            }))
+            .filter((rs) => rs.ticketTypeIds.length > 0);
+    };
+
+    const formatTicketLabel = (ticket: TicketOption) => {
+        const priceNum = ticket.price ? Number(ticket.price) : null;
+        const priceLabel = priceNum
+            ? `${ticket.currency === 'USD' ? '$' : '฿'}${priceNum.toLocaleString()}`
+            : '';
+        return priceLabel ? `${ticket.name} (${priceLabel})` : ticket.name;
+    };
+
+    const buildPayload = () => {
+        const ruleSets = formData.ruleSets.filter((rs) => rs.ticketTypeIds.length > 0);
+        return {
+            eventId: formData.eventId || null,
+            code: formData.code,
+            description: formData.description || undefined,
+            discountType: formData.discountType as 'percentage' | 'fixed',
+            discountValue: Number(formData.discountValue) || 0,
+            fixedValueThb: formData.fixedValueThb === '' ? null : Number(formData.fixedValueThb),
+            fixedValueUsd: formData.fixedValueUsd === '' ? null : Number(formData.fixedValueUsd),
+            minPurchase: Number(formData.minPurchase) || 0,
+            maxDiscount: formData.maxDiscount === '' ? null : Number(formData.maxDiscount),
+            maxUses: Number(formData.maxUses) || 1,
+            maxUsesPerUser: Number(formData.maxUsesPerUser) || 1,
+            validFrom: formData.validFrom || undefined,
+            validUntil: formData.validUntil || undefined,
+            isActive: formData.isActive,
+            ruleSets,
+        };
+    };
+
+    const fetchPromoDetails = async (promoId: number, mode: 'edit' | 'duplicate') => {
+        setIsFetchingDetails(true);
+        try {
+            const token = localStorage.getItem('backoffice_token') || '';
+            const res = await api.promoCodes.get(token, promoId);
+            const promo = res.promoCode as unknown as PromoCode;
+            const ruleSets = normalizeRuleSets(promo.ruleSets);
+
+            setFormData({
+                eventId: promo.eventId ?? null,
+                code: mode === 'duplicate' ? `${promo.code}-COPY` : promo.code,
+                description: promo.description || '',
+                discountType: promo.discountType,
+                discountValue: parseFloat(promo.discountValue || '0'),
+                fixedValueThb: promo.fixedValueThb ? parseFloat(promo.fixedValueThb) : '',
+                fixedValueUsd: promo.fixedValueUsd ? parseFloat(promo.fixedValueUsd) : '',
+                minPurchase: promo.minPurchase ? parseFloat(promo.minPurchase) : 0,
+                maxDiscount: promo.maxDiscount ? parseFloat(promo.maxDiscount) : '',
+                maxUses: promo.maxUses || 1,
+                maxUsesPerUser: promo.maxUsesPerUser || 1,
+                validFrom: promo.validFrom || '',
+                validUntil: promo.validUntil || '',
+                isActive: mode === 'duplicate' ? true : promo.isActive,
+                ruleSets,
+            });
+
+            if (mode === 'edit') {
+                setSelectedPromo(promo);
+            } else {
+                setSelectedPromo(null);
+            }
+        } catch (error: any) {
+            console.error('Failed to fetch promo details:', error);
+            toast.error(error.message || 'Failed to load promo details');
+        } finally {
+            setIsFetchingDetails(false);
+        }
+    };
+
+    const addRuleSet = () => {
+        setFormData((prev) => ({
+            ...prev,
+            ruleSets: [...prev.ruleSets, { matchType: 'all', ticketTypeIds: [] }],
+        }));
+    };
+
+    const removeRuleSet = (index: number) => {
+        setFormData((prev) => ({
+            ...prev,
+            ruleSets: prev.ruleSets.filter((_, idx) => idx !== index),
+        }));
+    };
+
+    const updateRuleSetMatchType = (index: number, matchType: 'all' | 'any' | 'only') => {
+        setFormData((prev) => ({
+            ...prev,
+            ruleSets: prev.ruleSets.map((rs, idx) =>
+                idx === index ? { ...rs, matchType } : rs
+            ),
+        }));
+    };
+
+    const toggleRuleSetTicket = (index: number, ticketId: number) => {
+        setFormData((prev) => {
+            const ruleSets = [...prev.ruleSets];
+            const current = ruleSets[index];
+            if (!current) return prev;
+            const exists = current.ticketTypeIds.includes(ticketId);
+            const ticketTypeIds = exists
+                ? current.ticketTypeIds.filter((id) => id !== ticketId)
+                : [...current.ticketTypeIds, ticketId];
+            ruleSets[index] = { ...current, ticketTypeIds };
+            return { ...prev, ruleSets };
+        });
+    };
+
     const stats = {
         total: totalCount,
         active: promoCodes.filter(p => p.status === 'active').length,
@@ -141,10 +319,7 @@ export default function PromoCodesPage() {
         setIsSubmitting(true);
         try {
             const token = localStorage.getItem('backoffice_token') || '';
-            await api.promoCodes.create(token, {
-                ...formData,
-                eventId: formData.eventId || null,
-            });
+            await api.promoCodes.create(token, buildPayload());
             toast.success('Promo code created successfully!');
             setShowCreateModal(false);
             resetForm();
@@ -161,10 +336,7 @@ export default function PromoCodesPage() {
         setIsSubmitting(true);
         try {
             const token = localStorage.getItem('backoffice_token') || '';
-            await api.promoCodes.update(token, selectedPromo.id, {
-                ...formData,
-                eventId: formData.eventId || null,
-            });
+            await api.promoCodes.update(token, selectedPromo.id, buildPayload());
             toast.success('Promo code updated successfully!');
             setShowEditModal(false);
             setSelectedPromo(null);
@@ -194,18 +366,8 @@ export default function PromoCodesPage() {
     };
 
     const handleDuplicate = (promo: PromoCode) => {
-        setFormData({
-            eventId: promo.eventId,
-            code: promo.code + '-COPY',
-            description: promo.description || '',
-            discountType: promo.discountType,
-            discountValue: parseFloat(promo.discountValue),
-            maxUses: promo.maxUses,
-            validFrom: promo.validFrom || '',
-            validUntil: promo.validUntil || '',
-            isActive: true,
-        });
         setShowCreateModal(true);
+        fetchPromoDetails(promo.id, 'duplicate');
     };
 
     const resetForm = () => {
@@ -215,27 +377,22 @@ export default function PromoCodesPage() {
             description: '',
             discountType: 'percentage',
             discountValue: 10,
+            fixedValueThb: '',
+            fixedValueUsd: '',
+            minPurchase: 0,
+            maxDiscount: '',
             maxUses: 100,
+            maxUsesPerUser: 1,
             validFrom: '',
             validUntil: '',
             isActive: true,
+            ruleSets: [],
         });
     };
 
     const openEditModal = (promo: PromoCode) => {
-        setSelectedPromo(promo);
-        setFormData({
-            eventId: promo.eventId,
-            code: promo.code,
-            description: promo.description || '',
-            discountType: promo.discountType,
-            discountValue: parseFloat(promo.discountValue),
-            maxUses: promo.maxUses,
-            validFrom: promo.validFrom || '',
-            validUntil: promo.validUntil || '',
-            isActive: promo.isActive,
-        });
         setShowEditModal(true);
+        fetchPromoDetails(promo.id, 'edit');
     };
 
     const generateCode = () => {
@@ -381,12 +538,32 @@ export default function PromoCodesPage() {
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Usage</th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
                                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Period</th>
-                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-[120px]">Actions</th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {promoCodes.map((promo) => {
                                     const usagePercentage = promo.maxUses ? (promo.usedCount / promo.maxUses) * 100 : 0;
+                                    const fixedThb = promo.fixedValueThb ? Number(promo.fixedValueThb) : null;
+                                    const fixedUsd = promo.fixedValueUsd ? Number(promo.fixedValueUsd) : null;
+                                    const discountLabel = promo.discountType === 'percentage'
+                                        ? `${promo.discountValue}%`
+                                        : fixedThb || fixedUsd
+                                            ? [
+                                                fixedThb ? `฿${fixedThb.toLocaleString()}` : null,
+                                                fixedUsd ? `$${fixedUsd.toLocaleString()}` : null,
+                                            ].filter(Boolean).join(' / ')
+                                            : `฿${parseFloat(promo.discountValue || '0').toLocaleString()}`;
+                                    const discountDetails: string[] = [];
+                                    if (promo.minPurchase && Number(promo.minPurchase) > 0) {
+                                        discountDetails.push(`Min ${Number(promo.minPurchase).toLocaleString()}`);
+                                    }
+                                    if (promo.maxDiscount && Number(promo.maxDiscount) > 0) {
+                                        discountDetails.push(`Max ${Number(promo.maxDiscount).toLocaleString()}`);
+                                    }
+                                    if (promo.maxUsesPerUser) {
+                                        discountDetails.push(`Per user ${promo.maxUsesPerUser}`);
+                                    }
                                     return (
                                         <tr key={promo.id} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-4 py-4">
@@ -399,11 +576,12 @@ export default function PromoCodesPage() {
                                                 </span>
                                             </td>
                                             <td className="px-4 py-4 text-center">
-                                                <p className="font-semibold text-green-600">
-                                                    {promo.discountType === 'percentage'
-                                                        ? `${promo.discountValue}%`
-                                                        : `฿${parseFloat(promo.discountValue).toLocaleString()}`}
-                                                </p>
+                                                <p className="font-semibold text-green-600">{discountLabel}</p>
+                                                {discountDetails.length > 0 && (
+                                                    <p className="text-xs text-gray-400 mt-1">
+                                                        {discountDetails.join(' • ')}
+                                                    </p>
+                                                )}
                                             </td>
                                             <td className="px-4 py-4 text-center">
                                                 <div className="w-20 mx-auto">
@@ -490,6 +668,11 @@ export default function PromoCodesPage() {
                             </div>
                         </div>
                         <div className="p-6">
+                            {isFetchingDetails && (
+                                <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
+                                    <IconLoader2 size={16} className="animate-spin" /> Loading promo details...
+                                </div>
+                            )}
                             <div className="mb-4">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Event</label>
                                 <select
@@ -544,18 +727,73 @@ export default function PromoCodesPage() {
                                         onChange={(e) => setFormData({ ...formData, discountType: e.target.value })}
                                     >
                                         <option value="percentage">Percentage (%)</option>
-                                        <option value="fixed">Fixed Amount (฿)</option>
+                                        <option value="fixed">Fixed Amount (THB/USD)</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Discount Value *
+                                        {formData.discountType === 'percentage' ? 'Discount (%) *' : 'Default Fixed Amount *'}
                                     </label>
                                     <input
                                         type="number"
                                         className="input-field"
                                         value={formData.discountValue}
                                         onChange={(e) => setFormData({ ...formData, discountValue: Number(e.target.value) })}
+                                    />
+                                </div>
+                            </div>
+
+                            {formData.discountType === 'fixed' && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Fixed THB</label>
+                                        <input
+                                            type="number"
+                                            className="input-field"
+                                            placeholder="฿"
+                                            value={formData.fixedValueThb}
+                                            onChange={(e) => setFormData({ ...formData, fixedValueThb: e.target.value === '' ? '' : Number(e.target.value) })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Fixed USD</label>
+                                        <input
+                                            type="number"
+                                            className="input-field"
+                                            placeholder="$"
+                                            value={formData.fixedValueUsd}
+                                            onChange={(e) => setFormData({ ...formData, fixedValueUsd: e.target.value === '' ? '' : Number(e.target.value) })}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Min Purchase</label>
+                                    <input
+                                        type="number"
+                                        className="input-field"
+                                        value={formData.minPurchase}
+                                        onChange={(e) => setFormData({ ...formData, minPurchase: Number(e.target.value) || 0 })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Discount</label>
+                                    <input
+                                        type="number"
+                                        className="input-field"
+                                        value={formData.maxDiscount}
+                                        onChange={(e) => setFormData({ ...formData, maxDiscount: e.target.value === '' ? '' : Number(e.target.value) })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Uses / User</label>
+                                    <input
+                                        type="number"
+                                        className="input-field"
+                                        value={formData.maxUsesPerUser}
+                                        onChange={(e) => setFormData({ ...formData, maxUsesPerUser: Number(e.target.value) || 1 })}
                                     />
                                 </div>
                             </div>
@@ -598,6 +836,78 @@ export default function PromoCodesPage() {
                                 </div>
                             </div>
 
+                            <div className="mb-4 border border-gray-200 rounded-lg p-4 bg-gray-50">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div>
+                                        <p className="text-sm font-semibold text-gray-800">Rule Sets (Ticket Conditions)</p>
+                                        <p className="text-xs text-gray-500">ถ้าไม่ระบุ rule set โค้ดจะใช้ได้กับทุก ticket</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={addRuleSet}
+                                        className="btn-secondary text-xs"
+                                    >
+                                        + Add Rule Set
+                                    </button>
+                                </div>
+
+                                {isLoadingTickets && (
+                                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                                        <IconLoader2 size={16} className="animate-spin" /> Loading tickets...
+                                    </div>
+                                )}
+
+                                {!isLoadingTickets && ticketOptions.length === 0 && (
+                                    <p className="text-sm text-gray-400">ไม่พบรายการ ticket สำหรับ event นี้</p>
+                                )}
+
+                                {formData.ruleSets.length === 0 && !isLoadingTickets && (
+                                    <p className="text-sm text-gray-500 mt-2">ยังไม่มี rule set</p>
+                                )}
+
+                                <div className="mt-3 space-y-3">
+                                    {formData.ruleSets.map((ruleSet, idx) => (
+                                        <div key={`${ruleSet.matchType}-${idx}`} className="bg-white border border-gray-200 rounded-lg p-3">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-semibold text-gray-500">Match Type</span>
+                                                    <select
+                                                        className="input-field py-1 text-sm"
+                                                        value={ruleSet.matchType}
+                                                        onChange={(e) => updateRuleSetMatchType(idx, e.target.value as 'all' | 'any' | 'only')}
+                                                    >
+                                                        <option value="all">All</option>
+                                                        <option value="any">Any</option>
+                                                        <option value="only">Only</option>
+                                                    </select>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeRuleSet(idx)}
+                                                    className="text-xs text-red-500 hover:text-red-600"
+                                                >
+                                                    Remove
+                                                </button>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                {ticketOptions.map((ticket) => (
+                                                    <label key={ticket.id} className="flex items-start gap-2 text-sm text-gray-700">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={ruleSet.ticketTypeIds.includes(ticket.id)}
+                                                            onChange={() => toggleRuleSetTicket(idx, ticket.id)}
+                                                            className="mt-1"
+                                                        />
+                                                        <span>{formatTicketLabel(ticket)}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
                             <div className="mb-4">
                                 <label className="flex items-center gap-2">
                                     <input
@@ -614,14 +924,14 @@ export default function PromoCodesPage() {
                             <button
                                 onClick={() => { setShowCreateModal(false); setShowEditModal(false); }}
                                 className="btn-secondary"
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || isFetchingDetails}
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={showCreateModal ? handleCreate : handleEdit}
                                 className="btn-primary flex items-center gap-2"
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || isFetchingDetails}
                             >
                                 {isSubmitting && <IconLoader2 size={18} className="animate-spin" />}
                                 {showCreateModal ? 'Create Code' : 'Save Changes'}

@@ -23,6 +23,7 @@ import {
   IconMicrophone,
   IconTarget,
   IconLoader2,
+  IconClock,
 } from "@tabler/icons-react";
 
 interface Speaker {
@@ -54,6 +55,7 @@ interface SessionData {
   maxCapacity: number;
   isMainSession?: boolean;
   selectedSpeakerIds?: number[];
+  agenda?: { time: string; topic: string }[];
 }
 
 interface TicketData {
@@ -234,6 +236,7 @@ export default function CreateEventPage() {
     maxCapacity: 50,
     selectedSpeakerIds: [],
     isMainSession: false,
+    agenda: [],
   });
 
   // Ticket form data
@@ -387,6 +390,7 @@ export default function CreateEventPage() {
       maxCapacity: 50,
       selectedSpeakerIds: [],
       isMainSession: false,
+      agenda: [],
     });
     setShowSessionModal(false);
   };
@@ -404,6 +408,7 @@ export default function CreateEventPage() {
       maxCapacity: session.maxCapacity,
       selectedSpeakerIds: session.selectedSpeakerIds || [],
       isMainSession: session.isMainSession || false,
+      agenda: session.agenda || [],
     });
     setEditingSessionId(session.id!);
     setShowSessionModal(true);
@@ -540,6 +545,7 @@ export default function CreateEventPage() {
               maxCapacity: session.maxCapacity,
               isMainSession: session.isMainSession || false,
               sessionType: session.sessionType,
+              agenda: session.agenda && session.agenda.length > 0 ? session.agenda : undefined,
             },
           );
           // Map local session ID to API session ID
@@ -2103,6 +2109,64 @@ export default function CreateEventPage() {
                     }))
                   }
                 />
+              </div>
+
+              {/* Time & Agenda */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <IconClock size={16} /> Time & Agenda
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Add agenda items with time slots (e.g. &quot;1:30 – 2:00 PM&quot; and topic).
+                </p>
+                {(sessionForm.agenda || []).map((item, idx) => (
+                  <div key={idx} className="flex items-start gap-2 mb-2">
+                    <input
+                      type="text"
+                      className="input-field w-40"
+                      placeholder="1:30 – 2:00 PM"
+                      value={item.time}
+                      onChange={(e) => {
+                        const updated = [...(sessionForm.agenda || [])];
+                        updated[idx] = { ...updated[idx], time: e.target.value };
+                        setSessionForm((prev) => ({ ...prev, agenda: updated }));
+                      }}
+                    />
+                    <input
+                      type="text"
+                      className="input-field flex-1"
+                      placeholder="Topic description"
+                      value={item.topic}
+                      onChange={(e) => {
+                        const updated = [...(sessionForm.agenda || [])];
+                        updated[idx] = { ...updated[idx], topic: e.target.value };
+                        setSessionForm((prev) => ({ ...prev, agenda: updated }));
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = (sessionForm.agenda || []).filter((_, i) => i !== idx);
+                        setSessionForm((prev) => ({ ...prev, agenda: updated }));
+                      }}
+                      className="text-red-400 hover:text-red-600 mt-2"
+                    >
+                      <IconTrash size={16} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSessionForm((prev) => ({
+                      ...prev,
+                      agenda: [...(prev.agenda || []), { time: "", topic: "" }],
+                    }));
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1"
+                >
+                  <IconPlus size={14} /> Add agenda item
+                </button>
               </div>
             </div>
             <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">

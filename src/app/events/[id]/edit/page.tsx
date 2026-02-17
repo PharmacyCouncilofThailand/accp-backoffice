@@ -22,6 +22,7 @@ import {
   IconMicrophone,
   IconPencil,
   IconTarget,
+  IconClock,
 } from "@tabler/icons-react";
 
 interface Speaker {
@@ -44,6 +45,7 @@ interface SessionData {
   selectedSpeakerIds?: number[];
   isMainSession?: boolean;
   isNew?: boolean;
+  agenda?: { time: string; topic: string }[];
 }
 
 interface TicketData {
@@ -177,6 +179,7 @@ export default function EditEventPage() {
     endTime: "",
     maxCapacity: 50,
     selectedSpeakerIds: [],
+    agenda: [],
   });
 
   // Ticket form
@@ -253,6 +256,7 @@ export default function EditEventPage() {
               endTime: toDateTimeLocal(s.endTime),
               maxCapacity: s.maxCapacity || 50,
               isMainSession: s.isMainSession,
+              agenda: s.agenda || [],
             })),
           );
         }
@@ -353,6 +357,7 @@ export default function EditEventPage() {
             speakers: JSON.stringify(speakerNames),
             maxCapacity: sessionForm.maxCapacity,
             isMainSession: sessionForm.isMainSession || false,
+            agenda: sessionForm.agenda && sessionForm.agenda.length > 0 ? sessionForm.agenda : undefined,
           },
         );
         setSessions((prev) =>
@@ -382,6 +387,7 @@ export default function EditEventPage() {
             endTime: new Date(sessionForm.endTime).toISOString(),
             speakers: JSON.stringify(speakerNames),
             maxCapacity: sessionForm.maxCapacity,
+            agenda: sessionForm.agenda && sessionForm.agenda.length > 0 ? sessionForm.agenda : undefined,
           },
         );
         const session = response.session as Record<string, unknown>;
@@ -412,6 +418,7 @@ export default function EditEventPage() {
         maxCapacity: 50,
         selectedSpeakerIds: [],
         isMainSession: false,
+        agenda: [],
       });
       setShowSessionModal(false);
     } catch (err: any) {
@@ -431,6 +438,7 @@ export default function EditEventPage() {
       maxCapacity: session.maxCapacity,
       selectedSpeakerIds: session.selectedSpeakerIds || [],
       isMainSession: session.isMainSession || false,
+      agenda: session.agenda || [],
     });
     setEditingSessionId(session.id!);
     setShowSessionModal(true);
@@ -2069,6 +2077,64 @@ export default function EditEventPage() {
                     Set to 0 for unlimited capacity
                   </p>
                 </div>
+              </div>
+
+              {/* Time & Agenda */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <IconClock size={16} /> Time & Agenda
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Add agenda items with time slots (e.g. &quot;1:30 – 2:00 PM&quot; and topic).
+                </p>
+                {(sessionForm.agenda || []).map((item, idx) => (
+                  <div key={idx} className="flex items-start gap-2 mb-2">
+                    <input
+                      type="text"
+                      className="input-field w-40"
+                      placeholder="1:30 – 2:00 PM"
+                      value={item.time}
+                      onChange={(e) => {
+                        const updated = [...(sessionForm.agenda || [])];
+                        updated[idx] = { ...updated[idx], time: e.target.value };
+                        setSessionForm((prev) => ({ ...prev, agenda: updated }));
+                      }}
+                    />
+                    <input
+                      type="text"
+                      className="input-field flex-1"
+                      placeholder="Topic description"
+                      value={item.topic}
+                      onChange={(e) => {
+                        const updated = [...(sessionForm.agenda || [])];
+                        updated[idx] = { ...updated[idx], topic: e.target.value };
+                        setSessionForm((prev) => ({ ...prev, agenda: updated }));
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = (sessionForm.agenda || []).filter((_, i) => i !== idx);
+                        setSessionForm((prev) => ({ ...prev, agenda: updated }));
+                      }}
+                      className="text-red-400 hover:text-red-600 mt-2"
+                    >
+                      <IconTrash size={16} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSessionForm((prev) => ({
+                      ...prev,
+                      agenda: [...(prev.agenda || []), { time: "", topic: "" }],
+                    }));
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1"
+                >
+                  <IconPlus size={14} /> Add agenda item
+                </button>
               </div>
 
               {/* Instructor(s) */}

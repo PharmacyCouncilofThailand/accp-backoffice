@@ -45,6 +45,7 @@ interface Session {
     eventCode?: string;
     tags?: string[]; // Not in schema, mocked or derived
     isMainSession?: boolean; // Added for Main Session Logic
+    agenda?: { time: string; topic: string }[] | null;
 }
 
 interface EventOption {
@@ -108,6 +109,7 @@ export default function SessionsPage() {
         selectedSpeakerIds: [] as number[],
         maxCapacity: 100,
         isMainSession: false, // Added for Main Session Logic
+        agenda: [] as { time: string; topic: string }[],
     });
 
     const [eventSessions, setEventSessions] = useState<Session[]>([]); // To track siblings for locking logic
@@ -230,7 +232,8 @@ export default function SessionsPage() {
                     maxCapacity: s.maxCapacity || 100,
                     enrolledCount: s.enrolledCount || 0,
                     eventCode: s.eventCode,
-                    isMainSession: s.isMainSession || false // Map from API
+                    isMainSession: s.isMainSession || false,
+                    agenda: s.agenda || null
                 };
             });
 
@@ -281,6 +284,7 @@ export default function SessionsPage() {
                 speakerIds: formData.selectedSpeakerIds,
                 maxCapacity: formData.maxCapacity || 100,
                 isMainSession: formData.isMainSession,
+                agenda: formData.agenda && formData.agenda.length > 0 ? formData.agenda : undefined,
             };
             await api.backofficeEvents.createSession(token, formData.eventId, payload);
             toast.success('Session created successfully!');
@@ -317,6 +321,7 @@ export default function SessionsPage() {
                 speakerIds: formData.selectedSpeakerIds,
                 maxCapacity: formData.maxCapacity || 100,
                 isMainSession: formData.isMainSession,
+                agenda: formData.agenda && formData.agenda.length > 0 ? formData.agenda : undefined,
             };
             await api.backofficeEvents.updateSession(token, formData.eventId, selectedSession.id, payload);
             toast.success('Session updated successfully!');
@@ -376,6 +381,7 @@ export default function SessionsPage() {
             selectedSpeakerIds: [],
             maxCapacity: 100,
             isMainSession: false,
+            agenda: [],
         });
         setSelectedSession(null);
     };
@@ -407,7 +413,8 @@ export default function SessionsPage() {
             endTime: formatDateTime(session.endTime),
             selectedSpeakerIds: session.speakerIds || [],
             maxCapacity: session.maxCapacity || 100,
-            isMainSession: session.isMainSession || false, // Add to form
+            isMainSession: session.isMainSession || false,
+            agenda: session.agenda || [],
         });
         fetchEventSessions(session.eventId); // Fetch siblings for locking logic
         setShowEditModal(true);
@@ -423,7 +430,7 @@ export default function SessionsPage() {
             <div
                 key={session.id}
                 className={`group relative bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 animate-fade-in border-2 ${isMain ? 'border-purple-200' : 'border-transparent'}`}
-                style={{ marginBottom: '0' }}
+                style={{ marginBottom: '0', display: 'flex', flexDirection: 'column', height: '100%' }}
             >
                 {/* Header with gradient */}
                 <div
@@ -504,7 +511,7 @@ export default function SessionsPage() {
                 </div>
 
                 {/* Content */}
-                <div style={{ padding: '25px' }}>
+                <div style={{ padding: '25px', flex: 1, display: 'flex', flexDirection: 'column' }}>
                     {/* Info Grid */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
                         <div>
@@ -551,6 +558,58 @@ export default function SessionsPage() {
                         </div>
                     </div>
 
+                    {/* Time & Agenda */}
+                    {session.agenda && session.agenda.length > 0 && (
+                        <div style={{ marginBottom: '20px' }}>
+                            <p style={{ margin: '0 0 10px 0', fontSize: '11px', color: '#999', textTransform: 'uppercase', fontWeight: 600 }}>
+                                <IconClock size={14} style={{ display: 'inline', marginRight: '5px', verticalAlign: 'middle' }} />
+                                Time & Agenda
+                            </p>
+                            <div
+                                style={{
+                                    backgroundColor: '#f8f9fa',
+                                    borderRadius: '10px',
+                                    padding: '14px 16px',
+                                    borderLeft: `3px solid ${sessionColor}`,
+                                }}
+                            >
+                                {session.agenda.map((item, i) => (
+                                    <div
+                                        key={i}
+                                        style={{
+                                            display: 'flex',
+                                            gap: '10px',
+                                            marginBottom: i < (session.agenda?.length || 0) - 1 ? '10px' : 0,
+                                            paddingBottom: i < (session.agenda?.length || 0) - 1 ? '10px' : 0,
+                                            borderBottom: i < (session.agenda?.length || 0) - 1 ? '1px dashed #e0e0e0' : 'none',
+                                        }}
+                                    >
+                                        <span
+                                            style={{
+                                                fontSize: '12px',
+                                                fontWeight: 700,
+                                                color: sessionColor,
+                                                whiteSpace: 'nowrap',
+                                                minWidth: '120px',
+                                            }}
+                                        >
+                                            {item.time}
+                                        </span>
+                                        <span
+                                            style={{
+                                                fontSize: '12px',
+                                                color: '#444',
+                                                lineHeight: 1.4,
+                                            }}
+                                        >
+                                            {item.topic}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Instructors (Speakers) */}
                     <div style={{ marginBottom: '20px' }}>
                         <p style={{ margin: '0 0 10px 0', fontSize: '11px', color: '#999', textTransform: 'uppercase', fontWeight: 600 }}>
@@ -575,7 +634,7 @@ export default function SessionsPage() {
                             Learning Objectives
                         </p>
                         {session.description ? (
-                            <p style={{ margin: 0, fontSize: '13px', color: '#555', lineHeight: 1.5 }}>
+                            <p style={{ margin: 0, fontSize: '13px', color: '#555', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
                                 {session.description}
                             </p>
                         ) : (
@@ -592,7 +651,8 @@ export default function SessionsPage() {
                             flexWrap: 'wrap',
                             gap: '15px',
                             borderTop: '1px solid #eee',
-                            paddingTop: '20px'
+                            paddingTop: '20px',
+                            marginTop: 'auto'
                         }}
                     >
                         <div>
@@ -980,6 +1040,68 @@ export default function SessionsPage() {
                                     <p className="text-xs text-gray-400 mt-1">Set to 0 for unlimited capacity</p>
                                 </div>
 
+                                {/* Time & Agenda */}
+                                <div className="col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        <IconClock size={16} className="inline mr-1" /> Time & Agenda
+                                    </label>
+                                    <p className="text-xs text-gray-500 mb-2">
+                                        Add agenda items with time slots (e.g. &quot;1:30 – 2:00 PM&quot; and topic).
+                                    </p>
+                                    {(formData.agenda || []).map((item, idx) => (
+                                        <div key={idx} className="flex items-start gap-2 mb-2">
+                                            <div className="w-[30%]">
+                                                <input
+                                                    type="text"
+                                                    className="input-field w-full"
+                                                    placeholder="1:30 – 2:00 PM"
+                                                    value={item.time}
+                                                    onChange={(e) => {
+                                                        const updated = [...(formData.agenda || [])];
+                                                        updated[idx] = { ...updated[idx], time: e.target.value };
+                                                        setFormData({ ...formData, agenda: updated });
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="w-[70%]">
+                                                <input
+                                                    type="text"
+                                                    className="input-field w-full"
+                                                    placeholder="Topic description"
+                                                    value={item.topic}
+                                                    onChange={(e) => {
+                                                        const updated = [...(formData.agenda || [])];
+                                                        updated[idx] = { ...updated[idx], topic: e.target.value };
+                                                        setFormData({ ...formData, agenda: updated });
+                                                    }}
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const updated = (formData.agenda || []).filter((_, i) => i !== idx);
+                                                    setFormData({ ...formData, agenda: updated });
+                                                }}
+                                                className="text-red-400 hover:text-red-600 mt-2"
+                                            >
+                                                <IconTrash size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFormData({
+                                                ...formData,
+                                                agenda: [...(formData.agenda || []), { time: '', topic: '' }],
+                                            });
+                                        }}
+                                        className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1"
+                                    >
+                                        <IconPlus size={14} /> Add agenda item
+                                    </button>
+                                </div>
+
                                 {/* Instructor(s) - formerly Speakers */}
                                 <div className="col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1028,7 +1150,7 @@ export default function SessionsPage() {
                                         value={formData.description}
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                     />
-                                </div>
+                                </div>                               
                             </div>
                             <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
                                 <button onClick={() => { setShowCreateModal(false); setShowEditModal(false); }} className="btn-secondary" disabled={isSubmitting}>Cancel</button>
@@ -1187,7 +1309,7 @@ export default function SessionsPage() {
                                         </p>
                                         <div className="bg-gray-50 p-4 rounded-lg">
                                             {selectedSession.description ? (
-                                                <p className="text-gray-700 leading-relaxed">{selectedSession.description}</p>
+                                                <p className="text-gray-700 leading-relaxed" style={{ whiteSpace: 'pre-line' }}>{selectedSession.description}</p>
                                             ) : (
                                                 <p className="text-gray-400 italic">No objectives specified</p>
                                             )}
