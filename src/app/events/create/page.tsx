@@ -111,6 +111,11 @@ const formatDateTime = (dateTimeStr: string): string => {
   }
 };
 
+const getBackofficeToken = () =>
+  localStorage.getItem("backoffice_token") ||
+  sessionStorage.getItem("backoffice_token") ||
+  "";
+
 // Helper function to format time only
 const formatTime = (dateTimeStr: string): string => {
   if (!dateTimeStr) return "-";
@@ -214,7 +219,7 @@ export default function CreateEventPage() {
   useEffect(() => {
     const fetchSpeakers = async () => {
       try {
-        const token = localStorage.getItem("backoffice_token") || "";
+        const token = getBackofficeToken();
         const res = await api.speakers.list(token);
         setSpeakers(res.speakers as unknown as Speaker[]);
       } catch (err) {
@@ -499,7 +504,7 @@ export default function CreateEventPage() {
     setIsSubmitting(true);
 
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
 
       // Create event
       const eventData = {

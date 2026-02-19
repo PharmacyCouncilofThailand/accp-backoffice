@@ -57,6 +57,11 @@ interface RecentCheckin {
     scannedAt: string;
 }
 
+const getBackofficeToken = () =>
+    localStorage.getItem('backoffice_token') ||
+    sessionStorage.getItem('backoffice_token') ||
+    '';
+
 export default function CheckinPage() {
     const [scanMode, setScanMode] = useState<'camera' | 'manual'>('manual');
     const [manualCode, setManualCode] = useState('');
@@ -82,7 +87,7 @@ export default function CheckinPage() {
 
     const fetchData = async () => {
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
 
             // Fetch total confirmed registrations
             const regRes = await api.registrations.list(token, 'limit=1&status=confirmed');
@@ -119,7 +124,7 @@ export default function CheckinPage() {
         setPendingSessions(null);
         setPendingRegistration(null);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const res = await api.checkins.create(token, { regCode: code });
 
             // Case 3: API returns session list (no sessionId sent)
@@ -173,7 +178,7 @@ export default function CheckinPage() {
         if (!pendingRegistration) return;
         setIsLoading(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const res = await api.checkins.create(token, {
                 regCode: pendingRegistration.regCode,
                 sessionId,
@@ -203,7 +208,7 @@ export default function CheckinPage() {
         if (!pendingRegistration) return;
         setIsLoading(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const res = await api.checkins.create(token, {
                 regCode: pendingRegistration.regCode,
                 checkInAll: true,

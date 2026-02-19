@@ -17,9 +17,26 @@ import type {
 } from '@/types/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+const AUTH_UNAUTHORIZED_EVENT = "accp-backoffice-auth:unauthorized";
 
 interface FetchOptions extends RequestInit {
   token?: string;
+}
+
+function getStoredBackofficeToken(): string {
+  if (typeof window === "undefined") return "";
+
+  return (
+    localStorage.getItem("backoffice_token") ||
+    sessionStorage.getItem("backoffice_token") ||
+    ""
+  );
+}
+
+function dispatchUnauthorizedEvent() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT));
+  }
 }
 
 export async function fetchAPI<T>(
@@ -27,6 +44,9 @@ export async function fetchAPI<T>(
   options: FetchOptions = {}
 ): Promise<T> {
   const { token, ...fetchOptions } = options;
+  const resolvedToken =
+    token ||
+    (endpoint === "/backoffice/login" ? "" : getStoredBackofficeToken());
 
   const headers: Record<string, string> = {};
 
@@ -40,8 +60,8 @@ export async function fetchAPI<T>(
     Object.assign(headers, existingHeaders);
   }
 
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  if (resolvedToken) {
+    headers["Authorization"] = `Bearer ${resolvedToken}`;
   }
 
   const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -50,6 +70,10 @@ export async function fetchAPI<T>(
   });
 
   if (!res.ok) {
+    if (res.status === 401 && endpoint !== "/backoffice/login") {
+      dispatchUnauthorizedEvent();
+    }
+
     const error = await res.json().catch(() => ({ error: "Request failed" }));
     throw new Error(error.error || `API Error: ${res.status}`);
   }
@@ -157,6 +181,12 @@ export const api = {
       fetchAPI<{ speaker: Record<string, unknown> }>(`/api/backoffice/speakers/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
     delete: (token: string, id: number) =>
       fetchAPI<void>(`/api/backoffice/speakers/${id}`, { method: 'DELETE', token }),
+    assignEvents: (token: string, speakerId: number, assignments: { eventId: number; sessionId: number | null }[]) =>
+      fetchAPI<{ success: boolean }>(`/api/backoffice/speakers/${speakerId}/events`, {
+        method: 'POST',
+        body: JSON.stringify({ assignments }),
+        token,
+      }),
   },
 
   registrations: {
@@ -228,16 +258,25 @@ export const api = {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('folder', folder);
+    const resolvedToken = token || getStoredBackofficeToken();
+    const headers: Record<string, string> = {};
+
+    if (resolvedToken) {
+      headers['Authorization'] = `Bearer ${resolvedToken}`;
+    }
 
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
     return fetch(`${API_BASE_URL}/upload`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      },
+      headers,
       body: formData
     }).then(async (res) => {
-      if (!res.ok) throw new Error('Upload failed');
+      if (!res.ok) {
+        if (res.status === 401) {
+          dispatchUnauthorizedEvent();
+        }
+        throw new Error('Upload failed');
+      }
       return res.json() as Promise<{ success: boolean; url: string }>;
     });
   }

@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import {
   createContext,
   useContext,
@@ -61,24 +63,74 @@ const rolePageAccess: Record<UserRole, string[]> = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const AUTH_UNAUTHORIZED_EVENT = "accp-backoffice-auth:unauthorized";
+
+function clearStoredAuth() {
+  localStorage.removeItem("backoffice_token");
+  localStorage.removeItem("backoffice_user");
+  sessionStorage.removeItem("backoffice_token");
+  sessionStorage.removeItem("backoffice_user");
+}
+
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch {
+    return true;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [currentEvent, setCurrentEvent] = useState<AssignedEvent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const resetAuthState = () => {
+    setUser(null);
+    setToken(null);
+    setCurrentEvent(null);
+    clearStoredAuth();
+  };
+
   // Load user from storage on mount (check both localStorage and sessionStorage)
   useEffect(() => {
-    // Check localStorage first (remember me), then sessionStorage
-    let storedToken = localStorage.getItem("backoffice_token");
-    let storedUser = localStorage.getItem("backoffice_user");
+    const localToken = localStorage.getItem("backoffice_token");
+    const localUser = localStorage.getItem("backoffice_user");
+    const sessionToken = sessionStorage.getItem("backoffice_token");
+    const sessionUser = sessionStorage.getItem("backoffice_user");
 
-    if (!storedToken || !storedUser) {
-      storedToken = sessionStorage.getItem("backoffice_token");
-      storedUser = sessionStorage.getItem("backoffice_user");
+    let storedToken: string | null = null;
+    let storedUser: string | null = null;
+    let shouldSkipRestore = false;
+
+    // Prefer complete localStorage session first (remember me), then sessionStorage
+    if (localToken && localUser) {
+      storedToken = localToken;
+      storedUser = localUser;
+    } else if (sessionToken && sessionUser) {
+      storedToken = sessionToken;
+      storedUser = sessionUser;
     }
 
-    if (storedToken && storedUser) {
+    // Incomplete persisted auth should be cleared to avoid ghost state
+    if (
+      !storedToken &&
+      !storedUser &&
+      (localToken || localUser || sessionToken || sessionUser)
+    ) {
+      clearStoredAuth();
+      shouldSkipRestore = true;
+    }
+
+    // Clear expired token before restoring auth state
+    if (!shouldSkipRestore && storedToken && isTokenExpired(storedToken)) {
+      clearStoredAuth();
+      shouldSkipRestore = true;
+    }
+
+    if (!shouldSkipRestore && storedToken && storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
         setUser(parsedUser);
@@ -92,13 +144,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setCurrentEvent(parsedUser.assignedEvents[0]);
         }
       } catch {
-        localStorage.removeItem("backoffice_token");
-        localStorage.removeItem("backoffice_user");
-        sessionStorage.removeItem("backoffice_token");
-        sessionStorage.removeItem("backoffice_user");
+        clearStoredAuth();
       }
+    } else if (!shouldSkipRestore && (storedToken || storedUser)) {
+      clearStoredAuth();
     }
+
     setIsLoading(false);
+  }, []);
+
+  // Auto-clear auth state if token expires during active session
+  useEffect(() => {
+    if (!token) return;
+
+    if (isTokenExpired(token)) {
+      resetAuthState();
+    }
+  }, [token]);
+
+  // Centralized 401 handling from API client
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      resetAuthState();
+    };
+
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+
+    return () => {
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+    };
   }, []);
 
   const isAdmin = user?.role === "admin";
@@ -148,14 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    setUser(null);
-    setToken(null);
-    setCurrentEvent(null);
-    // Clear both storages
-    localStorage.removeItem("backoffice_token");
-    localStorage.removeItem("backoffice_user");
-    sessionStorage.removeItem("backoffice_token");
-    sessionStorage.removeItem("backoffice_user");
+    resetAuthState();
   };
 
   return (

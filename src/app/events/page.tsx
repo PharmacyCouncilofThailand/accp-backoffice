@@ -34,6 +34,11 @@ const typeLabels: { [key: string]: { label: string; className: string } } = {
     single_room: { label: 'Single Room', className: 'bg-gray-100 text-gray-800' },
 };
 
+const getBackofficeToken = () =>
+    localStorage.getItem('backoffice_token') ||
+    sessionStorage.getItem('backoffice_token') ||
+    '';
+
 interface Event {
     id: number;
     eventCode: string;
@@ -88,7 +93,7 @@ export default function EventsPage() {
             setIsLoading(true);
             setError('');
             try {
-                const token = localStorage.getItem('backoffice_token') || '';
+                const token = getBackofficeToken();
                 const params: any = { page, limit: 10 };
                 if (statusFilter) params.status = statusFilter;
                 if (typeFilter) params.eventType = typeFilter;
@@ -119,7 +124,7 @@ export default function EventsPage() {
         if (!selectedEvent) return;
         setIsDeleting(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             await api.backofficeEvents.delete(token, selectedEvent.id);
             setEvents(events.filter(e => e.id !== selectedEvent.id));
             setShowDeleteModal(false);

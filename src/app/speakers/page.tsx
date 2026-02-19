@@ -49,6 +49,11 @@ interface Event {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
+const getBackofficeToken = () =>
+    localStorage.getItem('backoffice_token') ||
+    sessionStorage.getItem('backoffice_token') ||
+    '';
+
 export default function SpeakersPage() {
     const { isAdmin, user } = useAuth();
     const [speakers, setSpeakers] = useState<Speaker[]>([]);
@@ -86,7 +91,7 @@ export default function SpeakersPage() {
 
     const fetchEvents = async () => {
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const res = await api.backofficeEvents.list(token);
             setEvents((res.events || []).map((e: Record<string, unknown>) => ({
                 id: e.id as number,
@@ -100,7 +105,7 @@ export default function SpeakersPage() {
 
     const fetchAllSessions = async () => {
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const res = await api.sessions.list(token, 'limit=1000');
             setAllSessions(res.sessions || []);
         } catch (error) {
@@ -113,7 +118,7 @@ export default function SpeakersPage() {
     const fetchSpeakers = async () => {
         setIsLoading(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const params = new URLSearchParams();
             if (eventFilter) params.append('eventId', eventFilter.toString());
             if (sessionFilter) params.append('sessionId', sessionFilter.toString());
@@ -141,7 +146,7 @@ export default function SpeakersPage() {
     const handleImageUpload = async (file: File) => {
         setIsUploading(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const data = await api.uploadFile(token, file, 'speakers');
             setFormData({ ...formData, photoUrl: data.url });
         } catch (error) {
@@ -180,7 +185,7 @@ export default function SpeakersPage() {
     const handleCreate = async () => {
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const payload = {
                 firstName: formData.firstName,
                 lastName: formData.lastName,
@@ -193,14 +198,7 @@ export default function SpeakersPage() {
 
             // Assign speaker to sessions/events if any selected
             if (result?.speaker?.id && formData.assignments.length > 0) {
-                await fetch(`${API_URL}/api/backoffice/speakers/${result.speaker.id}/events`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ assignments: formData.assignments }),
-                });
+                await api.speakers.assignEvents(token, result.speaker.id as number, formData.assignments);
             }
 
             await fetchSpeakers();
@@ -218,7 +216,7 @@ export default function SpeakersPage() {
         if (!selectedSpeaker) return;
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const payload = {
                 firstName: formData.firstName,
                 lastName: formData.lastName,
@@ -230,14 +228,7 @@ export default function SpeakersPage() {
             await api.speakers.update(token, selectedSpeaker.id, payload);
 
             // Update speaker assignments
-            await fetch(`${API_URL}/api/backoffice/speakers/${selectedSpeaker.id}/events`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ assignments: formData.assignments }),
-            });
+            await api.speakers.assignEvents(token, selectedSpeaker.id, formData.assignments);
 
             await fetchSpeakers();
             setShowEditModal(false);
@@ -254,7 +245,7 @@ export default function SpeakersPage() {
         if (!selectedSpeaker) return;
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             await api.speakers.delete(token, selectedSpeaker.id);
             setSpeakers(speakers.filter(s => s.id !== selectedSpeaker.id));
             setShowDeleteModal(false);

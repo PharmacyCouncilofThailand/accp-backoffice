@@ -26,7 +26,10 @@ import {
     IconStar,
 } from '@tabler/icons-react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+const getBackofficeToken = () =>
+    localStorage.getItem('backoffice_token') ||
+    sessionStorage.getItem('backoffice_token') ||
+    '';
 
 interface Session {
     id: number;
@@ -133,7 +136,7 @@ export default function SessionsPage() {
 
     const fetchEvents = async () => {
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const res = await api.backofficeEvents.list(token, 'limit=100');
             const mappedEvents = res.events.map((e: Record<string, unknown>) => ({
                 id: e.id as number,
@@ -151,12 +154,9 @@ export default function SessionsPage() {
 
     const fetchSpeakers = async () => {
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
-            const res = await fetch(`${API_URL}/api/backoffice/speakers`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            setSpeakers(data.speakers || []);
+            const token = getBackofficeToken();
+            const res = await api.speakers.list(token);
+            setSpeakers((res.speakers || []) as unknown as Speaker[]);
         } catch (error) {
             console.error('Failed to fetch speakers:', error);
         }
@@ -167,7 +167,7 @@ export default function SessionsPage() {
         setEventSessions([]); // Clear previous event sessions while loading
         setIsSessionsLoading(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const res = await api.backofficeEvents.get(token, eventId);
             if (res.sessions) {
                 const mapped: Session[] = res.sessions.map((s: any) => ({
@@ -201,7 +201,7 @@ export default function SessionsPage() {
     const fetchSessions = async () => {
         setIsLoading(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const params: any = { page, limit: 12 }; // Grid view needs roughly 12
             if (eventFilter) params.eventId = eventFilter;
             if (searchTerm) params.search = searchTerm;
@@ -265,7 +265,7 @@ export default function SessionsPage() {
         if (!formData.eventId) { toast.error('Select an event'); return; }
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             // Get speaker names from selected IDs
             const speakerNames = formData.selectedSpeakerIds.map(id => {
                 const speaker = speakers.find(s => s.id === id);
@@ -293,16 +293,15 @@ export default function SessionsPage() {
         } catch (error) {
             console.error(error);
             toast.error('Failed to create session');
-        } finally {
             setIsSubmitting(false);
         }
     };
 
-    const handleEdit = async () => {
+    const handleUpdate = async () => {
         if (!selectedSession || !formData.eventId) return;
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             // Get speaker names from selected IDs
             const speakerNames = formData.selectedSpeakerIds.map(id => {
                 const speaker = speakers.find(s => s.id === id);
@@ -339,7 +338,7 @@ export default function SessionsPage() {
         if (!selectedSession) return;
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             await api.backofficeEvents.deleteSession(token, selectedSession.eventId, selectedSession.id);
             toast.success('Session deleted successfully!');
             setShowDeleteModal(false);
@@ -357,7 +356,7 @@ export default function SessionsPage() {
         setShowViewModal(true);
         setEnrollmentsLoading(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const res = await api.backofficeEvents.getSessionEnrollments(token, session.eventId, session.id);
             setEnrollments(res.enrollments);
         } catch (error) {
@@ -1155,7 +1154,7 @@ export default function SessionsPage() {
                             <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
                                 <button onClick={() => { setShowCreateModal(false); setShowEditModal(false); }} className="btn-secondary" disabled={isSubmitting}>Cancel</button>
                                 <button
-                                    onClick={showCreateModal ? handleCreate : handleEdit}
+                                    onClick={showCreateModal ? handleCreate : handleUpdate}
                                     className="btn-primary"
                                     disabled={isSubmitting}
                                 >

@@ -34,6 +34,11 @@ const typeColors: { [key: string]: string } = {
   general: "bg-gray-100 text-gray-800", // fallback
 };
 
+const getBackofficeToken = () =>
+  localStorage.getItem("backoffice_token") ||
+  sessionStorage.getItem("backoffice_token") ||
+  "";
+
 interface Ticket {
   id: number;
   eventId: number;
@@ -137,7 +142,7 @@ export default function TicketsPage() {
 
   const fetchEvents = async () => {
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       const res = await api.backofficeEvents.list(token, "limit=100"); // Get enough for dropdown
       const mappedEvents = res.events.map((e: Record<string, unknown>) => ({
         id: e.id as number,
@@ -155,7 +160,7 @@ export default function TicketsPage() {
 
   const fetchSessions = async (eventId: number) => {
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       const res = await api.backofficeEvents.getSessions(token, eventId);
       const mappedSessions = res.sessions.map((s: any) => ({
         id: s.id,
@@ -181,7 +186,7 @@ export default function TicketsPage() {
   const fetchTickets = async () => {
     setIsLoading(true);
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       const params: any = { page, limit: 10 };
       if (eventFilter) params.eventId = eventFilter;
       if (searchTerm) params.search = searchTerm;
@@ -254,7 +259,7 @@ export default function TicketsPage() {
     }
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       // Auto-link Primary tickets to Main Sessions
       let finalSessionIds =
         formData.category === "addon" ? formData.sessionIds : [];
@@ -307,7 +312,7 @@ export default function TicketsPage() {
     }
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       // Auto-link Primary tickets to Main Sessions
       let finalSessionIds =
         formData.category === "addon" ? formData.sessionIds : [];
@@ -362,7 +367,7 @@ export default function TicketsPage() {
     if (!selectedTicket) return;
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       await api.backofficeEvents.deleteTicket(
         token,
         selectedTicket.eventId,

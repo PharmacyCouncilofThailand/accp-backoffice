@@ -110,6 +110,11 @@ const toDateTimeLocal = (isoString: string): string => {
   }
 };
 
+const getBackofficeToken = () =>
+  localStorage.getItem("backoffice_token") ||
+  sessionStorage.getItem("backoffice_token") ||
+  "";
+
 // Helper function to format datetime
 const formatDateTime = (dateTimeStr: string): string => {
   if (!dateTimeStr) return "-";
@@ -209,7 +214,7 @@ export default function EditEventPage() {
   useEffect(() => {
     const fetchSpeakers = async () => {
       try {
-        const token = localStorage.getItem("backoffice_token") || "";
+        const token = getBackofficeToken();
         const res = await api.speakers.list(token);
         setSpeakers(res.speakers as unknown as Speaker[]);
       } catch (err) {
@@ -221,7 +226,7 @@ export default function EditEventPage() {
     const fetchEvent = async () => {
       setIsLoading(true);
       try {
-        const token = localStorage.getItem("backoffice_token") || "";
+        const token = getBackofficeToken();
         const response = await api.backofficeEvents.get(
           token,
           parseInt(eventId),
@@ -331,7 +336,7 @@ export default function EditEventPage() {
   const handleAddSession = async () => {
     if (!sessionForm.sessionCode || !sessionForm.sessionName) return;
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
 
       // Get speaker names from selected IDs
       const speakerNames = (sessionForm.selectedSpeakerIds || [])
@@ -448,7 +453,7 @@ export default function EditEventPage() {
   const handleDeleteSession = async (id: number) => {
     if (!confirm("Delete this session?")) return;
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       await api.backofficeEvents.deleteSession(token, parseInt(eventId), id);
       setSessions((prev) => prev.filter((s) => s.id !== id));
     } catch (err: any) {
@@ -460,7 +465,7 @@ export default function EditEventPage() {
   const handleAddTicket = async () => {
     if (!ticketForm.name || !ticketForm.price) return;
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       // Build payload
       const ticketPayload: Record<string, unknown> = {
         name: ticketForm.name,
@@ -644,7 +649,7 @@ export default function EditEventPage() {
   const handleDeleteTicket = async (id: number) => {
     if (!confirm("Delete this ticket?")) return;
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       await api.backofficeEvents.deleteTicket(token, parseInt(eventId), id);
       setTickets((prev) => prev.filter((t) => t.id !== id));
     } catch (err: any) {
@@ -656,7 +661,7 @@ export default function EditEventPage() {
   const handleDeleteImage = async (id: number) => {
     if (!confirm("Delete this image?")) return;
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       await api.backofficeEvents.deleteImage(token, parseInt(eventId), id);
       setVenueImages((prev) => prev.filter((img) => img.id !== id));
     } catch (err: any) {
@@ -676,7 +681,7 @@ export default function EditEventPage() {
 
     setIsUploading(true);
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       const formData = new FormData();
       formData.append("file", file);
 
@@ -720,7 +725,7 @@ export default function EditEventPage() {
     setIsSubmitting(true);
 
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       const eventData = {
         eventCode: formData.eventCode,
         eventName: formData.eventName,

@@ -27,6 +27,11 @@ const statusColors: { [key: string]: string } = {
     inactive: 'badge-warning',
 };
 
+const getBackofficeToken = () =>
+    localStorage.getItem('backoffice_token') ||
+    sessionStorage.getItem('backoffice_token') ||
+    '';
+
 interface PromoCodeRuleSetResponse {
     matchType: 'all' | 'any' | 'only';
     items?: { ticketTypeId: number }[];
@@ -133,7 +138,7 @@ export default function PromoCodesPage() {
 
     const fetchEvents = async () => {
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const res = await api.backofficeEvents.list(token, 'limit=100');
             setEvents(res.events.map((e: any) => ({
                 id: e.id,
@@ -148,7 +153,7 @@ export default function PromoCodesPage() {
     const fetchPromoCodes = async () => {
         setIsLoading(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const params: any = { page, limit: 10 };
             if (eventFilter) params.eventId = eventFilter;
             if (statusFilter) params.status = statusFilter;
@@ -168,7 +173,7 @@ export default function PromoCodesPage() {
     const fetchTickets = async (eventId: number | null) => {
         setIsLoadingTickets(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const params: any = { page: 1, limit: 100 };
             if (eventId) params.eventId = eventId;
             const res = await api.tickets.list(token, new URLSearchParams(params).toString());
@@ -230,7 +235,7 @@ export default function PromoCodesPage() {
     const fetchPromoDetails = async (promoId: number, mode: 'edit' | 'duplicate') => {
         setIsFetchingDetails(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const res = await api.promoCodes.get(token, promoId);
             const promo = res.promoCode as unknown as PromoCode;
             const ruleSets = normalizeRuleSets(promo.ruleSets);
@@ -318,7 +323,7 @@ export default function PromoCodesPage() {
     const handleCreate = async () => {
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             await api.promoCodes.create(token, buildPayload());
             toast.success('Promo code created successfully!');
             setShowCreateModal(false);
@@ -335,7 +340,7 @@ export default function PromoCodesPage() {
         if (!selectedPromo) return;
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             await api.promoCodes.update(token, selectedPromo.id, buildPayload());
             toast.success('Promo code updated successfully!');
             setShowEditModal(false);
@@ -352,7 +357,7 @@ export default function PromoCodesPage() {
         if (!selectedPromo) return;
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             await api.promoCodes.delete(token, selectedPromo.id);
             toast.success('Promo code deleted successfully!');
             setShowDeleteModal(false);

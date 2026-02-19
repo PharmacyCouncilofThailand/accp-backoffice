@@ -31,6 +31,11 @@ interface Registration {
     eventCode: string;
 }
 
+const getBackofficeToken = () =>
+    localStorage.getItem('backoffice_token') ||
+    sessionStorage.getItem('backoffice_token') ||
+    '';
+
 export default function RegistrationsPage() {
     const [registrations, setRegistrations] = useState<Registration[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -55,7 +60,7 @@ export default function RegistrationsPage() {
     const fetchRegistrations = async () => {
         setIsLoading(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const params: any = { page, limit: 10 };
             if (statusFilter) params.status = statusFilter;
             if (searchTerm) params.search = searchTerm;
