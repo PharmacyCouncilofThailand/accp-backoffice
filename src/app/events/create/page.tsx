@@ -105,6 +105,7 @@ const formatDateTime = (dateTimeStr: string): string => {
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
+      timeZone: "Asia/Bangkok",
     });
   } catch {
     return dateTimeStr;
@@ -125,6 +126,7 @@ const formatTime = (dateTimeStr: string): string => {
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
+      timeZone: "Asia/Bangkok",
     });
   } catch {
     return dateTimeStr;

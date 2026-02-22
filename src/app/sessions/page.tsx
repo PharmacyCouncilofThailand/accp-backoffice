@@ -390,9 +390,13 @@ export default function SessionsPage() {
         const formatDateTime = (dateStr: string) => {
             if (!dateStr) return '';
             const d = new Date(dateStr);
-            const offset = d.getTimezoneOffset() * 60000;
-            const localISOTime = (new Date(d.getTime() - offset)).toISOString().slice(0, 16);
-            return localISOTime;
+            if (isNaN(d.getTime())) return '';
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
         };
 
         // Match speaker names to IDs
@@ -518,9 +522,9 @@ export default function SessionsPage() {
                                 Session Date
                             </p>
                             <p style={{ margin: 0, fontWeight: 600, fontSize: '13px', color: '#333' }}>
-                                {new Date(session.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                {new Date(session.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Bangkok' })}
                                 <br />
-                                {new Date(session.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} - {new Date(session.endTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                {new Date(session.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Bangkok' })} - {new Date(session.endTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Bangkok' })}
                             </p>
                         </div>
                         <div>
@@ -820,15 +824,15 @@ export default function SessionsPage() {
                             <div className="md:w-48 shrink-0 flex flex-row md:flex-col justify-between md:justify-start gap-2 md:border-r md:border-gray-100 md:pr-4">
                                 <div>
                                     <p className="font-bold text-gray-800 text-lg">
-                                        {new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        {new Date(session.startTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}
                                     </p>
                                     <p className="text-sm text-gray-500">
-                                        {new Date(session.startTime).toLocaleDateString()}
+                                        {new Date(session.startTime).toLocaleDateString('en-US', { timeZone: 'Asia/Bangkok' })}
                                     </p>
                                 </div>
                                 <div className="text-right md:text-left">
                                     <p className="text-sm text-gray-400">
-                                        to {new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        to {new Date(session.endTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}
                                     </p>
                                 </div>
                             </div>
@@ -1263,10 +1267,10 @@ export default function SessionsPage() {
                                         <div className="bg-gray-50 p-4 rounded-lg">
                                             <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Session Date</p>
                                             <p className="font-semibold text-gray-800">
-                                                {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Bangkok' })}
                                             </p>
                                             <p className="text-sm text-gray-600">
-                                                {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                {start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })} - {end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}
                                             </p>
                                         </div>
                                         <div className="bg-gray-50 p-4 rounded-lg">

@@ -179,8 +179,12 @@ export default function TicketsPage() {
     if (!dateStr) return "";
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return "";
-    const offset = d.getTimezoneOffset() * 60000;
-    return new Date(d.getTime() - offset).toISOString().slice(0, 16);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
   const fetchTickets = async () => {
@@ -709,13 +713,13 @@ export default function TicketsPage() {
                       <td className="px-4 py-4 text-center">
                         <p className="text-sm text-gray-600">
                           {ticket.startDate
-                            ? new Date(ticket.startDate).toLocaleDateString()
+                            ? new Date(ticket.startDate).toLocaleDateString("en-US", { timeZone: "Asia/Bangkok" })
                             : "N/A"}
                         </p>
                         <p className="text-xs text-gray-400">
                           to{" "}
                           {ticket.endDate
-                            ? new Date(ticket.endDate).toLocaleDateString()
+                            ? new Date(ticket.endDate).toLocaleDateString("en-US", { timeZone: "Asia/Bangkok" })
                             : "N/A"}
                         </p>
                       </td>

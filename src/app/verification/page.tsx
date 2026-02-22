@@ -426,6 +426,7 @@ export default function VerificationPage() {
                                 day: "numeric",
                                 hour: "2-digit",
                                 minute: "2-digit",
+                                timeZone: "Asia/Bangkok",
                               },
                             )}
                           </span>
@@ -571,6 +572,7 @@ export default function VerificationPage() {
                   <p className="text-gray-700">
                     {new Date(selectedVerification.submittedAt).toLocaleString(
                       "th-TH",
+                      { timeZone: "Asia/Bangkok" },
                     )}
                   </p>
                 </div>
@@ -659,6 +661,7 @@ export default function VerificationPage() {
                                   day: "numeric",
                                   hour: "2-digit",
                                   minute: "2-digit",
+                                  timeZone: "Asia/Bangkok",
                                 },
                               )}
                             </span>

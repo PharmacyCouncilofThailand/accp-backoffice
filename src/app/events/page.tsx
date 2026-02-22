@@ -61,6 +61,7 @@ const formatDate = (dateStr: string): string => {
             month: 'short',
             day: 'numeric',
             year: 'numeric',
+            timeZone: 'Asia/Bangkok',
         });
     } catch {
         return dateStr;

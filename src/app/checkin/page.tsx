@@ -110,7 +110,7 @@ export default function CheckinPage() {
                 lastName: c.lastName,
                 ticketName: c.ticketName,
                 sessionName: c.sessionName,
-                scannedAt: new Date(c.scannedAt).toLocaleTimeString(),
+                scannedAt: new Date(c.scannedAt).toLocaleTimeString("en-US", { timeZone: "Asia/Bangkok" }),
             })));
 
         } catch (error) {
