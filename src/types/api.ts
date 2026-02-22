@@ -95,6 +95,7 @@ export interface Session {
     startTime: string;
     endTime: string;
     maxCapacity?: number;
+    agenda?: { time: string; topic: string }[] | null;
 }
 
 // ============================================================================
@@ -108,11 +109,21 @@ export interface Ticket {
     eventId: number;
     name: string;
     category: TicketCategory;
+    groupName: string | null;
     price: string;
-    thaiPrice?: string;
+    originalPrice: string | null;
+    currency: string;
+    description: string | null;
+    features: string[];
+    badgeText: string | null;
+    allowedRoles: string | null;
     quota: number;
     soldCount: number;
+    displayOrder: number;
+    saleStartDate: string | null;
+    saleEndDate: string | null;
     isActive: boolean;
+    sessionIds?: number[];
 }
 
 // ============================================================================
@@ -200,16 +211,32 @@ export interface Speaker {
 // Promo Code Types
 // ============================================================================
 
+export interface PromoRuleSet {
+    matchType: 'all' | 'any' | 'only';
+    ticketTypeIds: number[];
+}
+
 export interface PromoCode {
     id: number;
+    eventId?: number | null;
     code: string;
+    description?: string | null;
     discountType: 'percentage' | 'fixed';
     discountValue: string;
+    fixedValueThb?: string | null;
+    fixedValueUsd?: string | null;
+    minPurchase?: string | null;
+    maxDiscount?: string | null;
     maxUses?: number;
+    maxUsesPerUser?: number;
     usedCount: number;
-    validFrom: string;
-    validUntil: string;
+    validFrom?: string | null;
+    validUntil?: string | null;
     isActive: boolean;
+    status?: string;
+    eventCode?: string;
+    eventName?: string;
+    ruleSets?: PromoRuleSet[];
 }
 
 // ============================================================================

@@ -55,6 +55,11 @@ const presentationTypes = [
   { id: "oral", label: "Oral Presentation" },
 ];
 
+const getBackofficeToken = () =>
+  localStorage.getItem("backoffice_token") ||
+  sessionStorage.getItem("backoffice_token") ||
+  "";
+
 interface Abstract {
   id: number;
   trackingId: string | null;
@@ -142,7 +147,7 @@ export default function AbstractsPage() {
   const fetchAbstracts = async () => {
     setIsLoading(true);
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       const params: any = { page, limit: 10 };
       if (statusFilter) params.status = statusFilter;
       if (categoryFilter) params.category = categoryFilter;
@@ -168,7 +173,7 @@ export default function AbstractsPage() {
     if (!selectedAbstract) return;
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       await api.abstracts.updateStatus(
         token,
         selectedAbstract.id,

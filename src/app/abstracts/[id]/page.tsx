@@ -36,6 +36,11 @@ const categoryLabels: { [key: string]: string } = {
   digital_pharmacy: "Digital Pharmacy and Innovation",
 };
 
+const getBackofficeToken = () =>
+  localStorage.getItem("backoffice_token") ||
+  sessionStorage.getItem("backoffice_token") ||
+  "";
+
 interface CoAuthor {
   id: number;
   firstName: string;
@@ -94,7 +99,7 @@ export default function AbstractDetailPage() {
   const fetchAbstract = async () => {
     setIsLoading(true);
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       const res = await api.abstracts.get(token, parseInt(abstractId));
       setAbstract(res.abstract as unknown as AbstractDetail);
     } catch (error) {
@@ -108,7 +113,7 @@ export default function AbstractDetailPage() {
     if (!abstract) return;
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem("backoffice_token") || "";
+      const token = getBackofficeToken();
       await api.abstracts.updateStatus(token, abstract.id, status, comment);
 
       // Refresh data

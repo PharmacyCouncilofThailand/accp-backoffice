@@ -26,7 +26,10 @@ import {
     IconStar,
 } from '@tabler/icons-react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+const getBackofficeToken = () =>
+    localStorage.getItem('backoffice_token') ||
+    sessionStorage.getItem('backoffice_token') ||
+    '';
 
 interface Session {
     id: number;
@@ -41,9 +44,11 @@ interface Session {
     speakers: string[]; // Aggregated names from backend
     speakerIds?: number[]; // New way: link to speakers table
     maxCapacity: number;
+    enrolledCount: number;
     eventCode?: string;
     tags?: string[]; // Not in schema, mocked or derived
     isMainSession?: boolean; // Added for Main Session Logic
+    agenda?: { time: string; topic: string }[] | null;
 }
 
 interface EventOption {
@@ -107,6 +112,7 @@ export default function SessionsPage() {
         selectedSpeakerIds: [] as number[],
         maxCapacity: 100,
         isMainSession: false, // Added for Main Session Logic
+        agenda: [] as { time: string; topic: string }[],
     });
 
     const [eventSessions, setEventSessions] = useState<Session[]>([]); // To track siblings for locking logic
@@ -130,7 +136,7 @@ export default function SessionsPage() {
 
     const fetchEvents = async () => {
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const res = await api.backofficeEvents.list(token, 'limit=100');
             const mappedEvents = res.events.map((e: Record<string, unknown>) => ({
                 id: e.id as number,
@@ -148,12 +154,9 @@ export default function SessionsPage() {
 
     const fetchSpeakers = async () => {
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
-            const res = await fetch(`${API_URL}/api/backoffice/speakers`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            setSpeakers(data.speakers || []);
+            const token = getBackofficeToken();
+            const res = await api.speakers.list(token);
+            setSpeakers((res.speakers || []) as unknown as Speaker[]);
         } catch (error) {
             console.error('Failed to fetch speakers:', error);
         }
@@ -164,7 +167,7 @@ export default function SessionsPage() {
         setEventSessions([]); // Clear previous event sessions while loading
         setIsSessionsLoading(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const res = await api.backofficeEvents.get(token, eventId);
             if (res.sessions) {
                 const mapped: Session[] = res.sessions.map((s: any) => ({
@@ -180,6 +183,7 @@ export default function SessionsPage() {
                     speakers: s.speakers || [],
                     speakerIds: s.speakerIds || [],
                     maxCapacity: s.maxCapacity,
+                    enrolledCount: s.enrolledCount || 0,
                     isMainSession: s.isMainSession || false
                 }));
                 setEventSessions(mapped);
@@ -197,7 +201,7 @@ export default function SessionsPage() {
     const fetchSessions = async () => {
         setIsLoading(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const params: any = { page, limit: 12 }; // Grid view needs roughly 12
             if (eventFilter) params.eventId = eventFilter;
             if (searchTerm) params.search = searchTerm;
@@ -226,8 +230,10 @@ export default function SessionsPage() {
                     speakers: s.speakers || [],
                     speakerIds: s.speakerIds || [],
                     maxCapacity: s.maxCapacity || 100,
+                    enrolledCount: s.enrolledCount || 0,
                     eventCode: s.eventCode,
-                    isMainSession: s.isMainSession || false // Map from API
+                    isMainSession: s.isMainSession || false,
+                    agenda: s.agenda || null
                 };
             });
 
@@ -259,7 +265,7 @@ export default function SessionsPage() {
         if (!formData.eventId) { toast.error('Select an event'); return; }
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             // Get speaker names from selected IDs
             const speakerNames = formData.selectedSpeakerIds.map(id => {
                 const speaker = speakers.find(s => s.id === id);
@@ -278,6 +284,7 @@ export default function SessionsPage() {
                 speakerIds: formData.selectedSpeakerIds,
                 maxCapacity: formData.maxCapacity || 100,
                 isMainSession: formData.isMainSession,
+                agenda: formData.agenda && formData.agenda.length > 0 ? formData.agenda : undefined,
             };
             await api.backofficeEvents.createSession(token, formData.eventId, payload);
             toast.success('Session created successfully!');
@@ -286,16 +293,15 @@ export default function SessionsPage() {
         } catch (error) {
             console.error(error);
             toast.error('Failed to create session');
-        } finally {
             setIsSubmitting(false);
         }
     };
 
-    const handleEdit = async () => {
+    const handleUpdate = async () => {
         if (!selectedSession || !formData.eventId) return;
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             // Get speaker names from selected IDs
             const speakerNames = formData.selectedSpeakerIds.map(id => {
                 const speaker = speakers.find(s => s.id === id);
@@ -314,6 +320,7 @@ export default function SessionsPage() {
                 speakerIds: formData.selectedSpeakerIds,
                 maxCapacity: formData.maxCapacity || 100,
                 isMainSession: formData.isMainSession,
+                agenda: formData.agenda && formData.agenda.length > 0 ? formData.agenda : undefined,
             };
             await api.backofficeEvents.updateSession(token, formData.eventId, selectedSession.id, payload);
             toast.success('Session updated successfully!');
@@ -331,7 +338,7 @@ export default function SessionsPage() {
         if (!selectedSession) return;
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             await api.backofficeEvents.deleteSession(token, selectedSession.eventId, selectedSession.id);
             toast.success('Session deleted successfully!');
             setShowDeleteModal(false);
@@ -349,7 +356,7 @@ export default function SessionsPage() {
         setShowViewModal(true);
         setEnrollmentsLoading(true);
         try {
-            const token = localStorage.getItem('backoffice_token') || '';
+            const token = getBackofficeToken();
             const res = await api.backofficeEvents.getSessionEnrollments(token, session.eventId, session.id);
             setEnrollments(res.enrollments);
         } catch (error) {
@@ -373,6 +380,7 @@ export default function SessionsPage() {
             selectedSpeakerIds: [],
             maxCapacity: 100,
             isMainSession: false,
+            agenda: [],
         });
         setSelectedSession(null);
     };
@@ -382,9 +390,13 @@ export default function SessionsPage() {
         const formatDateTime = (dateStr: string) => {
             if (!dateStr) return '';
             const d = new Date(dateStr);
-            const offset = d.getTimezoneOffset() * 60000;
-            const localISOTime = (new Date(d.getTime() - offset)).toISOString().slice(0, 16);
-            return localISOTime;
+            if (isNaN(d.getTime())) return '';
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
         };
 
         // Match speaker names to IDs
@@ -404,7 +416,8 @@ export default function SessionsPage() {
             endTime: formatDateTime(session.endTime),
             selectedSpeakerIds: session.speakerIds || [],
             maxCapacity: session.maxCapacity || 100,
-            isMainSession: session.isMainSession || false, // Add to form
+            isMainSession: session.isMainSession || false,
+            agenda: session.agenda || [],
         });
         fetchEventSessions(session.eventId); // Fetch siblings for locking logic
         setShowEditModal(true);
@@ -414,13 +427,13 @@ export default function SessionsPage() {
     const renderSessionCard = (session: Session, index: number, isMain: boolean) => {
         const colors = isMain ? ['#8B5CF6'] : ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#6366F1'];
         const sessionColor = colors[index % colors.length];
-        const capacityPercentage = session.maxCapacity > 0 ? Math.min((0 / session.maxCapacity) * 100, 100) : 0;
+        const capacityPercentage = session.maxCapacity > 0 ? Math.min((session.enrolledCount / session.maxCapacity) * 100, 100) : 0;
 
         return (
             <div
                 key={session.id}
                 className={`group relative bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 animate-fade-in border-2 ${isMain ? 'border-purple-200' : 'border-transparent'}`}
-                style={{ marginBottom: '0' }}
+                style={{ marginBottom: '0', display: 'flex', flexDirection: 'column', height: '100%' }}
             >
                 {/* Header with gradient */}
                 <div
@@ -501,7 +514,7 @@ export default function SessionsPage() {
                 </div>
 
                 {/* Content */}
-                <div style={{ padding: '25px' }}>
+                <div style={{ padding: '25px', flex: 1, display: 'flex', flexDirection: 'column' }}>
                     {/* Info Grid */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
                         <div>
@@ -509,9 +522,9 @@ export default function SessionsPage() {
                                 Session Date
                             </p>
                             <p style={{ margin: 0, fontWeight: 600, fontSize: '13px', color: '#333' }}>
-                                {new Date(session.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                {new Date(session.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Bangkok' })}
                                 <br />
-                                {new Date(session.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} - {new Date(session.endTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                {new Date(session.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Bangkok' })} - {new Date(session.endTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Bangkok' })}
                             </p>
                         </div>
                         <div>
@@ -548,6 +561,58 @@ export default function SessionsPage() {
                         </div>
                     </div>
 
+                    {/* Time & Agenda */}
+                    {session.agenda && session.agenda.length > 0 && (
+                        <div style={{ marginBottom: '20px' }}>
+                            <p style={{ margin: '0 0 10px 0', fontSize: '11px', color: '#999', textTransform: 'uppercase', fontWeight: 600 }}>
+                                <IconClock size={14} style={{ display: 'inline', marginRight: '5px', verticalAlign: 'middle' }} />
+                                Time & Agenda
+                            </p>
+                            <div
+                                style={{
+                                    backgroundColor: '#f8f9fa',
+                                    borderRadius: '10px',
+                                    padding: '14px 16px',
+                                    borderLeft: `3px solid ${sessionColor}`,
+                                }}
+                            >
+                                {session.agenda.map((item, i) => (
+                                    <div
+                                        key={i}
+                                        style={{
+                                            display: 'flex',
+                                            gap: '10px',
+                                            marginBottom: i < (session.agenda?.length || 0) - 1 ? '10px' : 0,
+                                            paddingBottom: i < (session.agenda?.length || 0) - 1 ? '10px' : 0,
+                                            borderBottom: i < (session.agenda?.length || 0) - 1 ? '1px dashed #e0e0e0' : 'none',
+                                        }}
+                                    >
+                                        <span
+                                            style={{
+                                                fontSize: '12px',
+                                                fontWeight: 700,
+                                                color: sessionColor,
+                                                whiteSpace: 'nowrap',
+                                                minWidth: '120px',
+                                            }}
+                                        >
+                                            {item.time}
+                                        </span>
+                                        <span
+                                            style={{
+                                                fontSize: '12px',
+                                                color: '#444',
+                                                lineHeight: 1.4,
+                                            }}
+                                        >
+                                            {item.topic}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Instructors (Speakers) */}
                     <div style={{ marginBottom: '20px' }}>
                         <p style={{ margin: '0 0 10px 0', fontSize: '11px', color: '#999', textTransform: 'uppercase', fontWeight: 600 }}>
@@ -572,7 +637,7 @@ export default function SessionsPage() {
                             Learning Objectives
                         </p>
                         {session.description ? (
-                            <p style={{ margin: 0, fontSize: '13px', color: '#555', lineHeight: 1.5 }}>
+                            <p style={{ margin: 0, fontSize: '13px', color: '#555', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
                                 {session.description}
                             </p>
                         ) : (
@@ -589,13 +654,14 @@ export default function SessionsPage() {
                             flexWrap: 'wrap',
                             gap: '15px',
                             borderTop: '1px solid #eee',
-                            paddingTop: '20px'
+                            paddingTop: '20px',
+                            marginTop: 'auto'
                         }}
                     >
                         <div>
                             <span style={{ fontSize: '12px', color: '#666' }}>
                                 <IconUsers size={14} style={{ display: 'inline', marginRight: '5px', verticalAlign: 'middle' }} />
-                                0/{session.maxCapacity || '∞'} enrolled
+                                {session.enrolledCount}/{session.maxCapacity || '∞'} enrolled
                             </span>
                             {session.maxCapacity > 0 && (
                                 <div
@@ -758,15 +824,15 @@ export default function SessionsPage() {
                             <div className="md:w-48 shrink-0 flex flex-row md:flex-col justify-between md:justify-start gap-2 md:border-r md:border-gray-100 md:pr-4">
                                 <div>
                                     <p className="font-bold text-gray-800 text-lg">
-                                        {new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        {new Date(session.startTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}
                                     </p>
                                     <p className="text-sm text-gray-500">
-                                        {new Date(session.startTime).toLocaleDateString()}
+                                        {new Date(session.startTime).toLocaleDateString('en-US', { timeZone: 'Asia/Bangkok' })}
                                     </p>
                                 </div>
                                 <div className="text-right md:text-left">
                                     <p className="text-sm text-gray-400">
-                                        to {new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        to {new Date(session.endTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}
                                     </p>
                                 </div>
                             </div>
@@ -977,6 +1043,68 @@ export default function SessionsPage() {
                                     <p className="text-xs text-gray-400 mt-1">Set to 0 for unlimited capacity</p>
                                 </div>
 
+                                {/* Time & Agenda */}
+                                <div className="col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        <IconClock size={16} className="inline mr-1" /> Time & Agenda
+                                    </label>
+                                    <p className="text-xs text-gray-500 mb-2">
+                                        Add agenda items with time slots (e.g. &quot;1:30 – 2:00 PM&quot; and topic).
+                                    </p>
+                                    {(formData.agenda || []).map((item, idx) => (
+                                        <div key={idx} className="flex items-start gap-2 mb-2">
+                                            <div className="w-[30%]">
+                                                <input
+                                                    type="text"
+                                                    className="input-field w-full"
+                                                    placeholder="1:30 – 2:00 PM"
+                                                    value={item.time}
+                                                    onChange={(e) => {
+                                                        const updated = [...(formData.agenda || [])];
+                                                        updated[idx] = { ...updated[idx], time: e.target.value };
+                                                        setFormData({ ...formData, agenda: updated });
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="w-[70%]">
+                                                <input
+                                                    type="text"
+                                                    className="input-field w-full"
+                                                    placeholder="Topic description"
+                                                    value={item.topic}
+                                                    onChange={(e) => {
+                                                        const updated = [...(formData.agenda || [])];
+                                                        updated[idx] = { ...updated[idx], topic: e.target.value };
+                                                        setFormData({ ...formData, agenda: updated });
+                                                    }}
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const updated = (formData.agenda || []).filter((_, i) => i !== idx);
+                                                    setFormData({ ...formData, agenda: updated });
+                                                }}
+                                                className="text-red-400 hover:text-red-600 mt-2"
+                                            >
+                                                <IconTrash size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFormData({
+                                                ...formData,
+                                                agenda: [...(formData.agenda || []), { time: '', topic: '' }],
+                                            });
+                                        }}
+                                        className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1"
+                                    >
+                                        <IconPlus size={14} /> Add agenda item
+                                    </button>
+                                </div>
+
                                 {/* Instructor(s) - formerly Speakers */}
                                 <div className="col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1025,12 +1153,12 @@ export default function SessionsPage() {
                                         value={formData.description}
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                     />
-                                </div>
+                                </div>                               
                             </div>
                             <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
                                 <button onClick={() => { setShowCreateModal(false); setShowEditModal(false); }} className="btn-secondary" disabled={isSubmitting}>Cancel</button>
                                 <button
-                                    onClick={showCreateModal ? handleCreate : handleEdit}
+                                    onClick={showCreateModal ? handleCreate : handleUpdate}
                                     className="btn-primary"
                                     disabled={isSubmitting}
                                 >
@@ -1139,10 +1267,10 @@ export default function SessionsPage() {
                                         <div className="bg-gray-50 p-4 rounded-lg">
                                             <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Session Date</p>
                                             <p className="font-semibold text-gray-800">
-                                                {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Bangkok' })}
                                             </p>
                                             <p className="text-sm text-gray-600">
-                                                {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                {start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })} - {end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}
                                             </p>
                                         </div>
                                         <div className="bg-gray-50 p-4 rounded-lg">
@@ -1184,7 +1312,7 @@ export default function SessionsPage() {
                                         </p>
                                         <div className="bg-gray-50 p-4 rounded-lg">
                                             {selectedSession.description ? (
-                                                <p className="text-gray-700 leading-relaxed">{selectedSession.description}</p>
+                                                <p className="text-gray-700 leading-relaxed" style={{ whiteSpace: 'pre-line' }}>{selectedSession.description}</p>
                                             ) : (
                                                 <p className="text-gray-400 italic">No objectives specified</p>
                                             )}
