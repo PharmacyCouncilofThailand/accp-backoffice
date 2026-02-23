@@ -169,6 +169,21 @@ export default function TicketsPage() {
         isMainSession: s.isMainSession || false,
       }));
       setSessions(mappedSessions);
+
+      setFormData((prev) => {
+        if (showCreateModal && prev.category === "primary") {
+          const mainSessionIds = mappedSessions
+            .filter((s: EventSession) => s.isMainSession)
+            .map((s: EventSession) => s.id);
+          return {
+            ...prev,
+            sessionIds: Array.from(
+              new Set([...prev.sessionIds, ...mainSessionIds]),
+            ),
+          };
+        }
+        return prev;
+      });
     } catch (error) {
       console.error("Failed to fetch sessions:", error);
       setSessions([]);
@@ -210,9 +225,16 @@ export default function TicketsPage() {
             roles = t.allowedRoles;
           } else if (typeof t.allowedRoles === "string") {
             if (t.allowedRoles.startsWith("[")) {
-              try { roles = JSON.parse(t.allowedRoles); } catch { roles = []; }
+              try {
+                roles = JSON.parse(t.allowedRoles);
+              } catch {
+                roles = [];
+              }
             } else {
-              roles = t.allowedRoles.split(",").map((r: string) => r.trim()).filter(Boolean);
+              roles = t.allowedRoles
+                .split(",")
+                .map((r: string) => r.trim())
+                .filter(Boolean);
             }
           }
         }
@@ -264,13 +286,8 @@ export default function TicketsPage() {
     setIsSubmitting(true);
     try {
       const token = getBackofficeToken();
-      // Auto-link Primary tickets to Main Sessions
-      let finalSessionIds =
-        formData.category === "addon" ? formData.sessionIds : [];
-      if (formData.category === "primary") {
-        const mainSessions = sessions.filter((s) => s.isMainSession);
-        finalSessionIds = mainSessions.map((s) => s.id);
-      }
+      // Use user-selected sessions for both primary and addon
+      const finalSessionIds = formData.sessionIds;
 
       // Build payload with only schema-valid fields
       const payload: Record<string, unknown> = {
@@ -279,7 +296,10 @@ export default function TicketsPage() {
         groupName: formData.groupName || undefined,
         price: String(formData.price),
         currency: formData.currency,
-        originalPrice: formData.originalPrice !== "" ? Number(formData.originalPrice) : undefined,
+        originalPrice:
+          formData.originalPrice !== ""
+            ? Number(formData.originalPrice)
+            : undefined,
         description: formData.description || undefined,
         features: formData.features.length > 0 ? formData.features : [],
         badgeText: formData.badgeText || undefined,
@@ -317,13 +337,8 @@ export default function TicketsPage() {
     setIsSubmitting(true);
     try {
       const token = getBackofficeToken();
-      // Auto-link Primary tickets to Main Sessions
-      let finalSessionIds =
-        formData.category === "addon" ? formData.sessionIds : [];
-      if (formData.category === "primary") {
-        const mainSessions = sessions.filter((s) => s.isMainSession);
-        finalSessionIds = mainSessions.map((s) => s.id);
-      }
+      // Use user-selected sessions for both primary and addon
+      const finalSessionIds = formData.sessionIds;
 
       // Build payload with only schema-valid fields
       const payload: Record<string, unknown> = {
@@ -332,7 +347,10 @@ export default function TicketsPage() {
         groupName: formData.groupName || undefined,
         price: String(formData.price),
         currency: formData.currency,
-        originalPrice: formData.originalPrice !== "" ? Number(formData.originalPrice) : undefined,
+        originalPrice:
+          formData.originalPrice !== ""
+            ? Number(formData.originalPrice)
+            : undefined,
         description: formData.description || undefined,
         features: formData.features.length > 0 ? formData.features : [],
         badgeText: formData.badgeText || undefined,
@@ -651,18 +669,18 @@ export default function TicketsPage() {
                           >
                             {ticket.type.replace("_", " ")}
                           </span>
-                          {ticket.category === "primary" ? (
-                            <span className="text-[10px] text-blue-600 mt-1 flex items-center gap-1 justify-center">
-                              <IconStar size={10} /> Linked to Main
-                            </span>
-                          ) : (
-                            ticket.sessionIds &&
+                          {ticket.sessionIds &&
                             ticket.sessionIds.length > 0 && (
-                              <span className="text-xs text-purple-600 mt-1">
+                              <span
+                                className={`text-xs mt-1 ${
+                                  ticket.category === "primary"
+                                    ? "text-blue-600"
+                                    : "text-purple-600"
+                                }`}
+                              >
                                 → {ticket.sessionIds.length} sessions linked
                               </span>
-                            )
-                          )}
+                            )}
                         </div>
                       </td>
                       <td className="px-4 py-4 text-center">
@@ -700,26 +718,38 @@ export default function TicketsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-4 text-center">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          ticket.priority === 'early_bird' ? 'bg-orange-100 text-orange-800' :
-                          ticket.priority === 'regular' ? 'bg-gray-100 text-gray-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {ticket.priority === 'early_bird' ? 'Early Bird' :
-                           ticket.priority === 'regular' ? 'Regular' :
-                           'Regular'}
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                            ticket.priority === "early_bird"
+                              ? "bg-orange-100 text-orange-800"
+                              : ticket.priority === "regular"
+                                ? "bg-gray-100 text-gray-800"
+                                : "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {ticket.priority === "early_bird"
+                            ? "Early Bird"
+                            : ticket.priority === "regular"
+                              ? "Regular"
+                              : "Regular"}
                         </span>
                       </td>
                       <td className="px-4 py-4 text-center">
                         <p className="text-sm text-gray-600">
                           {ticket.startDate
-                            ? new Date(ticket.startDate).toLocaleDateString("en-US", { timeZone: "Asia/Bangkok" })
+                            ? new Date(ticket.startDate).toLocaleDateString(
+                                "en-US",
+                                { timeZone: "Asia/Bangkok" },
+                              )
                             : "N/A"}
                         </p>
                         <p className="text-xs text-gray-400">
                           to{" "}
                           {ticket.endDate
-                            ? new Date(ticket.endDate).toLocaleDateString("en-US", { timeZone: "Asia/Bangkok" })
+                            ? new Date(ticket.endDate).toLocaleDateString(
+                                "en-US",
+                                { timeZone: "Asia/Bangkok" },
+                              )
                             : "N/A"}
                         </p>
                       </td>
@@ -821,9 +851,21 @@ export default function TicketsPage() {
                   <select
                     className="input-field"
                     value={formData.category}
-                    onChange={(e) =>
-                      setFormData({ ...formData, category: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const newCategory = e.target.value;
+                      setFormData((prev) => {
+                        const newData = { ...prev, category: newCategory };
+                        if (newCategory === "primary") {
+                          const mainSessionIds = sessions
+                            .filter((s) => s.isMainSession)
+                            .map((s) => s.id);
+                          newData.sessionIds = Array.from(
+                            new Set([...prev.sessionIds, ...mainSessionIds]),
+                          );
+                        }
+                        return newData;
+                      });
+                    }}
                   >
                     <option value="primary">Primary</option>
                     <option value="addon">Add-on</option>
@@ -840,80 +882,78 @@ export default function TicketsPage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-blue-900">
-                        Auto-linked to Main Sessions
+                        Main Sessions Auto-selected
                       </p>
                       <p className="text-xs text-blue-700 mt-0.5">
-                        Primary tickets are automatically linked to all Main
-                        Sessions of the selected event.
+                        Primary tickets typically include all Main Sessions. You
+                        can adjust the selection below.
                       </p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Session Linking for Add-on Tickets */}
-              {formData.category === "addon" && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Link to Sessions/Workshops *
-                  </label>
-                  <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2 bg-gray-50">
-                    {sessions.length > 0 ? (
-                      sessions.map((session) => (
-                        <label
-                          key={session.id}
-                          className="flex items-start gap-2 cursor-pointer hover:bg-gray-100 p-1 rounded"
-                        >
-                          <input
-                            type="checkbox"
-                            className="mt-1"
-                            checked={formData.sessionIds.includes(session.id)}
-                            onChange={(e) => {
-                              const isChecked = e.target.checked;
-                              setFormData((prev) => {
-                                const currentIds = prev.sessionIds || [];
-                                if (isChecked) {
-                                  return {
-                                    ...prev,
-                                    sessionIds: [...currentIds, session.id],
-                                  };
-                                } else {
-                                  return {
-                                    ...prev,
-                                    sessionIds: currentIds.filter(
-                                      (id) => id !== session.id,
-                                    ),
-                                  };
-                                }
-                              });
-                            }}
-                          />
-                          <div>
-                            <div className="text-sm font-medium flex items-center gap-2">
-                              {session.sessionCode}
-                              {session.isMainSession && (
-                                <span className="flex items-center gap-1 text-[10px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 uppercase">
-                                  <IconStar size={10} /> Main
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {session.sessionName}
-                            </div>
+              {/* Session Linking */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Link to Sessions/Workshops *
+                </label>
+                <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2 bg-gray-50">
+                  {sessions.length > 0 ? (
+                    sessions.map((session) => (
+                      <label
+                        key={session.id}
+                        className="flex items-start gap-2 cursor-pointer hover:bg-gray-100 p-1 rounded"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={formData.sessionIds.includes(session.id)}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            setFormData((prev) => {
+                              const currentIds = prev.sessionIds || [];
+                              if (isChecked) {
+                                return {
+                                  ...prev,
+                                  sessionIds: [...currentIds, session.id],
+                                };
+                              } else {
+                                return {
+                                  ...prev,
+                                  sessionIds: currentIds.filter(
+                                    (id) => id !== session.id,
+                                  ),
+                                };
+                              }
+                            });
+                          }}
+                        />
+                        <div>
+                          <div className="text-sm font-medium flex items-center gap-2">
+                            {session.sessionCode}
+                            {session.isMainSession && (
+                              <span className="flex items-center gap-1 text-[10px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 uppercase">
+                                <IconStar size={10} /> Main
+                              </span>
+                            )}
                           </div>
-                        </label>
-                      ))
-                    ) : (
-                      <p className="text-sm text-gray-500 italic text-center py-2">
-                        No sessions available for this event
-                      </p>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Select one or more sessions to link with this ticket
-                  </p>
+                          <div className="text-xs text-gray-500">
+                            {session.sessionName}
+                          </div>
+                        </div>
+                      </label>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 italic text-center py-2">
+                      No sessions available for this event
+                    </p>
+                  )}
                 </div>
-              )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Select one or more sessions to link with this ticket
+                </p>
+              </div>
 
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -966,7 +1006,8 @@ export default function TicketsPage() {
                   <option value="regular">Regular</option>
                 </select>
                 <p className="text-xs text-gray-400 mt-1">
-                  Display order is auto-calculated from priority + sale start date.
+                  Display order is auto-calculated from priority + sale start
+                  date.
                 </p>
               </div>
 
@@ -1046,7 +1087,8 @@ export default function TicketsPage() {
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        originalPrice: e.target.value === "" ? "" : Number(e.target.value),
+                        originalPrice:
+                          e.target.value === "" ? "" : Number(e.target.value),
                       })
                     }
                     placeholder="Show as strikethrough price"
@@ -1153,7 +1195,9 @@ export default function TicketsPage() {
                           onClick={() =>
                             setFormData({
                               ...formData,
-                              features: formData.features.filter((_, idx) => idx !== i),
+                              features: formData.features.filter(
+                                (_, idx) => idx !== i,
+                              ),
                             })
                           }
                           className="text-gray-400 hover:text-red-500"
