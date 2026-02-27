@@ -85,13 +85,34 @@ export default function MembersPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Member | null>(null);
 
-  // Stats
-  const stats = {
-    total: pagination?.total || 0,
-    active: members.filter((m) => m.status === "active").length,
-    pending: members.filter((m) => m.status === "pending_approval").length,
-    rejected: members.filter((m) => m.status === "rejected").length,
-  };
+  // Stats (global totals from API)
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    pending: 0,
+    rejected: 0,
+  });
+
+  const fetchStats = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await api.members.stats(token);
+      const getCount = (status: string) =>
+        data.byStatus.find((s: any) => s.status === status)?.count || 0;
+      setStats({
+        total: data.total,
+        active: getCount("active"),
+        pending: getCount("pending_approval"),
+        rejected: getCount("rejected"),
+      });
+    } catch (error) {
+      console.error("Failed to fetch stats:", error);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   const fetchMembers = useCallback(async () => {
     if (!token) return;
@@ -100,7 +121,7 @@ export default function MembersPage() {
     try {
       const params = new URLSearchParams();
       params.append("page", currentPage.toString());
-      params.append("limit", "20");
+      params.append("limit", "10");
       if (search) params.append("search", search);
       if (roleFilter) params.append("role", roleFilter);
       if (statusFilter) params.append("status", statusFilter);
@@ -133,6 +154,7 @@ export default function MembersPage() {
       await api.members.delete(token, deleteConfirm.id);
       setDeleteConfirm(null);
       fetchMembers();
+      fetchStats();
     } catch (error) {
       console.error("Failed to delete member:", error);
       alert(error instanceof Error ? error.message : "Failed to delete member");
