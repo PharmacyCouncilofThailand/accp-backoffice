@@ -192,8 +192,18 @@ export const api = {
   registrations: {
     list: (token: string, query?: string) =>
       fetchAPI<{ registrations: Record<string, unknown>[]; pagination: Pagination }>(`/api/backoffice/registrations${query ? `?${query}` : ''}`, { token }),
+    get: (token: string, id: number) =>
+      fetchAPI<{ registration: Record<string, unknown> }>(`/api/backoffice/registrations/${id}`, { token }),
     update: (token: string, id: number, data: Record<string, unknown>) =>
       fetchAPI<{ registration: Record<string, unknown> }>(`/api/backoffice/registrations/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+    manualAdd: (token: string, data: { userId: number; eventId: number; ticketTypeId: number; sessionIds?: number[]; note?: string }) =>
+      fetchAPI<{ success: boolean; registration: Record<string, unknown> }>('/api/backoffice/registrations/manual', { method: 'POST', body: JSON.stringify(data), token }),
+    batchManualAdd: (token: string, data: { userIds: number[]; eventId: number; ticketTypeId: number; sessionIds?: number[]; note?: string }) =>
+      fetchAPI<{ success: boolean; addedCount: number; successList: any[]; skippedList: { userId: number; reason: string }[] }>('/api/backoffice/registrations/manual/batch', { method: 'POST', body: JSON.stringify(data), token }),
+    getRegisteredUsers: (token: string, eventId: number, ticketTypeId?: number) =>
+      fetchAPI<{ registeredUserIds: number[]; ticketCategory?: string }>(`/api/backoffice/registrations/registered-users?eventId=${eventId}${ticketTypeId ? `&ticketTypeId=${ticketTypeId}` : ''}`, { token }),
+    addSessions: (token: string, id: number, data: { sessionIds: number[]; ticketTypeId: number; note?: string }) =>
+      fetchAPI<{ success: boolean; addedCount: number }>(`/api/backoffice/registrations/${id}/sessions`, { method: 'POST', body: JSON.stringify(data), token }),
   },
 
   abstracts: {

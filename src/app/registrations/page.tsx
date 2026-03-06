@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -9,11 +10,9 @@ import {
     IconUsers,
     IconSearch,
     IconEye,
-    IconPrinter,
     IconDownload,
     IconUserPlus,
     IconLoader2,
-    IconX,
 } from '@tabler/icons-react';
 
 
@@ -29,6 +28,10 @@ interface Registration {
     ticketName: string;
     eventName: string;
     eventCode: string;
+    source?: string;
+    addedNote?: string | null;
+    addedByFirstName?: string | null;
+    addedByLastName?: string | null;
 }
 
 const getBackofficeToken = () =>
@@ -41,21 +44,20 @@ export default function RegistrationsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
+    const [sourceFilter, setSourceFilter] = useState('');
 
     // Pagination
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
 
-    const [selectedReg, setSelectedReg] = useState<Registration | null>(null);
-    const [showViewModal, setShowViewModal] = useState(false);
 
     // Debounce search term to avoid API calls on every keystroke
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
     useEffect(() => {
         fetchRegistrations();
-    }, [page, debouncedSearchTerm, statusFilter]);
+    }, [page, debouncedSearchTerm, statusFilter, sourceFilter]);
 
     const fetchRegistrations = async () => {
         setIsLoading(true);
@@ -64,6 +66,7 @@ export default function RegistrationsPage() {
             const params: any = { page, limit: 10 };
             if (statusFilter) params.status = statusFilter;
             if (searchTerm) params.search = searchTerm;
+            if (sourceFilter) params.source = sourceFilter;
 
             const res = await api.registrations.list(token, new URLSearchParams(params).toString());
             setRegistrations(res.registrations as unknown as Registration[]);
@@ -117,16 +120,28 @@ export default function RegistrationsPage() {
                             <option value="confirmed">Confirmed</option>
                             <option value="cancelled">Cancelled</option>
                         </select>
+
+                        <select
+                            value={sourceFilter}
+                            onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
+                            className="input-field w-auto"
+                        >
+                            <option value="">All Source</option>
+                            <option value="purchase">Purchase</option>
+                            <option value="manual">Manual</option>
+                        </select>
                     </div>
 
                     <div className="flex gap-2">
                         <button className="btn-secondary flex items-center gap-2">
                             <IconDownload size={18} /> Export
                         </button>
-                        {/* Add Registration manually implementation pending */}
-                        {/* <button className="btn-primary flex items-center gap-2">
+                        <Link
+                            href="/registrations/add"
+                            className="btn-primary flex items-center gap-2"
+                        >
                             <IconUserPlus size={18} /> Add Registration
-                        </button> */}
+                        </Link>
                     </div>
                 </div>
             </div>
@@ -152,6 +167,7 @@ export default function RegistrationsPage() {
                                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Event</th>
                                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Ticket</th>
                                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Source</th>
                                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-[100px]">Actions</th>
                                     </tr>
                                 </thead>
@@ -191,14 +207,27 @@ export default function RegistrationsPage() {
                                                 </span>
                                             </td>
                                             <td className="px-4 py-4 text-center">
+                                                {reg.source === 'manual' ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200"
+                                                        title={`Added by ${reg.addedByFirstName || ''} ${reg.addedByLastName || ''}${reg.addedNote ? ` — ${reg.addedNote}` : ''}`}
+                                                    >
+                                                        Manual
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-500">
+                                                        Purchase
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
                                                 <div className="flex gap-1 justify-center items-center">
-                                                    <button
+                                                    <Link
+                                                        href={`/registrations/${reg.id}`}
                                                         className="p-2 hover:bg-blue-50 rounded-lg text-gray-500 hover:text-blue-600 transition-colors"
                                                         title="View Details"
-                                                        onClick={() => { setSelectedReg(reg); setShowViewModal(true); }}
                                                     >
                                                         <IconEye size={18} />
-                                                    </button>
+                                                    </Link>
                                                 </div>
                                             </td>
                                         </tr>
@@ -219,63 +248,6 @@ export default function RegistrationsPage() {
                 )}
             </div>
 
-            {/* View Modal */}
-            {showViewModal && selectedReg && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl max-w-lg w-full">
-                        <div className="p-6 border-b border-gray-100">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-semibold">Registration Details</h3>
-                                <button onClick={() => setShowViewModal(false)} className="text-gray-400 hover:text-gray-600">
-                                    <IconX size={20} />
-                                </button>
-                            </div>
-                        </div>
-                        <div className="p-6">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <p className="text-sm text-gray-500">Reg Code</p>
-                                    <p className="font-mono font-semibold">{selectedReg.regCode}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Status</p>
-                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${selectedReg.status === 'confirmed' ? 'bg-green-50 text-green-700 border-green-200' :
-                                        selectedReg.status === 'pending' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                                            'bg-red-50 text-red-700 border-red-200'
-                                        }`}>
-                                        {selectedReg.status === 'confirmed' && <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>}
-                                        {selectedReg.status === 'pending' && <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>}
-                                        {selectedReg.status === 'cancelled' && <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>}
-                                        {selectedReg.status.charAt(0).toUpperCase() + selectedReg.status.slice(1)}
-                                    </span>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Name</p>
-                                    <p className="font-semibold">{selectedReg.firstName} {selectedReg.lastName}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Email</p>
-                                    <p>{selectedReg.email}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Ticket</p>
-                                    <p>{selectedReg.ticketName}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Event</p>
-                                    <p>{selectedReg.eventName} ({selectedReg.eventCode})</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">
-                            <button onClick={() => setShowViewModal(false)} className="btn-secondary">Close</button>
-                            <button className="btn-primary flex items-center gap-2">
-                                <IconPrinter size={18} /> Print Badge
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </AdminLayout>
     );
 }
