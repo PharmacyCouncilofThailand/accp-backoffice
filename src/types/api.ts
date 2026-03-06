@@ -144,6 +144,11 @@ export interface Registration {
     // Additional fields from expanded API responses
     ticketName?: string;
     eventName?: string;
+    eventCode?: string;
+    source?: 'purchase' | 'manual';
+    addedNote?: string | null;
+    addedByFirstName?: string | null;
+    addedByLastName?: string | null;
 }
 
 // ============================================================================
