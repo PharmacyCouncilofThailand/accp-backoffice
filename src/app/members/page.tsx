@@ -25,7 +25,7 @@ interface Member {
   email: string;
   firstName: string;
   lastName: string;
-  role: "thstd" | "interstd" | "thpro" | "interpro";
+  role: "thstd" | "interstd" | "thpro" | "interpro" | "general" | "admin";
   status: "pending_approval" | "active" | "rejected";
   phone: string | null;
   country: string | null;
@@ -54,6 +54,14 @@ const roleLabels: Record<string, { label: string; className: string }> = {
   interpro: {
     label: "International Professional",
     className: "bg-orange-100 text-orange-800",
+  },
+  general: {
+    label: "General",
+    className: "bg-gray-100 text-gray-800",
+  },
+  admin: {
+    label: "Admin",
+    className: "bg-red-100 text-red-800",
   },
 };
 
@@ -253,6 +261,7 @@ export default function MembersPage() {
             <option value="interstd">International Student</option>
             <option value="thpro">Thai Professional</option>
             <option value="interpro">International Professional</option>
+            <option value="general">General</option>
           </select>
 
           <select

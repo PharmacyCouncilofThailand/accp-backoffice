@@ -25,6 +25,7 @@ import {
   IconLoader2,
   IconClock,
 } from "@tabler/icons-react";
+import { Images, Upload, X } from "lucide-react";
 
 interface Speaker {
   id: number;
@@ -92,6 +93,8 @@ interface EventFormData {
   conferenceCode: string;
   cpeCredits: string;
   status: "draft" | "published";
+  imageUrl: string;
+  coverImage: string;
 }
 
 // Helper function to format datetime for display
@@ -141,6 +144,38 @@ export default function CreateEventPage() {
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [editingTicketId, setEditingTicketId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Handle image upload to accp-api via api proxy
+  const handleImageUpload = async (file: File, type: "thumbnail" | "cover") => {
+    try {
+      setIsUploading(true);
+      const data = new FormData();
+      data.append("file", file);
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/upload/event-image`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: data,
+      });
+
+      if (!response.ok) throw new Error("Upload failed");
+      const result = await response.json();
+
+      setFormData((prev) => ({
+        ...prev,
+        [type === "thumbnail" ? "imageUrl" : "coverImage"]: result.url,
+      }));
+    } catch (error) {
+      console.error("Failed to upload image:", error);
+      alert("Failed to upload image. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
   const [error, setError] = useState("");
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
@@ -164,11 +199,15 @@ export default function CreateEventPage() {
     conferenceCode: "",
     cpeCredits: "",
     status: "draft",
+    imageUrl: "",
+    coverImage: "",
   });
 
   // Sessions and Tickets
   const [sessions, setSessions] = useState<SessionData[]>([]);
   const [tickets, setTickets] = useState<TicketData[]>([]);
+  const [venueImages, setVenueImages] = useState<{ id?: string, file?: File, previewUrl: string, url?: string, caption?: string }[]>([]);
+  const [imageCaption, setImageCaption] = useState("");
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
 
   // Load draft from localStorage on mount
@@ -193,12 +232,13 @@ export default function CreateEventPage() {
         const hasSessions = draft.sessions && draft.sessions.length > 0;
         if (hasSessions) setSessions(draft.sessions);
         if (draft.tickets) setTickets(draft.tickets);
+        if (draft.venueImages) setVenueImages(draft.venueImages);
         // Only restore step if we have valid data, otherwise default to 1
         if (draft.currentStep) setCurrentStep(draft.currentStep);
 
         toast.success("Draft restored from previous session");
       } catch (e) {
-        console.error("Failed to load draft:", e);
+        console.error("Draft save error:", e);
       }
     }
     setDraftLoaded(true);
@@ -522,6 +562,8 @@ export default function CreateEventPage() {
         conferenceCode: formData.conferenceCode || undefined,
         cpeCredits: formData.cpeCredits || undefined,
         status: formData.status,
+        imageUrl: formData.imageUrl || undefined,
+        coverImage: formData.coverImage || undefined,
       };
 
       const { event } = await api.backofficeEvents.create(token, eventData);
@@ -558,6 +600,47 @@ export default function CreateEventPage() {
           // Map local session ID to API session ID
           if (session.id && sessionResponse.session) {
             sessionIdMap.set(session.id, (sessionResponse.session as any).id);
+          }
+        }
+      }
+
+      // Upload accumulated venue images
+      if (venueImages.length > 0) {
+        for (const img of venueImages) {
+          if (img.file) {
+            const formData = new FormData();
+            formData.append("file", img.file);
+
+            try {
+              // 1. Upload the physical file first
+              const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/upload/venue-image`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+                body: formData,
+              });
+              
+              if (!uploadRes.ok) throw new Error("File upload failed");
+              const uploadData = await uploadRes.json();
+              
+              if (uploadData.url) {
+                // 2. Link the uploaded URL to the event
+                await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/backoffice/events/${event.id}/images`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                  },
+                  body: JSON.stringify({
+                    imageUrl: uploadData.url,
+                    caption: img.caption || undefined,
+                  }),
+                });
+              }
+            } catch (err) {
+              console.error("Failed to upload a venue image:", err);
+            }
           }
         }
       }
@@ -1322,42 +1405,239 @@ export default function CreateEventPage() {
             <h3 className="text-lg font-semibold">Step 4: Venue/Images</h3>
           </div>
 
-          <div className="bg-blue-50 text-blue-700 p-4 rounded-lg mb-4 flex items-center gap-2">
-            <IconPhoto size={18} /> Upload images of the venue (max 10 images)
+          <div className="bg-blue-50 text-blue-700 p-4 rounded-lg mb-6 flex items-center gap-2">
+            <IconPhoto size={18} /> Upload display images and venue gallery photos. Venue images will be uploaded when you click Finish.
           </div>
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Upload Venue Images
-            </label>
-            <input
-              type="file"
-              className="input-field"
-              multiple
-              accept="image/*"
-            />
-          </div>
-
-          {/* Image Grid */}
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <div className="h-32 bg-gray-100 flex items-center justify-center">
-                <IconPhoto size={40} className="text-gray-400" />
-              </div>
-              <div className="p-2 text-center">
-                <button className="text-red-600 hover:bg-red-100 p-1 rounded text-sm flex items-center gap-1 mx-auto">
-                  <IconTrash size={14} /> Remove
-                </button>
+          <div className="space-y-6">
+            {/* Section 1: Thumbnail Image */}
+            <div className="bg-white p-6 rounded-xl border border-gray-200">
+              <div className="flex flex-col md:flex-row gap-8">
+                <div className="md:w-1/3">
+                  <h3 className="text-lg font-medium text-gray-900 md:mb-2 flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                      <IconPhoto size={18} />
+                    </div>
+                    Thumbnail Image
+                  </h3>
+                  <p className="text-sm text-gray-500 hidden md:block">
+                    This image is used on event cards and listings on the homepage. 
+                    Recommended aspect ratio is 1:1 or 4:3.
+                  </p>
+                </div>
+                <div className="md:w-2/3">
+                  <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-xl relative overflow-hidden group bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                    {formData.imageUrl ? (
+                      <>
+                        <img src={formData.imageUrl} alt="Thumbnail preview" className="max-h-48 object-contain" />
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <label className="cursor-pointer text-white flex items-center gap-2 bg-black/50 px-4 py-2 rounded-full hover:bg-black/70 transition-colors">
+                            <IconPlus size={20} />
+                            <span>Change Thumbnail</span>
+                            <input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0], "thumbnail")} />
+                          </label>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-2 text-center">
+                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm border border-gray-100">
+                          <IconPhoto size={32} className="text-blue-400" />
+                        </div>
+                        <div className="flex text-sm text-gray-600 justify-center mt-4">
+                          <label className="relative cursor-pointer bg-white px-4 py-2 border border-gray-200 rounded-lg font-medium text-blue-600 hover:bg-gray-50 hover:text-blue-500 transition-colors shadow-sm">
+                            <span>Select an image file</span>
+                            <input type="file" className="sr-only" accept="image/*" onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0], "thumbnail")} />
+                          </label>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">PNG, JPG, WEBP up to 5MB</p>
+                      </div>
+                    )}
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center backdrop-blur-sm">
+                        <div className="bg-white p-4 rounded-xl shadow-lg flex flex-col items-center">
+                          <IconLoader2 size={32} className="animate-spin text-blue-600 mb-2" />
+                          <span className="text-sm font-medium text-gray-700">Uploading...</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <div className="h-32 bg-gray-100 flex items-center justify-center">
-                <IconPhoto size={40} className="text-gray-400" />
+
+            {/* Section 2: Cover Image */}
+            <div className="bg-white p-6 rounded-xl border border-gray-200">
+              <div className="flex flex-col md:flex-row gap-8">
+                <div className="md:w-1/3">
+                  <h3 className="text-lg font-medium text-gray-900 md:mb-2 flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                      <IconPhoto size={18} />
+                    </div>
+                    Cover Image
+                  </h3>
+                  <p className="text-sm text-gray-500 hidden md:block">
+                    This image appears as the large banner at the top of the event detail page. 
+                    Recommended aspect ratio is 16:9 for best display.
+                  </p>
+                </div>
+                <div className="md:w-2/3">
+                  <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-xl relative overflow-hidden group bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                    {formData.coverImage ? (
+                      <>
+                        <img src={formData.coverImage} alt="Cover preview" className="max-h-48 object-cover w-full rounded" />
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <label className="cursor-pointer text-white flex items-center gap-2 bg-black/50 px-4 py-2 rounded-full hover:bg-black/70 transition-colors">
+                            <IconPlus size={20} />
+                            <span>Change Cover</span>
+                            <input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0], "cover")} />
+                          </label>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-2 text-center">
+                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm border border-gray-100">
+                          <IconPhoto size={32} className="text-indigo-400" />
+                        </div>
+                        <div className="flex text-sm text-gray-600 justify-center mt-4">
+                          <label className="relative cursor-pointer bg-white px-4 py-2 border border-gray-200 rounded-lg font-medium text-indigo-600 hover:bg-gray-50 hover:text-indigo-500 transition-colors shadow-sm">
+                            <span>Select an image file</span>
+                            <input type="file" className="sr-only" accept="image/*" onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0], "cover")} />
+                          </label>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">PNG, JPG, WEBP up to 10MB</p>
+                      </div>
+                    )}
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center backdrop-blur-sm">
+                        <div className="bg-white p-4 rounded-xl shadow-lg flex flex-col items-center">
+                          <IconLoader2 size={32} className="animate-spin text-indigo-600 mb-2" />
+                          <span className="text-sm font-medium text-gray-700">Uploading...</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="p-2 text-center">
-                <button className="text-red-600 hover:bg-red-100 p-1 rounded text-sm flex items-center gap-1 mx-auto">
-                  <IconTrash size={14} /> Remove
-                </button>
+            </div>
+
+            {/* Section 3: Venue Gallery */}
+            <div className="bg-white p-6 rounded-xl border border-gray-200">
+              <div className="flex flex-col md:flex-row gap-8 mb-6">
+                <div className="md:w-1/3">
+                  <h3 className="text-lg font-medium text-gray-900 md:mb-2 flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
+                      <IconPhoto size={18} />
+                    </div>
+                    Venue Gallery
+                  </h3>
+                  <p className="text-sm text-gray-500 hidden md:block mb-4">
+                    Add multiple photos to showcase the event venue, parking area, or previous events.
+                  </p>
+                </div>
+                <div className="md:w-2/3">
+                  <div className="bg-gray-50 p-5 border border-gray-200 rounded-xl shadow-inner">
+                    <h4 className="font-semibold mb-3 text-gray-800 text-sm uppercase tracking-wider">Add Gallery Image</h4>
+                    <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                      <div className="flex-1 w-full">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Caption (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          className="input-field bg-white shadow-sm"
+                          placeholder="e.g. Main Conference Hall"
+                          value={imageCaption}
+                          onChange={(e) => setImageCaption(e.target.value)}
+                        />
+                      </div>
+                      <div className="w-full sm:w-auto">
+                        <input
+                          type="file"
+                          id="venue-image-upload-create"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              const file = e.target.files[0];
+                              const previewUrl = URL.createObjectURL(file);
+                              setVenueImages((prev) => [
+                                ...prev,
+                                {
+                                  id: Math.random().toString(36).substr(2, 9),
+                                  file,
+                                  previewUrl,
+                                  caption: imageCaption,
+                                },
+                              ]);
+                              setImageCaption("");
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor="venue-image-upload-create"
+                          className="btn-primary w-full sm:w-auto flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                        >
+                          <IconPlus size={18} />
+                          Add Image
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Gallery Grid */}
+              <div className="pt-6 border-t border-gray-100">
+                <h4 className="font-medium text-gray-800 mb-4 flex items-center gap-2">
+                  Images to Upload 
+                  <span className="bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs font-semibold">
+                    {venueImages.length}
+                  </span>
+                </h4>
+                
+                {venueImages.length > 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {venueImages.map((img, idx) => (
+                      <div
+                        key={img.id || idx}
+                        className="group border border-gray-200 rounded-xl overflow-hidden relative shadow-sm hover:shadow-md transition-all hover:-translate-y-1"
+                      >
+                        <div className="aspect-video bg-gray-100 flex items-center justify-center relative">
+                          <img
+                            src={img.previewUrl || img.url}
+                            alt={img.caption || `Venue ${idx + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                        <div className="absolute inset-0 flex flex-col justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 pt-8">
+                            {img.caption && (
+                              <div className="text-white text-sm font-medium truncate drop-shadow-md mb-2">
+                                {img.caption}
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setVenueImages(prev => prev.filter((_, i) => i !== idx))}
+                              className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg text-sm flex items-center justify-center gap-1 w-full shadow-lg transition-colors border border-red-400"
+                            >
+                              <IconTrash size={16} /> <span className="font-medium">Remove</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm border border-gray-100 mb-3">
+                      <IconPhoto size={28} className="text-green-400" />
+                    </div>
+                    <h5 className="text-gray-700 font-medium">No gallery images</h5>
+                    <p className="text-sm text-gray-500 mt-1">Add images to display them here.</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1374,7 +1654,7 @@ export default function CreateEventPage() {
             <button
               onClick={handleFinish}
               disabled={isSubmitting}
-              className="bg-green-600 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-green-600 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all"
             >
               {isSubmitting ? (
                 <>
@@ -1382,7 +1662,7 @@ export default function CreateEventPage() {
                 </>
               ) : (
                 <>
-                  <IconCheck size={20} /> Finish
+                  <IconCheck size={20} /> Finish & Create
                 </>
               )}
             </button>
@@ -1449,6 +1729,7 @@ export default function CreateEventPage() {
                     <option value="thpro">Thai Professional</option>
                     <option value="interstd">International Student</option>
                     <option value="interpro">International Professional</option>
+                    <option value="general">General / บุคคลทั่วไป</option>
                   </select>
                 </div>
               </div>

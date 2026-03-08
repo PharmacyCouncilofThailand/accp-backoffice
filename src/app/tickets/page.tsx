@@ -591,6 +591,7 @@ export default function TicketsPage() {
             <option value="thpro">Thai Professional</option>
             <option value="interstd">International Student</option>
             <option value="interpro">International Professional</option>
+            <option value="general">General / บุคคลทั่วไป</option>
           </select>
         </div>
 
@@ -970,6 +971,7 @@ export default function TicketsPage() {
                   <option value="thpro">Thai Professional</option>
                   <option value="interstd">International Student</option>
                   <option value="interpro">International Professional</option>
+                  <option value="general">General / บุคคลทั่วไป</option>
                 </select>
               </div>
 

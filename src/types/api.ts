@@ -54,6 +54,7 @@ export interface Event {
     maxCapacity: number;
     status: EventStatus;
     imageUrl?: string | null;
+    coverImage?: string | null;
     createdAt: string;
     updatedAt: string;
     // Additional optional fields used in edit page

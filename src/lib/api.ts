@@ -166,8 +166,8 @@ export const api = {
       fetchAPI<void>(`/api/backoffice/events/${eventId}/tickets/${ticketId}`, { method: 'DELETE', token }),
 
     // Images nested routes
-    addImage: (token: string, eventId: number, data: { url: string; caption?: string }) =>
-      fetchAPI<{ image: { id: number; url: string } }>(`/api/backoffice/events/${eventId}/images`, { method: 'POST', body: JSON.stringify(data), token }),
+    addImage: (token: string, eventId: number, data: { imageUrl: string; caption?: string }) =>
+      fetchAPI<{ image: { id: number; imageUrl: string } }>(`/api/backoffice/events/${eventId}/images`, { method: 'POST', body: JSON.stringify(data), token }),
     deleteImage: (token: string, eventId: number, imageId: number) =>
       fetchAPI<void>(`/api/backoffice/events/${eventId}/images/${imageId}`, { method: 'DELETE', token }),
   },
