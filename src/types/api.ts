@@ -55,6 +55,7 @@ export interface Event {
     status: EventStatus;
     imageUrl?: string | null;
     coverImage?: string | null;
+    videoUrl?: string | null;
     createdAt: string;
     updatedAt: string;
     // Additional optional fields used in edit page
@@ -78,9 +79,10 @@ export interface EventCreateInput {
     endDate: string;
     maxCapacity: number;
     status?: EventStatus;
+    videoUrl?: string;
 }
 
-export interface EventUpdateInput extends Partial<EventCreateInput> {}
+export interface EventUpdateInput extends Partial<EventCreateInput> { }
 
 // ============================================================================
 // Session Types

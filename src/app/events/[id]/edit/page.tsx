@@ -92,6 +92,7 @@ interface EventFormData {
   status: "draft" | "published" | "cancelled" | "completed";
   imageUrl: string;
   coverImage: string;
+  videoUrl: string;
 }
 
 const roleOptions = [
@@ -168,6 +169,7 @@ export default function EditEventPage() {
     status: "draft",
     imageUrl: "",
     coverImage: "",
+    videoUrl: "",
   });
 
   // Sessions, Tickets, Images
@@ -258,6 +260,7 @@ export default function EditEventPage() {
           status: event.status || "draft",
           imageUrl: event.imageUrl || "",
           coverImage: event.coverImage || "",
+          videoUrl: event.videoUrl || "",
         });
 
         // Load sessions
@@ -381,10 +384,10 @@ export default function EditEventPage() {
           prev.map((s) =>
             s.id === editingSessionId
               ? {
-                  ...sessionForm,
-                  id: editingSessionId,
-                  isMainSession: sessionForm.isMainSession,
-                }
+                ...sessionForm,
+                id: editingSessionId,
+                isMainSession: sessionForm.isMainSession,
+              }
               : s,
           ),
         );
@@ -532,26 +535,26 @@ export default function EditEventPage() {
           prev.map((t) =>
             t.id === editingTicketId
               ? {
-                  ...t,
-                  id: editingTicketId,
-                  name: ticketForm.name,
-                  category: ticketForm.category,
-                  groupName: ticketForm.groupName,
-                  price: ticketForm.price,
-                  currency: ticketForm.currency,
-                  originalPrice: ticketForm.originalPrice,
-                  description: ticketForm.description,
-                  features: ticketForm.features,
-                  badgeText: ticketForm.badgeText,
-                  quota: ticketForm.quota,
-                  allowedRoles: ticketForm.allowedRoles,
-                  saleStartDate: ticketForm.saleStartDate,
-                  saleEndDate: ticketForm.saleEndDate,
-                  sessionIds:
-                    ticketForm.category === "addon"
-                      ? ticketForm.sessionIds
-                      : [],
-                }
+                ...t,
+                id: editingTicketId,
+                name: ticketForm.name,
+                category: ticketForm.category,
+                groupName: ticketForm.groupName,
+                price: ticketForm.price,
+                currency: ticketForm.currency,
+                originalPrice: ticketForm.originalPrice,
+                description: ticketForm.description,
+                features: ticketForm.features,
+                badgeText: ticketForm.badgeText,
+                quota: ticketForm.quota,
+                allowedRoles: ticketForm.allowedRoles,
+                saleStartDate: ticketForm.saleStartDate,
+                saleEndDate: ticketForm.saleEndDate,
+                sessionIds:
+                  ticketForm.category === "addon"
+                    ? ticketForm.sessionIds
+                    : [],
+              }
               : t,
           ),
         );
@@ -738,7 +741,7 @@ export default function EditEventPage() {
       const data = new FormData();
       data.append("file", file);
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/upload/event-image`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/upload/event-image`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${getBackofficeToken()}`,
@@ -759,6 +762,47 @@ export default function EditEventPage() {
       toast.error(error.message || "Failed to upload image");
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("Video file too large (max 50MB)");
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      const data = new FormData();
+      data.append("file", file);
+
+      // Using the generic upload route we just modified to allow mp4/webm
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/upload/event-image`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${getBackofficeToken()}`,
+        },
+        body: data,
+      });
+
+      if (!response.ok) throw new Error("Video upload failed");
+      const result = await response.json();
+
+      setFormData((prev) => ({
+        ...prev,
+        videoUrl: result.url,
+      }));
+      toast.success("Video uploaded successfully!");
+    } catch (error: any) {
+      console.error("Failed to upload video:", error);
+      toast.error(error.message || "Failed to upload video");
+    } finally {
+      setIsUploading(false);
+      // Reset input so the same file can be uploaded again if needed
+      e.target.value = "";
     }
   };
 
@@ -784,6 +828,7 @@ export default function EditEventPage() {
         status: formData.status,
         imageUrl: formData.imageUrl || undefined,
         coverImage: formData.coverImage || undefined,
+        videoUrl: formData.videoUrl || undefined,
       };
 
       await api.backofficeEvents.update(token, parseInt(eventId), eventData);
@@ -849,15 +894,14 @@ export default function EditEventPage() {
           </div>
           <div className="text-right">
             <span
-              className={`inline-block px-4 py-2 rounded-full text-sm font-semibold ${
-                formData.status === "published"
-                  ? "bg-green-500"
-                  : formData.status === "draft"
-                    ? "bg-yellow-500"
-                    : formData.status === "cancelled"
-                      ? "bg-red-500"
-                      : "bg-gray-500"
-              }`}
+              className={`inline-block px-4 py-2 rounded-full text-sm font-semibold ${formData.status === "published"
+                ? "bg-green-500"
+                : formData.status === "draft"
+                  ? "bg-yellow-500"
+                  : formData.status === "cancelled"
+                    ? "bg-red-500"
+                    : "bg-gray-500"
+                }`}
             >
               {formData.status.charAt(0).toUpperCase() +
                 formData.status.slice(1)}
@@ -883,11 +927,10 @@ export default function EditEventPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
-                activeTab === tab.id
-                  ? "bg-blue-600 text-white shadow-md"
-                  : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
-              }`}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${activeTab === tab.id
+                ? "bg-blue-600 text-white shadow-md"
+                : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                }`}
             >
               <Icon size={18} />
               {tab.label}
@@ -1355,14 +1398,13 @@ export default function EditEventPage() {
                       </td>
                       <td>{ticket.quota}</td>
                       <td>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          ticket.priority === 'early_bird' ? 'bg-orange-100 text-orange-800' :
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${ticket.priority === 'early_bird' ? 'bg-orange-100 text-orange-800' :
                           ticket.priority === 'regular' ? 'bg-gray-100 text-gray-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
+                            'bg-gray-100 text-gray-800'
+                          }`}>
                           {ticket.priority === 'early_bird' ? 'Early Bird' :
-                           ticket.priority === 'regular' ? 'Regular' :
-                           'Regular'}
+                            ticket.priority === 'regular' ? 'Regular' :
+                              'Regular'}
                         </span>
                       </td>
                       <td>
@@ -1429,7 +1471,7 @@ export default function EditEventPage() {
                   Thumbnail Image
                 </h3>
                 <p className="text-sm text-gray-500 hidden md:block">
-                  This image is used on event cards and listings on the homepage. 
+                  This image is used on event cards and listings on the homepage.
                   Recommended aspect ratio is 1:1 or 4:3.
                 </p>
               </div>
@@ -1484,7 +1526,7 @@ export default function EditEventPage() {
                   Cover Image
                 </h3>
                 <p className="text-sm text-gray-500 hidden md:block">
-                  This image appears as the large banner at the top of the event detail page. 
+                  This image appears as the large banner at the top of the event detail page.
                   Recommended aspect ratio is 16:9 for best display.
                 </p>
               </div>
@@ -1523,6 +1565,54 @@ export default function EditEventPage() {
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* Cover Video Upload */}
+                <div className="mt-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Cover Video (MP4/WebM) - Optional
+                  </label>
+                  <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-xl relative overflow-hidden group bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                    {formData.videoUrl ? (
+                      <>
+                        <video src={formData.videoUrl} controls className="max-h-48 w-full rounded bg-black" />
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <label className="cursor-pointer text-white flex items-center gap-2 bg-black/50 px-4 py-2 rounded-full hover:bg-black/70 transition-colors">
+                            <IconPlus size={20} />
+                            <span>Change Video</span>
+                            <input type="file" className="hidden" accept="video/mp4,video/webm" onChange={handleVideoUpload} />
+                          </label>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-2 text-center">
+                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm border border-gray-100">
+                          <svg className="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <div className="flex text-sm text-gray-600 justify-center mt-4">
+                          <label className={`relative cursor-pointer bg-white px-4 py-2 border border-gray-200 rounded-lg font-medium text-indigo-600 hover:bg-gray-50 hover:text-indigo-500 transition-colors shadow-sm ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <span>Select a video file</span>
+                            <input type="file" className="sr-only" accept="video/mp4,video/webm" onChange={handleVideoUpload} disabled={isUploading} />
+                          </label>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">MP4 or WEBM up to 50MB</p>
+                      </div>
+                    )}
+
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center backdrop-blur-sm">
+                        <div className="bg-white p-4 rounded-xl shadow-lg flex flex-col items-center">
+                          <IconLoader2 size={32} className="animate-spin text-indigo-600 mb-2" />
+                          <span className="text-sm font-medium text-gray-700">Uploading Video...</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    If provided, this video will be played as the background on the event details page.
+                  </p>
                 </div>
               </div>
             </div>
@@ -1598,7 +1688,7 @@ export default function EditEventPage() {
                   {venueImages.length}
                 </span>
               </h4>
-              
+
               {venueImages.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {venueImages.map((img) => (
@@ -2144,37 +2234,37 @@ export default function EditEventPage() {
                 !sessions.some(
                   (s) => s.isMainSession && s.id !== editingSessionId,
                 )) && (
-                <div className="mb-4">
-                  <label className="flex items-center gap-2 cursor-pointer p-3 border rounded-lg hover:bg-gray-50 bg-blue-50/50 border-blue-100/50">
-                    <input
-                      type="checkbox"
-                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                      checked={sessionForm.isMainSession || false}
-                      onChange={(e) =>
-                        setSessionForm((prev) => ({
-                          ...prev,
-                          isMainSession: e.target.checked,
-                        }))
-                      }
-                      disabled={sessionForm.isMainSession} // Lock if checked
-                    />
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        Main session
-                        {sessionForm.isMainSession && (
-                          <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
-                            Default (Locked)
-                          </span>
-                        )}
+                  <div className="mb-4">
+                    <label className="flex items-center gap-2 cursor-pointer p-3 border rounded-lg hover:bg-gray-50 bg-blue-50/50 border-blue-100/50">
+                      <input
+                        type="checkbox"
+                        className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        checked={sessionForm.isMainSession || false}
+                        onChange={(e) =>
+                          setSessionForm((prev) => ({
+                            ...prev,
+                            isMainSession: e.target.checked,
+                          }))
+                        }
+                        disabled={sessionForm.isMainSession} // Lock if checked
+                      />
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          Main session
+                          {sessionForm.isMainSession && (
+                            <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                              Default (Locked)
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Main sessions appear prominently and are auto-linked to
+                          Primary tickets.
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-500">
-                        Main sessions appear prominently and are auto-linked to
-                        Primary tickets.
-                      </div>
-                    </div>
-                  </label>
-                </div>
-              )}
+                    </label>
+                  </div>
+                )}
 
               {/* Session Code & Session Name */}
               <div className="grid grid-cols-2 gap-4 mb-4">
@@ -2386,8 +2476,8 @@ export default function EditEventPage() {
                                 selectedSpeakerIds: e.target.checked
                                   ? [...(prev.selectedSpeakerIds || []), id]
                                   : (prev.selectedSpeakerIds || []).filter(
-                                      (sid) => sid !== id,
-                                    ),
+                                    (sid) => sid !== id,
+                                  ),
                               }));
                             }}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
