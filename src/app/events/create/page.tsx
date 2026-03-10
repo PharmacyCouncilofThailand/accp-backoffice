@@ -108,9 +108,9 @@ const formatDateTime = (dateTimeStr: string): string => {
     return date.toLocaleString("en-US", {
       month: "short",
       day: "numeric",
-      hour: "2-digit",
+      hour: "numeric",
       minute: "2-digit",
-      hour12: false,
+      hour12: true,
       timeZone: "Asia/Bangkok",
     });
   } catch {
@@ -129,9 +129,9 @@ const formatTime = (dateTimeStr: string): string => {
   try {
     const date = new Date(dateTimeStr);
     return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
+      hour: "numeric",
       minute: "2-digit",
-      hour12: false,
+      hour12: true,
       timeZone: "Asia/Bangkok",
     });
   } catch {
@@ -1972,7 +1972,6 @@ export default function CreateEventPage() {
                         { value: "thpro", label: "Thai Professional" },
                         { value: "interstd", label: "International Student" },
                         { value: "interpro", label: "International Professional" },
-                        { value: "guest", label: "Guest" },
                         { value: "general", label: "General" },
                       ].map((role) => (
                         <label

@@ -424,8 +424,9 @@ export default function VerificationPage() {
                                 year: "numeric",
                                 month: "short",
                                 day: "numeric",
-                                hour: "2-digit",
+                                hour: "numeric",
                                 minute: "2-digit",
+                                hour12: true,
                                 timeZone: "Asia/Bangkok",
                               },
                             )}
@@ -659,8 +660,9 @@ export default function VerificationPage() {
                                   year: "numeric",
                                   month: "short",
                                   day: "numeric",
-                                  hour: "2-digit",
+                                  hour: "numeric",
                                   minute: "2-digit",
+                                  hour12: true,
                                   timeZone: "Asia/Bangkok",
                                 },
                               )}
