@@ -31,6 +31,7 @@ const typeColors: { [key: string]: string } = {
   thpro: "bg-blue-100 text-blue-800",
   interstd: "bg-yellow-100 text-yellow-800",
   interpro: "bg-purple-100 text-purple-800",
+  guest: "bg-teal-100 text-teal-800",
   general: "bg-gray-100 text-gray-800", // fallback
 };
 
@@ -368,6 +369,7 @@ export default function TicketsPage() {
         payload.saleEndDate = new Date(formData.saleEndDate).toISOString();
       }
       // Use API update
+      console.log("[handleEdit] payload:", JSON.stringify(payload, null, 2));
       await api.backofficeEvents.updateTicket(
         token,
         formData.eventId,
@@ -379,7 +381,8 @@ export default function TicketsPage() {
       fetchTickets();
     } catch (error) {
       console.error(error);
-      toast.error("Failed to update ticket");
+      const msg = error instanceof Error ? error.message : "Failed to update ticket";
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -447,8 +450,8 @@ export default function TicketsPage() {
       saleEndDate: formatDateTimeLocal(ticket.endDate),
       allowedRoles:
         ticket.allowedRoles && ticket.allowedRoles.length > 0
-          ? ticket.allowedRoles
-          : ["thstd"],
+          ? ticket.allowedRoles.filter(r => ["thstd", "thpro", "interstd", "interpro", "general"].includes(r))
+          : ["general"],
       priority: ticket.priority || "regular",
       isActive: ticket.isActive ?? true,
       sessionIds: ticket.sessionIds || [],
@@ -591,7 +594,8 @@ export default function TicketsPage() {
             <option value="thpro">Thai Professional</option>
             <option value="interstd">International Student</option>
             <option value="interpro">International Professional</option>
-            <option value="general">General / บุคคลทั่วไป</option>
+            <option value="guest">Guest</option>
+            <option value="general">General</option>
           </select>
         </div>
 
@@ -665,19 +669,27 @@ export default function TicketsPage() {
                               ? "Primary"
                               : "Add-on"}
                           </span>
-                          <span
-                            className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${typeColors[ticket.type] || "bg-gray-100 text-gray-600"}`}
-                          >
-                            {ticket.type.replace("_", " ")}
-                          </span>
+                          {ticket.allowedRoles && ticket.allowedRoles.length > 0 ? (
+                            ticket.allowedRoles.map((role) => (
+                              <span
+                                key={role}
+                                className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${typeColors[role] || "bg-gray-100 text-gray-600"}`}
+                              >
+                                {role === "thstd" ? "Thai Student" : role === "thpro" ? "Thai Pro" : role === "interstd" ? "Inter Student" : role === "interpro" ? "Inter Pro" : role === "guest" ? "Guest" : "General"}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                              General
+                            </span>
+                          )}
                           {ticket.sessionIds &&
                             ticket.sessionIds.length > 0 && (
                               <span
-                                className={`text-xs mt-1 ${
-                                  ticket.category === "primary"
-                                    ? "text-blue-600"
-                                    : "text-purple-600"
-                                }`}
+                                className={`text-xs mt-1 ${ticket.category === "primary"
+                                  ? "text-blue-600"
+                                  : "text-purple-600"
+                                  }`}
                               >
                                 → {ticket.sessionIds.length} sessions linked
                               </span>
@@ -720,13 +732,12 @@ export default function TicketsPage() {
                       </td>
                       <td className="px-4 py-4 text-center">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            ticket.priority === "early_bird"
-                              ? "bg-orange-100 text-orange-800"
-                              : ticket.priority === "regular"
-                                ? "bg-gray-100 text-gray-800"
-                                : "bg-gray-100 text-gray-800"
-                          }`}
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${ticket.priority === "early_bird"
+                            ? "bg-orange-100 text-orange-800"
+                            : ticket.priority === "regular"
+                              ? "bg-gray-100 text-gray-800"
+                              : "bg-gray-100 text-gray-800"
+                            }`}
                         >
                           {ticket.priority === "early_bird"
                             ? "Early Bird"
@@ -739,18 +750,18 @@ export default function TicketsPage() {
                         <p className="text-sm text-gray-600">
                           {ticket.startDate
                             ? new Date(ticket.startDate).toLocaleDateString(
-                                "en-US",
-                                { timeZone: "Asia/Bangkok" },
-                              )
+                              "en-US",
+                              { timeZone: "Asia/Bangkok" },
+                            )
                             : "N/A"}
                         </p>
                         <p className="text-xs text-gray-400">
                           to{" "}
                           {ticket.endDate
                             ? new Date(ticket.endDate).toLocaleDateString(
-                                "en-US",
-                                { timeZone: "Asia/Bangkok" },
-                              )
+                              "en-US",
+                              { timeZone: "Asia/Bangkok" },
+                            )
                             : "N/A"}
                         </p>
                       </td>
@@ -957,22 +968,45 @@ export default function TicketsPage() {
               </div>
 
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Target Audience (Role) *
                 </label>
-                <select
-                  className="input-field"
-                  value={formData.allowedRoles[0]}
-                  onChange={(e) =>
-                    setFormData({ ...formData, allowedRoles: [e.target.value] })
-                  }
-                >
-                  <option value="thstd">Thai Student</option>
-                  <option value="thpro">Thai Professional</option>
-                  <option value="interstd">International Student</option>
-                  <option value="interpro">International Professional</option>
-                  <option value="general">General / บุคคลทั่วไป</option>
-                </select>
+                <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2 bg-gray-50">
+                  {[
+                    { value: "thstd", label: "Thai Student" },
+                    { value: "thpro", label: "Thai Professional" },
+                    { value: "interstd", label: "International Student" },
+                    { value: "interpro", label: "International Professional" },
+                    { value: "general", label: "General" },
+                  ].map((role) => (
+                    <label
+                      key={role.value}
+                      className="flex items-start gap-2 cursor-pointer hover:bg-gray-100 p-1 rounded"
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={formData.allowedRoles.includes(role.value)}
+                        onChange={(e) => {
+                          const isChecked = e.target.checked;
+                          setFormData((prev) => {
+                            const currentRoles = prev.allowedRoles || [];
+                            if (isChecked) {
+                              return { ...prev, allowedRoles: [...currentRoles, role.value] };
+                            } else {
+                              // Ensure at least one role is selected, or allow empty if preferred
+                              return { ...prev, allowedRoles: currentRoles.filter(r => r !== role.value) };
+                            }
+                          });
+                        }}
+                      />
+                      <span className="text-sm font-medium text-gray-700">{role.label}</span>
+                    </label>
+                  ))}
+                </div>
+                {formData.allowedRoles.length === 0 && (
+                  <p className="text-xs text-red-500 mt-1">Please select at least one target audience.</p>
+                )}
               </div>
 
               <div className="mb-4">

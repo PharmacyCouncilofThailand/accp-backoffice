@@ -24,8 +24,9 @@ import {
   IconTarget,
   IconLoader2,
   IconClock,
+  IconFileText,
+  IconUpload,
 } from "@tabler/icons-react";
-import { Images, Upload, X } from "lucide-react";
 
 interface Speaker {
   id: number;
@@ -96,6 +97,7 @@ interface EventFormData {
   imageUrl: string;
   coverImage: string;
   videoUrl: string;
+  documents: { name: string; url: string }[];
 }
 
 // Helper function to format datetime for display
@@ -147,36 +149,70 @@ export default function CreateEventPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadingTarget, setUploadingTarget] = useState<string | null>(null);
+
+  // Helper: upload file via XHR with progress tracking
+  const uploadFileWithProgress = (file: File, endpoint: string, target: string): Promise<{ url: string; filename: string }> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const data = new FormData();
+      data.append("file", file);
+
+      setUploadProgress(0);
+      setUploadingTarget(target);
+      setIsUploading(true);
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          setUploadProgress(Math.round((event.loaded / event.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch {
+            reject(new Error("Invalid server response"));
+          }
+        } else {
+          reject(new Error(`Upload failed (${xhr.status})`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      xhr.open("POST", `${apiUrl}${endpoint}`);
+      xhr.setRequestHeader("Authorization", `Bearer ${getBackofficeToken()}`);
+      xhr.send(data);
+    });
+  };
+
+  const resetUploadState = () => {
+    setIsUploading(false);
+    setUploadingTarget(null);
+    setUploadProgress(0);
+  };
 
   // Handle image upload to accp-api via api proxy
   const handleImageUpload = async (file: File, type: "thumbnail" | "cover") => {
     try {
-      setIsUploading(true);
-      const data = new FormData();
-      data.append("file", file);
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/upload/event-image`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${getBackofficeToken()}`,
-        },
-        body: data,
-      });
-
-      if (!response.ok) throw new Error("Upload failed");
-      const result = await response.json();
-
+      const result = await uploadFileWithProgress(file, "/api/upload/event-image", type);
       setFormData((prev) => ({
         ...prev,
         [type === "thumbnail" ? "imageUrl" : "coverImage"]: result.url,
       }));
+      toast.success(`${type === "thumbnail" ? "Thumbnail" : "Cover"} image uploaded!`);
     } catch (error) {
       console.error("Failed to upload image:", error);
-      alert("Failed to upload image. Please try again.");
+      toast.error("Failed to upload image. Please try again.");
     } finally {
-      setIsUploading(false);
+      resetUploadState();
     }
   };
+
   const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -187,22 +223,7 @@ export default function CreateEventPage() {
     }
 
     try {
-      setIsUploading(true);
-      const data = new FormData();
-      data.append("file", file);
-
-      // Using the generic upload route we just modified to allow mp4/webm
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/upload/event-image`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${getBackofficeToken()}`,
-        },
-        body: data,
-      });
-
-      if (!response.ok) throw new Error("Video upload failed");
-      const result = await response.json();
-
+      const result = await uploadFileWithProgress(file, "/api/upload/event-image", "video");
       setFormData((prev) => ({
         ...prev,
         videoUrl: result.url,
@@ -212,8 +233,32 @@ export default function CreateEventPage() {
       console.error("Failed to upload video:", error);
       toast.error("Failed to upload video. Please try again.");
     } finally {
-      setIsUploading(false);
-      // Reset input so the same file can be uploaded again if needed
+      resetUploadState();
+      e.target.value = "";
+    }
+  };
+
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("Document file too large (max 50MB)");
+      return;
+    }
+
+    try {
+      const result = await uploadFileWithProgress(file, "/api/upload/event-document", "document");
+      setFormData((prev) => ({
+        ...prev,
+        documents: [...(prev.documents || []), { name: file.name, url: result.url }],
+      }));
+      toast.success("Document uploaded successfully!");
+    } catch (error) {
+      console.error("Failed to upload document:", error);
+      toast.error("Failed to upload document. Please try again.");
+    } finally {
+      resetUploadState();
       e.target.value = "";
     }
   };
@@ -244,6 +289,7 @@ export default function CreateEventPage() {
     imageUrl: "",
     coverImage: "",
     videoUrl: "",
+    documents: [],
   });
 
   // Sessions and Tickets
@@ -583,6 +629,13 @@ export default function CreateEventPage() {
     setTickets((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // Extract src from iframe string if present
+  const extractMapUrl = (html: string) => {
+    if (!html || !html.trim().startsWith("<iframe")) return html;
+    const match = html.match(/src="([^"]+)"/);
+    return match ? match[1] : html;
+  };
+
   // Submit form
   const handleFinish = async () => {
     setError("");
@@ -598,7 +651,7 @@ export default function CreateEventPage() {
         description: formData.description || undefined,
         eventType: formData.eventType,
         location: formData.location || undefined,
-        mapUrl: formData.mapUrl || undefined,
+        mapUrl: extractMapUrl(formData.mapUrl) || undefined,
         startDate: new Date(formData.startDate).toISOString(),
         endDate: new Date(formData.endDate).toISOString(),
         maxCapacity: formData.maxCapacity,
@@ -607,6 +660,8 @@ export default function CreateEventPage() {
         status: formData.status,
         imageUrl: formData.imageUrl || undefined,
         coverImage: formData.coverImage || undefined,
+        videoUrl: formData.videoUrl || undefined,
+        documents: formData.documents.length > 0 ? formData.documents : undefined,
       };
 
       const { event } = await api.backofficeEvents.create(token, eventData);
@@ -945,6 +1000,68 @@ export default function CreateEventPage() {
             />
           </div>
 
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Attachments / Documents
+            </label>
+            <div className="space-y-3">
+              {(formData.documents || []).length > 0 && (
+                <div className="grid gap-2">
+                  {(formData.documents || []).map((doc, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="w-8 h-8 rounded bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
+                          <IconFileText size={18} />
+                        </div>
+                        <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-600 hover:underline truncate">
+                          {doc.name}
+                        </a>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({
+                          ...prev,
+                          documents: prev.documents.filter((_, i) => i !== idx)
+                        }))}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <IconTrash size={18} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="relative">
+                <input
+                  type="file"
+                  id="document-upload"
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx"
+                  onChange={handleDocumentUpload}
+                  disabled={isUploading}
+                />
+                <label
+                  htmlFor="document-upload"
+                  className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isUploading ? "bg-gray-100 border-gray-300 opacity-70" : "border-gray-300 bg-gray-50 hover:bg-gray-100"
+                    }`}
+                >
+                  <div className="flex flex-col items-center justify-center pb-6 pt-5">
+                    {isUploading ? (
+                      <IconLoader2 size={24} className="text-gray-400 mb-2 animate-spin" />
+                    ) : (
+                      <IconUpload size={24} className="text-gray-400 mb-2" />
+                    )}
+                    <p className="mb-2 text-sm text-gray-500">
+                      <span className="font-semibold">Click to upload</span> a document
+                    </p>
+                    <p className="text-xs text-gray-500">PDF, DOC, DOCX, XLS or XLSX (Max 50MB)</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1015,12 +1132,12 @@ export default function CreateEventPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Google Maps Link
+                Google Maps Embed Code (iframe)
               </label>
               <input
-                type="url"
+                type="text"
                 className="input-field"
-                placeholder="https://maps.google.com/..."
+                placeholder='<iframe src="https://www.google.com/maps/embed?..." ></iframe>'
                 value={formData.mapUrl}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, mapUrl: e.target.value }))
@@ -1346,11 +1463,18 @@ export default function CreateEventPage() {
                         >
                           {ticket.category === "primary" ? "Primary" : "Add-on"}
                         </span>
-                        <span className="badge ml-1 bg-gray-100 text-gray-700">
-                          {ticket.allowedRoles[0]
-                            ?.replace("_", " ")
-                            .toUpperCase() || "ALL"}
-                        </span>
+                        {ticket.allowedRoles && ticket.allowedRoles.length > 0 ? (
+                          ticket.allowedRoles.map((role) => (
+                            <span
+                              key={role}
+                              className="badge ml-1 bg-gray-100 text-gray-700"
+                            >
+                              {role === "thstd" ? "THAI STUDENT" : role === "thpro" ? "THAI PRO" : role === "interstd" ? "INTER STUDENT" : role === "interpro" ? "INTER PRO" : role === "guest" ? "GUEST" : "GENERAL"}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="badge ml-1 bg-gray-100 text-gray-700">ALL</span>
+                        )}
                         {ticket.category === "primary" && (
                           <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
                             <IconCheck size={12} /> Includes Main Session
@@ -1478,6 +1602,14 @@ export default function CreateEventPage() {
                     {formData.imageUrl ? (
                       <>
                         <img src={formData.imageUrl} alt="Thumbnail preview" className="max-h-48 object-contain" />
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, imageUrl: "" }))}
+                          className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-md z-10 transition-colors"
+                          title="Remove thumbnail"
+                        >
+                          <IconX size={16} />
+                        </button>
                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <label className="cursor-pointer text-white flex items-center gap-2 bg-black/50 px-4 py-2 rounded-full hover:bg-black/70 transition-colors">
                             <IconPlus size={20} />
@@ -1500,11 +1632,13 @@ export default function CreateEventPage() {
                         <p className="text-xs text-gray-500 mt-2">PNG, JPG, WEBP up to 5MB</p>
                       </div>
                     )}
-                    {isUploading && (
-                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center backdrop-blur-sm">
-                        <div className="bg-white p-4 rounded-xl shadow-lg flex flex-col items-center">
-                          <IconLoader2 size={32} className="animate-spin text-blue-600 mb-2" />
-                          <span className="text-sm font-medium text-gray-700">Uploading...</span>
+                    {isUploading && uploadingTarget === "thumbnail" && (
+                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center backdrop-blur-sm z-20">
+                        <div className="bg-white p-5 rounded-xl shadow-lg flex flex-col items-center w-52">
+                          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-3">
+                            <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                          </div>
+                          <span className="text-sm font-medium text-gray-700">Uploading... {uploadProgress}%</span>
                         </div>
                       </div>
                     )}
@@ -1533,6 +1667,14 @@ export default function CreateEventPage() {
                     {formData.coverImage ? (
                       <>
                         <img src={formData.coverImage} alt="Cover preview" className="max-h-48 object-cover w-full rounded" />
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, coverImage: "" }))}
+                          className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-md z-10 transition-colors"
+                          title="Remove cover image"
+                        >
+                          <IconX size={16} />
+                        </button>
                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <label className="cursor-pointer text-white flex items-center gap-2 bg-black/50 px-4 py-2 rounded-full hover:bg-black/70 transition-colors">
                             <IconPlus size={20} />
@@ -1555,11 +1697,13 @@ export default function CreateEventPage() {
                         <p className="text-xs text-gray-500 mt-2">PNG, JPG, WEBP up to 10MB</p>
                       </div>
                     )}
-                    {isUploading && (
-                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center backdrop-blur-sm">
-                        <div className="bg-white p-4 rounded-xl shadow-lg flex flex-col items-center">
-                          <IconLoader2 size={32} className="animate-spin text-indigo-600 mb-2" />
-                          <span className="text-sm font-medium text-gray-700">Uploading...</span>
+                    {isUploading && uploadingTarget === "cover" && (
+                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center backdrop-blur-sm z-20">
+                        <div className="bg-white p-5 rounded-xl shadow-lg flex flex-col items-center w-52">
+                          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-3">
+                            <div className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                          </div>
+                          <span className="text-sm font-medium text-gray-700">Uploading... {uploadProgress}%</span>
                         </div>
                       </div>
                     )}
@@ -1574,6 +1718,14 @@ export default function CreateEventPage() {
                       {formData.videoUrl ? (
                         <>
                           <video src={formData.videoUrl} controls className="max-h-48 w-full rounded bg-black" />
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, videoUrl: "" }))}
+                            className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-md z-10 transition-colors"
+                            title="Remove video"
+                          >
+                            <IconX size={16} />
+                          </button>
                           <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                             <label className="cursor-pointer text-white flex items-center gap-2 bg-black/50 px-4 py-2 rounded-full hover:bg-black/70 transition-colors">
                               <IconPlus size={20} />
@@ -1599,11 +1751,13 @@ export default function CreateEventPage() {
                         </div>
                       )}
 
-                      {isUploading && (
-                        <div className="absolute inset-0 bg-white/80 flex items-center justify-center backdrop-blur-sm">
-                          <div className="bg-white p-4 rounded-xl shadow-lg flex flex-col items-center">
-                            <IconLoader2 size={32} className="animate-spin text-indigo-600 mb-2" />
-                            <span className="text-sm font-medium text-gray-700">Uploading Video...</span>
+                      {isUploading && uploadingTarget === "video" && (
+                        <div className="absolute inset-0 bg-white/80 flex items-center justify-center backdrop-blur-sm z-20">
+                          <div className="bg-white p-5 rounded-xl shadow-lg flex flex-col items-center w-52">
+                            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-3">
+                              <div className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                            </div>
+                            <span className="text-sm font-medium text-gray-700">Uploading... {uploadProgress}%</span>
                           </div>
                         </div>
                       )}
@@ -1652,20 +1806,19 @@ export default function CreateEventPage() {
                           id="venue-image-upload-create"
                           className="hidden"
                           accept="image/*"
+                          multiple
                           onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              const file = e.target.files[0];
-                              const previewUrl = URL.createObjectURL(file);
-                              setVenueImages((prev) => [
-                                ...prev,
-                                {
-                                  id: Math.random().toString(36).substr(2, 9),
-                                  file,
-                                  previewUrl,
-                                  caption: imageCaption,
-                                },
-                              ]);
+                            if (e.target.files && e.target.files.length > 0) {
+                              const files = Array.from(e.target.files);
+                              const newImages = files.map((file) => ({
+                                id: Math.random().toString(36).substr(2, 9),
+                                file,
+                                previewUrl: URL.createObjectURL(file),
+                                caption: imageCaption, // Apply the same caption (if any) to all photos in the batch
+                              }));
+                              setVenueImages((prev) => [...prev, ...newImages]);
                               setImageCaption("");
+                              e.target.value = ""; // Reset to allow re-selection
                             }
                           }}
                         />
@@ -1749,7 +1902,7 @@ export default function CreateEventPage() {
             </button>
             <button
               onClick={handleFinish}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isUploading}
               className="bg-green-600 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all"
             >
               {isSubmitting ? (
@@ -1809,26 +1962,46 @@ export default function CreateEventPage() {
                       <option value="addon">Add-on</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Target Audience *
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Target Audience (Role) *
                     </label>
-                    <select
-                      className="input-field"
-                      value={ticketForm.allowedRoles[0]}
-                      onChange={(e) =>
-                        setTicketForm((prev) => ({
-                          ...prev,
-                          allowedRoles: [e.target.value],
-                        }))
-                      }
-                    >
-                      <option value="thstd">Thai Student</option>
-                      <option value="thpro">Thai Professional</option>
-                      <option value="interstd">International Student</option>
-                      <option value="interpro">International Professional</option>
-                      <option value="general">General / บุคคลทั่วไป</option>
-                    </select>
+                    <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2 bg-gray-50">
+                      {[
+                        { value: "thstd", label: "Thai Student" },
+                        { value: "thpro", label: "Thai Professional" },
+                        { value: "interstd", label: "International Student" },
+                        { value: "interpro", label: "International Professional" },
+                        { value: "guest", label: "Guest" },
+                        { value: "general", label: "General" },
+                      ].map((role) => (
+                        <label
+                          key={role.value}
+                          className="flex items-start gap-2 cursor-pointer hover:bg-gray-100 p-1 rounded"
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={(ticketForm.allowedRoles || []).includes(role.value)}
+                            onChange={(e) => {
+                              const isChecked = e.target.checked;
+                              setTicketForm((prev) => {
+                                const currentRoles = prev.allowedRoles || [];
+                                if (isChecked) {
+                                  return { ...prev, allowedRoles: [...currentRoles, role.value] };
+                                } else {
+                                  return { ...prev, allowedRoles: currentRoles.filter(r => r !== role.value) };
+                                }
+                              });
+                            }}
+                          />
+                          <span className="text-sm font-medium text-gray-700">{role.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {(ticketForm.allowedRoles || []).length === 0 && (
+                      <p className="text-xs text-red-500 mt-1">Please select at least one target audience.</p>
+                    )}
                   </div>
                 </div>
 

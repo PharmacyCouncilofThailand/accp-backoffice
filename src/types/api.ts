@@ -67,6 +67,7 @@ export interface Event {
     saleEndDate?: string | null;
     conferenceCode?: string | null;
     cpeCredits?: string | null;
+    documents?: { name: string; url: string }[] | null;
 }
 
 export interface EventCreateInput {
@@ -79,7 +80,13 @@ export interface EventCreateInput {
     endDate: string;
     maxCapacity: number;
     status?: EventStatus;
+    imageUrl?: string;
+    coverImage?: string;
     videoUrl?: string;
+    mapUrl?: string;
+    conferenceCode?: string;
+    cpeCredits?: string;
+    documents?: { name: string; url: string }[];
 }
 
 export interface EventUpdateInput extends Partial<EventCreateInput> { }

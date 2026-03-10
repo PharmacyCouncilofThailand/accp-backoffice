@@ -75,7 +75,8 @@ export async function fetchAPI<T>(
     }
 
     const error = await res.json().catch(() => ({ error: "Request failed" }));
-    throw new Error(error.error || `API Error: ${res.status}`);
+    const details = error.details ? ` — ${JSON.stringify(error.details)}` : '';
+    throw new Error((error.error || `API Error: ${res.status}`) + details);
   }
 
   return res.json();

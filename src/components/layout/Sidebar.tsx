@@ -230,11 +230,11 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       <div className="p-4 lg:p-6 border-b border-slate-700 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3" onClick={onClose}>
           <Image
-            src="https://placehold.co/400x100/1e293b/ffffff?text=CONFERENCE+SYSTEM"
+            src="/logo.png"
             alt="Logo"
             width={40}
             height={40}
-            className="rounded"
+            className="w-10 h-auto object-contain"
           />
           <span className="text-white font-bold text-lg">ConferenceHub</span>
         </Link>
@@ -321,11 +321,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                             className={`
                                                             flex items-center gap-3 px-4 py-2 pl-12
                                                             text-sm transition-colors
-                                                            ${
-                                                              isChildActive
-                                                                ? "text-white bg-slate-700/50"
-                                                                : "text-slate-400 hover:text-white hover:bg-slate-700/30"
-                                                            }
+                                                            ${isChildActive
+                                ? "text-white bg-slate-700/50"
+                                : "text-slate-400 hover:text-white hover:bg-slate-700/30"
+                              }
                                                         `}
                           >
                             <span
