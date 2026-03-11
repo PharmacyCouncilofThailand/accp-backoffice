@@ -25,7 +25,7 @@ interface Member {
   email: string;
   firstName: string;
   lastName: string;
-  role: "thstd" | "interstd" | "thpro" | "interpro";
+  role: "thstd" | "interstd" | "thpro" | "interpro" | "guest" | "general" | "admin";
   status: "pending_approval" | "active" | "rejected";
   phone: string | null;
   country: string | null;
@@ -54,6 +54,18 @@ const roleLabels: Record<string, { label: string; className: string }> = {
   interpro: {
     label: "International Professional",
     className: "bg-orange-100 text-orange-800",
+  },
+  guest: {
+    label: "Guest",
+    className: "bg-teal-100 text-teal-800",
+  },
+  general: {
+    label: "General",
+    className: "bg-gray-100 text-gray-800",
+  },
+  admin: {
+    label: "Admin",
+    className: "bg-red-100 text-red-800",
   },
 };
 
@@ -253,6 +265,8 @@ export default function MembersPage() {
             <option value="interstd">International Student</option>
             <option value="thpro">Thai Professional</option>
             <option value="interpro">International Professional</option>
+            <option value="guest">Guest</option>
+            <option value="general">General</option>
           </select>
 
           <select
@@ -377,13 +391,12 @@ export default function MembersPage() {
                             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${statusLabels[member.status]?.className}`}
                           >
                             <span
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                member.status === "active"
+                              className={`w-1.5 h-1.5 rounded-full ${member.status === "active"
                                   ? "bg-green-500"
                                   : member.status === "pending_approval"
                                     ? "bg-yellow-500"
                                     : "bg-red-500"
-                              }`}
+                                }`}
                             ></span>
                             {statusLabels[member.status]?.label}
                           </span>

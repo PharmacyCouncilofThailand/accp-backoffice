@@ -824,7 +824,7 @@ export default function SessionsPage() {
                             <div className="md:w-48 shrink-0 flex flex-row md:flex-col justify-between md:justify-start gap-2 md:border-r md:border-gray-100 md:pr-4">
                                 <div>
                                     <p className="font-bold text-gray-800 text-lg">
-                                        {new Date(session.startTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}
+                                        {new Date(session.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Bangkok' })}
                                     </p>
                                     <p className="text-sm text-gray-500">
                                         {new Date(session.startTime).toLocaleDateString('en-US', { timeZone: 'Asia/Bangkok' })}
@@ -832,7 +832,7 @@ export default function SessionsPage() {
                                 </div>
                                 <div className="text-right md:text-left">
                                     <p className="text-sm text-gray-400">
-                                        to {new Date(session.endTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}
+                                        to {new Date(session.endTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Bangkok' })}
                                     </p>
                                 </div>
                             </div>
@@ -1270,7 +1270,7 @@ export default function SessionsPage() {
                                                 {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Bangkok' })}
                                             </p>
                                             <p className="text-sm text-gray-600">
-                                                {start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })} - {end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}
+                                                {start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Bangkok' })} - {end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Bangkok' })}
                                             </p>
                                         </div>
                                         <div className="bg-gray-50 p-4 rounded-lg">

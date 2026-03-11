@@ -131,15 +131,17 @@ export default function RegistrationDetailPage() {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
-            hour: '2-digit',
+            hour: 'numeric',
             minute: '2-digit',
+            hour12: true,
         });
     };
 
     const formatTime = (dateStr: string) => {
         return new Date(dateStr).toLocaleTimeString('en-US', {
-            hour: '2-digit',
+            hour: 'numeric',
             minute: '2-digit',
+            hour12: true,
         });
     };
 
