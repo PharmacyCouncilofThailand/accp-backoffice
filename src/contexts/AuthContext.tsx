@@ -25,6 +25,17 @@ export interface AssignedEvent {
   name: string;
 }
 
+// Session assignment (for staff check-in)
+export interface AssignedSession {
+  eventId: number;
+  sessionId: number;
+  sessionName: string;
+  sessionType: string | null;
+  room: string | null;
+  startTime: string;
+  endTime: string;
+}
+
 // User interface
 export interface User {
   id: number;
@@ -33,6 +44,7 @@ export interface User {
   email: string;
   role: UserRole;
   assignedEvents: AssignedEvent[];
+  assignedSessions?: AssignedSession[]; // For staff/verifier: sessions they can check-in
   assignedCategories?: string[]; // For reviewers: abstract categories they can review
   assignedPresentationTypes?: string[]; // For reviewers: presentation types they can review
 }

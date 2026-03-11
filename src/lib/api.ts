@@ -118,6 +118,8 @@ export const api = {
       fetchAPI<{ success: boolean }>(`/api/backoffice/users/${id}`, { method: 'DELETE', token }),
     assignEvents: (token: string, id: number, eventIds: number[]) =>
       fetchAPI<{ success: boolean; count: number }>(`/api/backoffice/users/${id}/assignments`, { method: 'POST', body: JSON.stringify({ eventIds }), token }),
+    assignEventsAndSessions: (token: string, id: number, assignments: { eventId: number; sessionIds?: number[] }[]) =>
+      fetchAPI<{ success: boolean }>(`/api/backoffice/users/${id}/assignments`, { method: 'PUT', body: JSON.stringify({ assignments }), token }),
   },
 
   verifications: {
@@ -218,8 +220,12 @@ export const api = {
   checkins: {
     list: (token: string, query?: string) =>
       fetchAPI<{ checkins: any[]; pagination: Pagination }>(`/api/backoffice/checkins${query ? `?${query}` : ''}`, { token }),
-    create: (token: string, data: { regCode: string; sessionId?: number; checkInAll?: boolean }) =>
+    create: (token: string, data: { regCode: string; sessionId?: number; checkInAll?: boolean; assignedSessionId?: number }) =>
       fetchAPI<any>(`/api/backoffice/checkins`, { method: 'POST', body: JSON.stringify(data), token }),
+    stats: (token: string, query?: string) =>
+      fetchAPI<{ total: number; checkedIn: number; remaining: number; percentage: number }>(`/api/backoffice/checkins/stats${query ? `?${query}` : ''}`, { token }),
+    undo: (token: string, registrationSessionId: number) =>
+      fetchAPI<{ success: boolean; undone: any }>(`/api/backoffice/checkins/undo`, { method: 'POST', body: JSON.stringify({ registrationSessionId }), token }),
   },
 
   tickets: {
