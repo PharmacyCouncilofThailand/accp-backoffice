@@ -56,6 +56,7 @@ export interface Event {
     imageUrl?: string | null;
     coverImage?: string | null;
     videoUrl?: string | null;
+    websiteUrl?: string | null;
     createdAt: string;
     updatedAt: string;
     // Additional optional fields used in edit page
@@ -84,6 +85,7 @@ export interface EventCreateInput {
     coverImage?: string;
     videoUrl?: string;
     mapUrl?: string;
+    websiteUrl?: string;
     conferenceCode?: string;
     cpeCredits?: string;
     documents?: { name: string; url: string }[];

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AdminLayout } from "@/components/layout";
 import { api } from "@/lib/api";
+import { getExternalEventReadiness } from "@/lib/eventReadiness";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import toast from "react-hot-toast";
@@ -26,6 +27,7 @@ import {
   IconClock,
   IconFileText,
   IconUpload,
+  IconAlertTriangle,
 } from "@tabler/icons-react";
 
 interface Speaker {
@@ -88,6 +90,7 @@ interface EventFormData {
   eventType: "single_room" | "multi_session";
   location: string;
   mapUrl: string;
+  websiteUrl: string;
   startDate: string;
   endDate: string;
   maxCapacity: number;
@@ -152,6 +155,12 @@ export default function CreateEventPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadingTarget, setUploadingTarget] = useState<string | null>(null);
 
+  // Pending file objects (uploaded after event creation)
+  const [pendingThumbnail, setPendingThumbnail] = useState<{ file: File; previewUrl: string } | null>(null);
+  const [pendingCover, setPendingCover] = useState<{ file: File; previewUrl: string } | null>(null);
+  const [pendingVideo, setPendingVideo] = useState<{ file: File; previewUrl: string } | null>(null);
+  const [pendingDocuments, setPendingDocuments] = useState<{ file: File; name: string }[]>([]);
+
   // Helper: upload file via XHR with progress tracking
   const uploadFileWithProgress = (file: File, endpoint: string, target: string): Promise<{ url: string; filename: string }> => {
     return new Promise((resolve, reject) => {
@@ -183,7 +192,7 @@ export default function CreateEventPage() {
 
       xhr.onerror = () => reject(new Error("Network error during upload"));
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
       xhr.open("POST", `${apiUrl}${endpoint}`);
       xhr.setRequestHeader("Authorization", `Bearer ${getBackofficeToken()}`);
       xhr.send(data);
@@ -196,24 +205,22 @@ export default function CreateEventPage() {
     setUploadProgress(0);
   };
 
-  // Handle image upload to accp-api via api proxy
-  const handleImageUpload = async (file: File, type: "thumbnail" | "cover") => {
-    try {
-      const result = await uploadFileWithProgress(file, "/api/upload/event-image", type);
-      setFormData((prev) => ({
-        ...prev,
-        [type === "thumbnail" ? "imageUrl" : "coverImage"]: result.url,
-      }));
-      toast.success(`${type === "thumbnail" ? "Thumbnail" : "Cover"} image uploaded!`);
-    } catch (error) {
-      console.error("Failed to upload image:", error);
-      toast.error("Failed to upload image. Please try again.");
-    } finally {
-      resetUploadState();
+  // Handle image selection — store File + preview, upload later on submit
+  const handleImageUpload = (file: File, type: "thumbnail" | "cover") => {
+    const previewUrl = URL.createObjectURL(file);
+    if (type === "thumbnail") {
+      if (pendingThumbnail?.previewUrl) URL.revokeObjectURL(pendingThumbnail.previewUrl);
+      setPendingThumbnail({ file, previewUrl });
+      setFormData((prev) => ({ ...prev, imageUrl: previewUrl }));
+    } else {
+      if (pendingCover?.previewUrl) URL.revokeObjectURL(pendingCover.previewUrl);
+      setPendingCover({ file, previewUrl });
+      setFormData((prev) => ({ ...prev, coverImage: previewUrl }));
     }
+    toast.success(`${type === "thumbnail" ? "Thumbnail" : "Cover"} image selected! It will be uploaded when you save.`);
   };
 
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -222,23 +229,15 @@ export default function CreateEventPage() {
       return;
     }
 
-    try {
-      const result = await uploadFileWithProgress(file, "/api/upload/event-image", "video");
-      setFormData((prev) => ({
-        ...prev,
-        videoUrl: result.url,
-      }));
-      toast.success("Video uploaded successfully!");
-    } catch (error) {
-      console.error("Failed to upload video:", error);
-      toast.error("Failed to upload video. Please try again.");
-    } finally {
-      resetUploadState();
-      e.target.value = "";
-    }
+    const previewUrl = URL.createObjectURL(file);
+    if (pendingVideo?.previewUrl) URL.revokeObjectURL(pendingVideo.previewUrl);
+    setPendingVideo({ file, previewUrl });
+    setFormData((prev) => ({ ...prev, videoUrl: previewUrl }));
+    toast.success("Video selected! It will be uploaded when you save.");
+    e.target.value = "";
   };
 
-  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -247,20 +246,51 @@ export default function CreateEventPage() {
       return;
     }
 
-    try {
-      const result = await uploadFileWithProgress(file, "/api/upload/event-document", "document");
-      setFormData((prev) => ({
-        ...prev,
-        documents: [...(prev.documents || []), { name: file.name, url: result.url }],
-      }));
-      toast.success("Document uploaded successfully!");
-    } catch (error) {
-      console.error("Failed to upload document:", error);
-      toast.error("Failed to upload document. Please try again.");
-    } finally {
-      resetUploadState();
-      e.target.value = "";
-    }
+    setPendingDocuments((prev) => [...prev, { file, name: file.name }]);
+    setFormData((prev) => ({
+      ...prev,
+      documents: [...(prev.documents || []), { name: file.name, url: "pending" }],
+    }));
+    toast.success("Document selected! It will be uploaded when you save.");
+    e.target.value = "";
+  };
+
+  // Upload single file to /upload/event-media with progress tracking
+  const uploadEventMediaFile = (
+    file: File,
+    eventCode: string,
+    eventName: string,
+    mediaType: string,
+    sortOrder?: number,
+  ): Promise<{ url: string; filename: string; mediaType: string }> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const data = new FormData();
+      data.append("file", file);
+      data.append("eventCode", eventCode);
+      data.append("eventName", eventName);
+      data.append("mediaType", mediaType);
+      if (sortOrder !== undefined) data.append("sortOrder", String(sortOrder));
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch {
+            reject(new Error("Invalid server response"));
+          }
+        } else {
+          reject(new Error(`Upload failed (${xhr.status})`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+      xhr.open("POST", `${apiUrl}/api/upload/event-media`);
+      xhr.setRequestHeader("Authorization", `Bearer ${getBackofficeToken()}`);
+      xhr.send(data);
+    });
   };
 
   const [error, setError] = useState("");
@@ -280,9 +310,10 @@ export default function CreateEventPage() {
     eventType: "single_room",
     location: "",
     mapUrl: "",
+    websiteUrl: "",
     startDate: "",
     endDate: "",
-    maxCapacity: 100,
+    maxCapacity: 0,
     conferenceCode: "",
     cpeCredits: "",
     status: "draft",
@@ -369,7 +400,7 @@ export default function CreateEventPage() {
     room: "",
     startTime: "",
     endTime: "",
-    maxCapacity: 50,
+    maxCapacity: 0,
     selectedSpeakerIds: [],
     isMainSession: false,
     agenda: [],
@@ -386,7 +417,7 @@ export default function CreateEventPage() {
     description: "",
     features: [],
     badgeText: "",
-    quota: "100",
+    quota: "0",
     saleStartDate: "",
     saleEndDate: "",
     allowedRoles: ["thstd"],
@@ -414,6 +445,16 @@ export default function CreateEventPage() {
 
   // Always show sessions step for all event types
   const shouldShowSessions = true;
+  const readiness = useMemo(
+    () =>
+      getExternalEventReadiness({
+        websiteUrl: formData.websiteUrl,
+        status: formData.status,
+        sessions,
+        tickets,
+      }),
+    [formData.status, formData.websiteUrl, sessions, tickets],
+  );
 
   // Validate Step 1: Event Details
   const validateStep1 = (): boolean => {
@@ -463,7 +504,7 @@ export default function CreateEventPage() {
           room: formData.location || "",
           startTime: formData.startDate || "",
           endTime: formData.endDate || "",
-          maxCapacity: formData.maxCapacity || 100,
+          maxCapacity: formData.maxCapacity,
           isMainSession: true, // Mark as Main Session
           selectedSpeakerIds: [],
         };
@@ -488,6 +529,55 @@ export default function CreateEventPage() {
     } else if (currentStep === 2) {
       setCurrentStep(1);
     }
+  };
+
+  const renderReadinessPanel = () => {
+    if (!readiness.enabled) return null;
+
+    return (
+      <div
+        className={`mb-6 rounded-xl border px-4 py-4 ${
+          readiness.ready
+            ? "border-emerald-200 bg-emerald-50"
+            : "border-amber-200 bg-amber-50"
+        }`}
+      >
+        <div className="flex items-start gap-3">
+          <div
+            className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full ${
+              readiness.ready
+                ? "bg-emerald-100 text-emerald-700"
+                : "bg-amber-100 text-amber-700"
+            }`}
+          >
+            {readiness.ready ? <IconCheck size={18} /> : <IconAlertTriangle size={18} />}
+          </div>
+          <div className="flex-1">
+            <h4 className="text-sm font-semibold text-gray-900">
+              External Event Readiness
+            </h4>
+            {readiness.ready ? (
+              <p className="mt-1 text-sm text-emerald-800">
+                This event looks ready for an external website handoff with the
+                current free registration setup.
+              </p>
+            ) : (
+              <>
+                <p className="mt-1 text-sm text-amber-900">
+                  Fix these items before wiring an external site like
+                  `newpharmacist` into this event.
+                </p>
+                <ul className="mt-2 space-y-1 text-sm text-amber-900">
+                  {readiness.warnings.map((warning) => (
+                    <li key={warning.code}>- {warning.message}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Add/Update session
@@ -523,7 +613,7 @@ export default function CreateEventPage() {
       room: "",
       startTime: "",
       endTime: "",
-      maxCapacity: 50,
+      maxCapacity: 0,
       selectedSpeakerIds: [],
       isMainSession: false,
       agenda: [],
@@ -559,8 +649,8 @@ export default function CreateEventPage() {
   const handleAddTicket = () => {
     if (!ticketForm.name || !ticketForm.price) return;
     const quotaNum = parseInt(ticketForm.quota) || 0;
-    if (quotaNum < 1) {
-      toast.error("Quota must be at least 1");
+    if (quotaNum < 0) {
+      toast.error("Quota cannot be negative");
       return;
     }
 
@@ -644,7 +734,7 @@ export default function CreateEventPage() {
     try {
       const token = getBackofficeToken();
 
-      // Create event
+      // Create event (without image URLs — they'll be uploaded after)
       const eventData = {
         eventCode: formData.eventCode,
         eventName: formData.eventName,
@@ -652,19 +742,122 @@ export default function CreateEventPage() {
         eventType: formData.eventType,
         location: formData.location || undefined,
         mapUrl: extractMapUrl(formData.mapUrl) || undefined,
+        websiteUrl: formData.websiteUrl || undefined,
         startDate: new Date(formData.startDate).toISOString(),
         endDate: new Date(formData.endDate).toISOString(),
         maxCapacity: formData.maxCapacity,
         conferenceCode: formData.conferenceCode || undefined,
         cpeCredits: formData.cpeCredits || undefined,
         status: formData.status,
-        imageUrl: formData.imageUrl || undefined,
-        coverImage: formData.coverImage || undefined,
-        videoUrl: formData.videoUrl || undefined,
-        documents: formData.documents.length > 0 ? formData.documents : undefined,
+        // Don't send blob URLs — real URLs will be set after upload
+        imageUrl: (!formData.imageUrl || formData.imageUrl.startsWith("blob:")) ? undefined : formData.imageUrl,
+        coverImage: (!formData.coverImage || formData.coverImage.startsWith("blob:")) ? undefined : formData.coverImage,
+        videoUrl: (!formData.videoUrl || formData.videoUrl.startsWith("blob:")) ? undefined : formData.videoUrl,
+        documents: formData.documents.filter(d => d.url !== "pending").length > 0
+          ? formData.documents.filter(d => d.url !== "pending")
+          : undefined,
       };
 
       const { event } = await api.backofficeEvents.create(token, eventData);
+
+      // ── Upload all pending media files in parallel via /upload/event-media ──
+      setIsUploading(true);
+      setUploadingTarget("media");
+      setUploadProgress(0);
+
+      const mediaUploads: Promise<{ type: string; url: string } | null>[] = [];
+
+      if (pendingThumbnail) {
+        mediaUploads.push(
+          uploadEventMediaFile(pendingThumbnail.file, event.eventCode, event.eventName, "thumbnail")
+            .then(r => ({ type: "thumbnail", url: r.url }))
+            .catch(err => { console.error("Failed to upload thumbnail:", err); return null; })
+        );
+      }
+
+      if (pendingCover) {
+        mediaUploads.push(
+          uploadEventMediaFile(pendingCover.file, event.eventCode, event.eventName, "cover_img")
+            .then(r => ({ type: "cover_img", url: r.url }))
+            .catch(err => { console.error("Failed to upload cover:", err); return null; })
+        );
+      }
+
+      if (pendingVideo) {
+        mediaUploads.push(
+          uploadEventMediaFile(pendingVideo.file, event.eventCode, event.eventName, "cover_vdo")
+            .then(r => ({ type: "cover_vdo", url: r.url }))
+            .catch(err => { console.error("Failed to upload video:", err); return null; })
+        );
+      }
+
+      // Upload pending documents
+      for (const doc of pendingDocuments) {
+        mediaUploads.push(
+          uploadEventMediaFile(doc.file, event.eventCode, event.eventName, "document")
+            .then(r => ({ type: "document", url: r.url, name: doc.name } as any))
+            .catch(err => { console.error("Failed to upload document:", err); return null; })
+        );
+      }
+
+      // Upload venue images
+      for (let i = 0; i < venueImages.length; i++) {
+        const img = venueImages[i];
+        if (img.file) {
+          mediaUploads.push(
+            uploadEventMediaFile(img.file, event.eventCode, event.eventName, "venue", i)
+              .then(r => ({ type: "venue", url: r.url, caption: img.caption } as any))
+              .catch(err => { console.error("Failed to upload venue image:", err); return null; })
+          );
+        }
+      }
+
+      const mediaResults = await Promise.allSettled(mediaUploads);
+      const resolved = mediaResults
+        .filter((r): r is PromiseFulfilledResult<{ type: string; url: string } | null> => r.status === "fulfilled")
+        .map(r => r.value)
+        .filter((r): r is { type: string; url: string } => r !== null);
+
+      // PATCH event with uploaded URLs
+      const patchData: Record<string, unknown> = {};
+      for (const result of resolved) {
+        if (result.type === "thumbnail") patchData.imageUrl = result.url;
+        if (result.type === "cover_img") patchData.coverImage = result.url;
+        if (result.type === "cover_vdo") patchData.videoUrl = result.url;
+      }
+
+      // Build documents array from uploaded results
+      const uploadedDocs = resolved.filter(r => r.type === "document") as any[];
+      if (uploadedDocs.length > 0) {
+        const existingDocs = (formData.documents || []).filter(d => d.url !== "pending");
+        patchData.documents = [...existingDocs, ...uploadedDocs.map((d: any) => ({ name: d.name || "document", url: d.url }))];
+      }
+
+      if (Object.keys(patchData).length > 0) {
+        await api.backofficeEvents.update(token, event.id, patchData);
+      }
+
+      // Link venue images to event_images table
+      const venueResults = resolved.filter(r => r.type === "venue") as any[];
+      for (const vr of venueResults) {
+        try {
+          await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002"}/api/backoffice/events/${event.id}/images`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              imageUrl: vr.url,
+              caption: vr.caption || undefined,
+            }),
+          });
+        } catch (err) {
+          console.error("Failed to link venue image:", err);
+        }
+      }
+
+      resetUploadState();
 
       // Create sessions and track ID mapping
       const sessionIdMap = new Map<number, number>(); // local ID -> API ID
@@ -698,47 +891,6 @@ export default function CreateEventPage() {
           // Map local session ID to API session ID
           if (session.id && sessionResponse.session) {
             sessionIdMap.set(session.id, (sessionResponse.session as any).id);
-          }
-        }
-      }
-
-      // Upload accumulated venue images
-      if (venueImages.length > 0) {
-        for (const img of venueImages) {
-          if (img.file) {
-            const formData = new FormData();
-            formData.append("file", img.file);
-
-            try {
-              // 1. Upload the physical file first
-              const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/upload/venue-image`, {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-                body: formData,
-              });
-
-              if (!uploadRes.ok) throw new Error("File upload failed");
-              const uploadData = await uploadRes.json();
-
-              if (uploadData.url) {
-                // 2. Link the uploaded URL to the event
-                await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/backoffice/events/${event.id}/images`, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                  },
-                  body: JSON.stringify({
-                    imageUrl: uploadData.url,
-                    caption: img.caption || undefined,
-                  }),
-                });
-              }
-            } catch (err) {
-              console.error("Failed to upload a venue image:", err);
-            }
           }
         }
       }
@@ -902,6 +1054,8 @@ export default function CreateEventPage() {
             <IconCalendarEvent size={20} />
             <h3 className="text-lg font-semibold">Step 1: Event Details</h3>
           </div>
+
+          {renderReadinessPanel()}
 
           {error && (
             <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-4">
@@ -1132,18 +1286,39 @@ export default function CreateEventPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Google Maps Embed Code (iframe)
+                Website URL
               </label>
               <input
-                type="text"
+                type="url"
                 className="input-field"
-                placeholder='<iframe src="https://www.google.com/maps/embed?..." ></iframe>'
-                value={formData.mapUrl}
+                placeholder="https://newpharmacist.example.com"
+                value={formData.websiteUrl}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, mapUrl: e.target.value }))
+                  setFormData((prev) => ({
+                    ...prev,
+                    websiteUrl: e.target.value,
+                  }))
                 }
               />
+              <p className="mt-1 text-xs text-gray-500">
+                Optional metadata for events that are launched from an external site.
+              </p>
             </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Google Maps Embed Code (iframe)
+            </label>
+            <input
+              type="text"
+              className="input-field"
+              placeholder='<iframe src="https://www.google.com/maps/embed?..." ></iframe>'
+              value={formData.mapUrl}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, mapUrl: e.target.value }))
+              }
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-4 mb-4">
@@ -1153,16 +1328,18 @@ export default function CreateEventPage() {
               </label>
               <input
                 type="number"
+                min="0"
                 className="input-field"
-                value={formData.maxCapacity || ""}
+                value={formData.maxCapacity}
                 onChange={(e) =>
                   setFormData((prev) => ({
                     ...prev,
                     maxCapacity: parseInt(e.target.value) || 0,
                   }))
                 }
-                placeholder="100"
+                placeholder="0"
               />
+              <p className="text-xs text-gray-400 mt-1">0 = Unlimited</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1240,6 +1417,8 @@ export default function CreateEventPage() {
             <h3 className="text-lg font-semibold">Step 2: Sessions</h3>
           </div>
 
+          {renderReadinessPanel()}
+
           <div className="bg-blue-50 text-blue-700 p-4 rounded-lg mb-4 flex items-center gap-2">
             <IconLayoutGrid size={18} /> Add sessions for your multi-session
             event
@@ -1284,7 +1463,7 @@ export default function CreateEventPage() {
                             {formatTime(session.endTime)}
                           </span>
                           <span className="flex items-center gap-1">
-                            <IconTarget size={14} /> Cap: {session.maxCapacity}
+                            <IconTarget size={14} /> Cap: {session.maxCapacity === 0 ? "Unlimited" : session.maxCapacity}
                           </span>
                         </div>
                       </div>
@@ -1317,7 +1496,7 @@ export default function CreateEventPage() {
                     room: "",
                     startTime: "",
                     endTime: "",
-                    maxCapacity: 100,
+                    maxCapacity: 0,
                     selectedSpeakerIds: [],
                   });
                   setEditingSessionId(null);
@@ -1370,7 +1549,7 @@ export default function CreateEventPage() {
                             <br />
                             to {formatTime(session.endTime)}
                           </td>
-                          <td>{session.maxCapacity}</td>
+                          <td>{session.maxCapacity === 0 ? <span className="text-green-600 font-medium">Unlimited</span> : session.maxCapacity}</td>
                           <td className="flex gap-1">
                             <button
                               onClick={() => handleEditSession(session)}
@@ -1424,6 +1603,8 @@ export default function CreateEventPage() {
             <h3 className="text-lg font-semibold">Step 3: Tickets</h3>
           </div>
 
+          {renderReadinessPanel()}
+
           <div className="bg-blue-50 text-blue-700 p-4 rounded-lg mb-4 flex items-center gap-2">
             <IconTicket size={18} /> Add ticket types for your event (e.g.,
             Early Bird, Member, Public)
@@ -1469,7 +1650,7 @@ export default function CreateEventPage() {
                               key={role}
                               className="badge ml-1 bg-gray-100 text-gray-700"
                             >
-                              {role === "thstd" ? "THAI STUDENT" : role === "thpro" ? "THAI PRO" : role === "interstd" ? "INTER STUDENT" : role === "interpro" ? "INTER PRO" : role === "guest" ? "GUEST" : "GENERAL"}
+                              {role === "thstd" ? "THAI STUDENT" : role === "thpro" ? "THAI PRO" : role === "interstd" ? "INTER STUDENT" : role === "interpro" ? "INTER PRO" : role === "general" ? "GENERAL" : role.toUpperCase()}
                             </span>
                           ))
                         ) : (
@@ -1504,7 +1685,7 @@ export default function CreateEventPage() {
                         {ticket.currency === "USD" ? "$" : "฿"}
                         {ticket.price}
                       </td>
-                      <td>{ticket.quota}</td>
+                      <td>{ticket.quota === "0" || ticket.quota === "" ? <span className="text-green-600 font-medium">Unlimited</span> : ticket.quota}</td>
                       <td>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${ticket.priority === 'early_bird' ? 'bg-orange-100 text-orange-800' :
                           ticket.priority === 'regular' ? 'bg-gray-100 text-gray-800' :
@@ -1577,6 +1758,8 @@ export default function CreateEventPage() {
             <h3 className="text-lg font-semibold">Step 4: Venue/Images</h3>
           </div>
 
+          {renderReadinessPanel()}
+
           <div className="bg-blue-50 text-blue-700 p-4 rounded-lg mb-6 flex items-center gap-2">
             <IconPhoto size={18} /> Upload display images and venue gallery photos. Venue images will be uploaded when you click Finish.
           </div>
@@ -1604,7 +1787,7 @@ export default function CreateEventPage() {
                         <img src={formData.imageUrl} alt="Thumbnail preview" className="max-h-48 object-contain" />
                         <button
                           type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, imageUrl: "" }))}
+                          onClick={() => { if (pendingThumbnail?.previewUrl) URL.revokeObjectURL(pendingThumbnail.previewUrl); setPendingThumbnail(null); setFormData(prev => ({ ...prev, imageUrl: "" })); }}
                           className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-md z-10 transition-colors"
                           title="Remove thumbnail"
                         >
@@ -1669,7 +1852,7 @@ export default function CreateEventPage() {
                         <img src={formData.coverImage} alt="Cover preview" className="max-h-48 object-cover w-full rounded" />
                         <button
                           type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, coverImage: "" }))}
+                          onClick={() => { if (pendingCover?.previewUrl) URL.revokeObjectURL(pendingCover.previewUrl); setPendingCover(null); setFormData(prev => ({ ...prev, coverImage: "" })); }}
                           className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-md z-10 transition-colors"
                           title="Remove cover image"
                         >
@@ -1720,7 +1903,7 @@ export default function CreateEventPage() {
                           <video src={formData.videoUrl} controls className="max-h-48 w-full rounded bg-black" />
                           <button
                             type="button"
-                            onClick={() => setFormData(prev => ({ ...prev, videoUrl: "" }))}
+                            onClick={() => { if (pendingVideo?.previewUrl) URL.revokeObjectURL(pendingVideo.previewUrl); setPendingVideo(null); setFormData(prev => ({ ...prev, videoUrl: "" })); }}
                             className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-md z-10 transition-colors"
                             title="Remove video"
                           >
@@ -2093,6 +2276,7 @@ export default function CreateEventPage() {
                     <input
                       type="number"
                       className="input-field"
+                      min="0"
                       value={ticketForm.quota}
                       onChange={(e) =>
                         setTicketForm((prev) => ({
@@ -2100,8 +2284,9 @@ export default function CreateEventPage() {
                           quota: e.target.value,
                         }))
                       }
-                      placeholder="100"
+                      placeholder="0"
                     />
+                    <p className="text-xs text-gray-400 mt-1">0 = Unlimited</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2582,8 +2767,9 @@ export default function CreateEventPage() {
                     </label>
                     <input
                       type="number"
+                      min="0"
                       className="input-field"
-                      placeholder="100"
+                      placeholder="0"
                       value={sessionForm.maxCapacity}
                       onChange={(e) =>
                         setSessionForm((prev) => ({
@@ -2592,9 +2778,7 @@ export default function CreateEventPage() {
                         }))
                       }
                     />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Set to 0 for unlimited capacity
-                    </p>
+                    <p className="text-xs text-gray-400 mt-1">0 = Unlimited</p>
                   </div>
                 </div>
 

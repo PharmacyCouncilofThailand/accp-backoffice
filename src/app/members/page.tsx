@@ -93,6 +93,8 @@ export default function MembersPage() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [eventFilter, setEventFilter] = useState("");
+  const [eventOptions, setEventOptions] = useState<{ id: number; name: string }[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Member | null>(null);
@@ -126,6 +128,14 @@ export default function MembersPage() {
     fetchStats();
   }, [fetchStats]);
 
+  // Fetch events for filter dropdown
+  useEffect(() => {
+    if (!token) return;
+    api.backofficeEvents.list(token, 'limit=100').then((res) => {
+      setEventOptions((res.events as any[]).map((e) => ({ id: e.id as number, name: e.eventName as string })));
+    }).catch(() => {});
+  }, [token]);
+
   const fetchMembers = useCallback(async () => {
     if (!token) return;
 
@@ -137,6 +147,7 @@ export default function MembersPage() {
       if (search) params.append("search", search);
       if (roleFilter) params.append("role", roleFilter);
       if (statusFilter) params.append("status", statusFilter);
+      if (eventFilter) params.append("eventId", eventFilter);
 
       const response = await api.members.list(token, params.toString());
       setMembers(response.members as unknown as Member[]);
@@ -146,7 +157,7 @@ export default function MembersPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, currentPage, search, roleFilter, statusFilter]);
+  }, [token, currentPage, search, roleFilter, statusFilter, eventFilter]);
 
   useEffect(() => {
     fetchMembers();
@@ -156,6 +167,7 @@ export default function MembersPage() {
     setSearch("");
     setRoleFilter("");
     setStatusFilter("");
+    setEventFilter("");
     setCurrentPage(1);
   };
 
@@ -282,6 +294,19 @@ export default function MembersPage() {
             <option value="active">Active</option>
             <option value="rejected">Rejected</option>
           </select>
+
+          {eventOptions.length > 1 && (
+            <select
+              value={eventFilter}
+              onChange={(e) => { setEventFilter(e.target.value); setCurrentPage(1); }}
+              className="input-field w-auto"
+            >
+              <option value="">All Events</option>
+              {eventOptions.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+          )}
 
           <button
             type="button"

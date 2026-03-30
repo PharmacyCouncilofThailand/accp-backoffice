@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { AdminLayout } from "@/components/layout";
 import { api } from "@/lib/api";
+import { getExternalEventReadiness } from "@/lib/eventReadiness";
 import toast from "react-hot-toast";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -25,6 +26,7 @@ import {
   IconClock,
   IconFileText,
   IconUpload,
+  IconAlertTriangle,
 } from "@tabler/icons-react";
 
 interface Speaker {
@@ -39,6 +41,13 @@ interface SessionData {
   id?: number;
   sessionCode: string;
   sessionName: string;
+  sessionType:
+    | "workshop"
+    | "gala_dinner"
+    | "lecture"
+    | "ceremony"
+    | "break"
+    | "other";
   description: string;
   room: string;
   startTime: string;
@@ -86,6 +95,7 @@ interface EventFormData {
   eventType: "single_room" | "multi_session";
   location: string;
   mapUrl: string;
+  websiteUrl: string;
   startDate: string;
   endDate: string;
   maxCapacity: number;
@@ -103,7 +113,7 @@ const roleOptions = [
   { value: "thpro", label: "Thai Professional" },
   { value: "interstd", label: "International Student" },
   { value: "interpro", label: "International Professional" },
-  { value: "guest", label: "Guest" },
+  { value: "general", label: "General" },
 ];
 
 // Helper to convert ISO date (UTC) to datetime-local string in local browser timezone
@@ -165,9 +175,10 @@ export default function EditEventPage() {
     eventType: "single_room",
     location: "",
     mapUrl: "",
+    websiteUrl: "",
     startDate: "",
     endDate: "",
-    maxCapacity: 100,
+    maxCapacity: 0,
     conferenceCode: "",
     cpeCredits: "",
     status: "draft",
@@ -187,6 +198,12 @@ export default function EditEventPage() {
   const [uploadingTarget, setUploadingTarget] = useState<string | null>(null);
   const [imageCaption, setImageCaption] = useState("");
 
+  // Pending file objects (uploaded on save)
+  const [pendingThumbnail, setPendingThumbnail] = useState<{ file: File; previewUrl: string } | null>(null);
+  const [pendingCover, setPendingCover] = useState<{ file: File; previewUrl: string } | null>(null);
+  const [pendingVideo, setPendingVideo] = useState<{ file: File; previewUrl: string } | null>(null);
+  const [pendingDocuments, setPendingDocuments] = useState<{ file: File; name: string }[]>([]);
+
   // Modals
   const [showSessionModal, setShowSessionModal] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
@@ -197,11 +214,12 @@ export default function EditEventPage() {
   const [sessionForm, setSessionForm] = useState<SessionData>({
     sessionCode: "",
     sessionName: "",
+    sessionType: "other",
     description: "",
     room: "",
     startTime: "",
     endTime: "",
-    maxCapacity: 50,
+    maxCapacity: 0,
     selectedSpeakerIds: [],
     agenda: [],
   });
@@ -217,7 +235,7 @@ export default function EditEventPage() {
     description: "",
     features: [],
     badgeText: "",
-    quota: "100",
+    quota: "0",
     saleStartDate: "",
     saleEndDate: "",
     allowedRoles: [],
@@ -227,7 +245,17 @@ export default function EditEventPage() {
   });
   const [ticketFeatureInput, setTicketFeatureInput] = useState("");
 
-  const shouldShowSessions = formData.eventType === "multi_session";
+  const shouldShowSessions = true;
+  const readiness = useMemo(
+    () =>
+      getExternalEventReadiness({
+        websiteUrl: formData.websiteUrl,
+        status: formData.status,
+        sessions,
+        tickets,
+      }),
+    [formData.status, formData.websiteUrl, sessions, tickets],
+  );
 
   // Fetch existing event data and speakers
   useEffect(() => {
@@ -259,9 +287,10 @@ export default function EditEventPage() {
           eventType: event.eventType || "single_room",
           location: event.location || "",
           mapUrl: event.mapUrl || "",
+          websiteUrl: event.websiteUrl || "",
           startDate: toDateTimeLocal(event.startDate),
           endDate: toDateTimeLocal(event.endDate),
-          maxCapacity: event.maxCapacity || 100,
+          maxCapacity: event.maxCapacity ?? 0,
           conferenceCode: event.conferenceCode || "",
           cpeCredits: event.cpeCredits || "",
           status: event.status || "draft",
@@ -278,11 +307,12 @@ export default function EditEventPage() {
               id: s.id,
               sessionCode: s.sessionCode,
               sessionName: s.sessionName,
+              sessionType: s.sessionType || "other",
               description: s.description || "",
               room: s.room || "",
               startTime: toDateTimeLocal(s.startTime),
               endTime: toDateTimeLocal(s.endTime),
-              maxCapacity: s.maxCapacity || 50,
+              maxCapacity: s.maxCapacity ?? 0,
               isMainSession: s.isMainSession,
               agenda: s.agenda || [],
             })),
@@ -378,6 +408,7 @@ export default function EditEventPage() {
           {
             sessionCode: sessionForm.sessionCode,
             sessionName: sessionForm.sessionName,
+            sessionType: sessionForm.sessionType,
             description: sessionForm.description || undefined,
             room: sessionForm.room || undefined,
             startTime: new Date(sessionForm.startTime).toISOString(),
@@ -395,6 +426,7 @@ export default function EditEventPage() {
                 ...sessionForm,
                 id: editingSessionId,
                 isMainSession: sessionForm.isMainSession,
+                sessionType: sessionForm.sessionType,
               }
               : s,
           ),
@@ -409,6 +441,7 @@ export default function EditEventPage() {
           {
             sessionCode: sessionForm.sessionCode,
             sessionName: sessionForm.sessionName,
+            sessionType: sessionForm.sessionType,
             description: sessionForm.description || undefined,
             room: sessionForm.room || undefined,
             startTime: new Date(sessionForm.startTime).toISOString(),
@@ -425,11 +458,12 @@ export default function EditEventPage() {
             id: session.id as number,
             sessionCode: session.sessionCode as string,
             sessionName: session.sessionName as string,
+            sessionType: sessionForm.sessionType,
             description: (session.description as string) || "",
             room: (session.room as string) || "",
             startTime: toDateTimeLocal(session.startTime as string),
             endTime: toDateTimeLocal(session.endTime as string),
-            maxCapacity: (session.maxCapacity as number) || 50,
+            maxCapacity: (session.maxCapacity as number) ?? 0,
             selectedSpeakerIds: sessionForm.selectedSpeakerIds,
             isMainSession: sessionForm.isMainSession,
           },
@@ -439,11 +473,12 @@ export default function EditEventPage() {
       setSessionForm({
         sessionCode: "",
         sessionName: "",
+        sessionType: "other",
         description: "",
         room: "",
         startTime: "",
         endTime: "",
-        maxCapacity: 50,
+        maxCapacity: 0,
         selectedSpeakerIds: [],
         isMainSession: false,
         agenda: [],
@@ -459,6 +494,7 @@ export default function EditEventPage() {
     setSessionForm({
       sessionCode: session.sessionCode,
       sessionName: session.sessionName,
+      sessionType: session.sessionType || "other",
       description: session.description || "",
       room: session.room || "",
       startTime: session.startTime,
@@ -628,7 +664,7 @@ export default function EditEventPage() {
         description: "",
         features: [],
         badgeText: "",
-        quota: "100",
+        quota: "0",
         saleStartDate: "",
         saleEndDate: "",
         allowedRoles: [],
@@ -781,7 +817,7 @@ export default function EditEventPage() {
 
       xhr.onerror = () => reject(new Error("Network error during upload"));
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
       xhr.open("POST", `${apiUrl}${endpoint}`);
       xhr.setRequestHeader("Authorization", `Bearer ${getBackofficeToken()}`);
       xhr.send(data);
@@ -794,24 +830,22 @@ export default function EditEventPage() {
     setUploadProgress(0);
   };
 
-  // Handle Event Image Upload (Thumbnail & Cover)
-  const handleEventImageUpload = async (file: File, type: "thumbnail" | "cover") => {
-    try {
-      const result = await uploadFileWithProgress(file, "/api/upload/event-image", type);
-      setFormData((prev) => ({
-        ...prev,
-        [type === "thumbnail" ? "imageUrl" : "coverImage"]: result.url,
-      }));
-      toast.success(`${type === "thumbnail" ? "Thumbnail" : "Cover"} image uploaded!`);
-    } catch (error: any) {
-      console.error("Failed to upload image:", error);
-      toast.error(error.message || "Failed to upload image");
-    } finally {
-      resetUploadState();
+  // Handle Event Image Selection — store File + preview, upload on save
+  const handleEventImageUpload = (file: File, type: "thumbnail" | "cover") => {
+    const previewUrl = URL.createObjectURL(file);
+    if (type === "thumbnail") {
+      if (pendingThumbnail?.previewUrl) URL.revokeObjectURL(pendingThumbnail.previewUrl);
+      setPendingThumbnail({ file, previewUrl });
+      setFormData((prev) => ({ ...prev, imageUrl: previewUrl }));
+    } else {
+      if (pendingCover?.previewUrl) URL.revokeObjectURL(pendingCover.previewUrl);
+      setPendingCover({ file, previewUrl });
+      setFormData((prev) => ({ ...prev, coverImage: previewUrl }));
     }
+    toast.success(`${type === "thumbnail" ? "Thumbnail" : "Cover"} image selected! It will be uploaded when you save.`);
   };
 
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -820,23 +854,15 @@ export default function EditEventPage() {
       return;
     }
 
-    try {
-      const result = await uploadFileWithProgress(file, "/api/upload/event-image", "video");
-      setFormData((prev) => ({
-        ...prev,
-        videoUrl: result.url,
-      }));
-      toast.success("Video uploaded successfully!");
-    } catch (error: any) {
-      console.error("Failed to upload video:", error);
-      toast.error(error.message || "Failed to upload video");
-    } finally {
-      resetUploadState();
-      e.target.value = "";
-    }
+    const previewUrl = URL.createObjectURL(file);
+    if (pendingVideo?.previewUrl) URL.revokeObjectURL(pendingVideo.previewUrl);
+    setPendingVideo({ file, previewUrl });
+    setFormData((prev) => ({ ...prev, videoUrl: previewUrl }));
+    toast.success("Video selected! It will be uploaded when you save.");
+    e.target.value = "";
   };
 
-  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -845,20 +871,51 @@ export default function EditEventPage() {
       return;
     }
 
-    try {
-      const result = await uploadFileWithProgress(file, "/api/upload/event-document", "document");
-      setFormData((prev) => ({
-        ...prev,
-        documents: [...(prev.documents || []), { name: file.name, url: result.url }],
-      }));
-      toast.success("Document uploaded successfully!");
-    } catch (error: any) {
-      console.error("Failed to upload document:", error);
-      toast.error(error.message || "Failed to upload document");
-    } finally {
-      resetUploadState();
-      e.target.value = "";
-    }
+    setPendingDocuments((prev) => [...prev, { file, name: file.name }]);
+    setFormData((prev) => ({
+      ...prev,
+      documents: [...(prev.documents || []), { name: file.name, url: "pending" }],
+    }));
+    toast.success("Document selected! It will be uploaded when you save.");
+    e.target.value = "";
+  };
+
+  // Upload single file to /upload/event-media
+  const uploadEventMediaFile = (
+    file: File,
+    eventCode: string,
+    eventName: string,
+    mediaType: string,
+    sortOrder?: number,
+  ): Promise<{ url: string; filename: string; mediaType: string }> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const data = new FormData();
+      data.append("file", file);
+      data.append("eventCode", eventCode);
+      data.append("eventName", eventName);
+      data.append("mediaType", mediaType);
+      if (sortOrder !== undefined) data.append("sortOrder", String(sortOrder));
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch {
+            reject(new Error("Invalid server response"));
+          }
+        } else {
+          reject(new Error(`Upload failed (${xhr.status})`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+      xhr.open("POST", `${apiUrl}/api/upload/event-media`);
+      xhr.setRequestHeader("Authorization", `Bearer ${getBackofficeToken()}`);
+      xhr.send(data);
+    });
   };
 
   // Extract src from iframe string if present
@@ -875,32 +932,168 @@ export default function EditEventPage() {
 
     try {
       const token = getBackofficeToken();
-      const eventData = {
+
+      // Save event fields first (without blob URLs)
+      const eventData: Record<string, unknown> = {
         eventCode: formData.eventCode,
         eventName: formData.eventName,
         description: formData.description || undefined,
         eventType: formData.eventType,
         location: formData.location || undefined,
         mapUrl: extractMapUrl(formData.mapUrl) || undefined,
+        websiteUrl: formData.websiteUrl || undefined,
         startDate: new Date(formData.startDate).toISOString(),
         endDate: new Date(formData.endDate).toISOString(),
         maxCapacity: formData.maxCapacity,
         conferenceCode: formData.conferenceCode || undefined,
         cpeCredits: formData.cpeCredits || undefined,
         status: formData.status,
-        imageUrl: formData.imageUrl || undefined,
-        coverImage: formData.coverImage || undefined,
-        videoUrl: formData.videoUrl || undefined,
-        documents: formData.documents.length > 0 ? formData.documents : undefined,
+        imageUrl: formData.imageUrl === "" ? null : formData.imageUrl.startsWith("blob:") ? undefined : formData.imageUrl || undefined,
+        coverImage: formData.coverImage === "" ? null : formData.coverImage.startsWith("blob:") ? undefined : formData.coverImage || undefined,
+        videoUrl: formData.videoUrl === "" ? null : formData.videoUrl.startsWith("blob:") ? undefined : formData.videoUrl || undefined,
+        documents: formData.documents.filter(d => d.url !== "pending").length > 0
+          ? formData.documents.filter(d => d.url !== "pending")
+          : undefined,
       };
 
       await api.backofficeEvents.update(token, parseInt(eventId), eventData);
+
+      // Upload pending media files in parallel
+      const hasPendingFiles = pendingThumbnail || pendingCover || pendingVideo || pendingDocuments.length > 0;
+      if (hasPendingFiles) {
+        setIsUploading(true);
+        setUploadingTarget("media");
+
+        const mediaUploads: Promise<{ type: string; url: string } | null>[] = [];
+        const evCode = formData.eventCode;
+        const evName = formData.eventName;
+
+        if (pendingThumbnail) {
+          mediaUploads.push(
+            uploadEventMediaFile(pendingThumbnail.file, evCode, evName, "thumbnail")
+              .then(r => ({ type: "thumbnail", url: r.url }))
+              .catch(err => { console.error("Failed to upload thumbnail:", err); return null; })
+          );
+        }
+
+        if (pendingCover) {
+          mediaUploads.push(
+            uploadEventMediaFile(pendingCover.file, evCode, evName, "cover_img")
+              .then(r => ({ type: "cover_img", url: r.url }))
+              .catch(err => { console.error("Failed to upload cover:", err); return null; })
+          );
+        }
+
+        if (pendingVideo) {
+          mediaUploads.push(
+            uploadEventMediaFile(pendingVideo.file, evCode, evName, "cover_vdo")
+              .then(r => ({ type: "cover_vdo", url: r.url }))
+              .catch(err => { console.error("Failed to upload video:", err); return null; })
+          );
+        }
+
+        for (const doc of pendingDocuments) {
+          mediaUploads.push(
+            uploadEventMediaFile(doc.file, evCode, evName, "document")
+              .then(r => ({ type: "document", url: r.url, name: doc.name } as any))
+              .catch(err => { console.error("Failed to upload document:", err); return null; })
+          );
+        }
+
+        const mediaResults = await Promise.allSettled(mediaUploads);
+        const resolved = mediaResults
+          .filter((r): r is PromiseFulfilledResult<{ type: string; url: string } | null> => r.status === "fulfilled")
+          .map(r => r.value)
+          .filter((r): r is { type: string; url: string } => r !== null);
+
+        // PATCH event with uploaded URLs
+        const patchData: Record<string, unknown> = {};
+        for (const result of resolved) {
+          if (result.type === "thumbnail") patchData.imageUrl = result.url;
+          if (result.type === "cover_img") patchData.coverImage = result.url;
+          if (result.type === "cover_vdo") patchData.videoUrl = result.url;
+        }
+
+        const uploadedDocs = resolved.filter(r => r.type === "document") as any[];
+        if (uploadedDocs.length > 0) {
+          const existingDocs = (formData.documents || []).filter(d => d.url !== "pending");
+          patchData.documents = [...existingDocs, ...uploadedDocs.map((d: any) => ({ name: d.name || "document", url: d.url }))];
+        }
+
+        if (Object.keys(patchData).length > 0) {
+          await api.backofficeEvents.update(token, parseInt(eventId), patchData);
+          // Update local formData with real URLs
+          setFormData((prev) => ({
+            ...prev,
+            ...(patchData.imageUrl ? { imageUrl: patchData.imageUrl as string } : {}),
+            ...(patchData.coverImage ? { coverImage: patchData.coverImage as string } : {}),
+            ...(patchData.videoUrl ? { videoUrl: patchData.videoUrl as string } : {}),
+            ...(patchData.documents ? { documents: patchData.documents as { name: string; url: string }[] } : {}),
+          }));
+        }
+
+        // Clear pending states
+        setPendingThumbnail(null);
+        setPendingCover(null);
+        setPendingVideo(null);
+        setPendingDocuments([]);
+        resetUploadState();
+      }
+
       toast.success("Event details saved!");
     } catch (err: any) {
       setError(err.message || "Failed to save event");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const renderReadinessPanel = () => {
+    if (!readiness.enabled) return null;
+
+    return (
+      <div
+        className={`mb-6 rounded-xl border px-4 py-4 ${
+          readiness.ready
+            ? "border-emerald-200 bg-emerald-50"
+            : "border-amber-200 bg-amber-50"
+        }`}
+      >
+        <div className="flex items-start gap-3">
+          <div
+            className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full ${
+              readiness.ready
+                ? "bg-emerald-100 text-emerald-700"
+                : "bg-amber-100 text-amber-700"
+            }`}
+          >
+            {readiness.ready ? <IconCheck size={18} /> : <IconAlertTriangle size={18} />}
+          </div>
+          <div className="flex-1">
+            <h4 className="text-sm font-semibold text-gray-900">
+              External Event Readiness
+            </h4>
+            {readiness.ready ? (
+              <p className="mt-1 text-sm text-emerald-800">
+                This event is ready for the external site handoff flow.
+              </p>
+            ) : (
+              <>
+                <p className="mt-1 text-sm text-amber-900">
+                  Fix these items before linking an external site like
+                  `newpharmacist` to this event.
+                </p>
+                <ul className="mt-2 space-y-1 text-sm text-amber-900">
+                  {readiness.warnings.map((warning) => (
+                    <li key={warning.code}>- {warning.message}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (isLoading) {
@@ -1011,6 +1204,8 @@ export default function EditEventPage() {
       {/* Event Details Tab */}
       {activeTab === "details" && (
         <div className="card">
+          {renderReadinessPanel()}
+
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1199,18 +1394,36 @@ export default function EditEventPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Google Maps Embed Code (iframe)
+                Website URL
               </label>
               <input
-                type="text"
+                type="url"
                 className="input-field"
-                placeholder='<iframe src="https://www.google.com/maps/embed?..." ></iframe>'
-                value={formData.mapUrl || ''}
+                placeholder="https://newpharmacist.example.com"
+                value={formData.websiteUrl}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, mapUrl: e.target.value }))
+                  setFormData((prev) => ({ ...prev, websiteUrl: e.target.value }))
                 }
               />
+              <p className="mt-1 text-xs text-gray-500">
+                Optional metadata for events launched from an external site.
+              </p>
             </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Google Maps Embed Code (iframe)
+            </label>
+            <input
+              type="text"
+              className="input-field"
+              placeholder='<iframe src="https://www.google.com/maps/embed?..." ></iframe>'
+              value={formData.mapUrl || ""}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, mapUrl: e.target.value }))
+              }
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-4 mb-4">
@@ -1220,15 +1433,17 @@ export default function EditEventPage() {
               </label>
               <input
                 type="number"
+                min="0"
                 className="input-field"
                 value={formData.maxCapacity}
                 onChange={(e) =>
                   setFormData((prev) => ({
                     ...prev,
-                    maxCapacity: parseInt(e.target.value) || 100,
+                    maxCapacity: parseInt(e.target.value) || 0,
                   }))
                 }
               />
+              <p className="text-xs text-gray-400 mt-1">0 = Unlimited</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1309,6 +1524,8 @@ export default function EditEventPage() {
       {/* Sessions Tab */}
       {activeTab === "sessions" && shouldShowSessions && (
         <div className="card">
+          {renderReadinessPanel()}
+
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Sessions</h3>
             <button
@@ -1316,11 +1533,12 @@ export default function EditEventPage() {
                 setSessionForm({
                   sessionCode: "",
                   sessionName: "",
+                  sessionType: "other",
                   description: "",
                   room: "",
                   startTime: "",
                   endTime: "",
-                  maxCapacity: 50,
+                  maxCapacity: 0,
                   selectedSpeakerIds: [],
                   isMainSession: false,
                 });
@@ -1375,7 +1593,7 @@ export default function EditEventPage() {
                           <td className="text-sm">
                             {formatDateTime(session.startTime)}
                           </td>
-                          <td>{session.maxCapacity}</td>
+                          <td>{session.maxCapacity === 0 ? <span className="text-green-600 font-medium">Unlimited</span> : session.maxCapacity}</td>
                           <td className="flex gap-1">
                             <button
                               onClick={() => handleEditSession(session)}
@@ -1426,7 +1644,7 @@ export default function EditEventPage() {
                           <td className="text-sm">
                             {formatDateTime(session.startTime)}
                           </td>
-                          <td>{session.maxCapacity}</td>
+                          <td>{session.maxCapacity === 0 ? <span className="text-green-600 font-medium">Unlimited</span> : session.maxCapacity}</td>
                           <td className="flex gap-1">
                             <button
                               onClick={() => handleEditSession(session)}
@@ -1458,6 +1676,8 @@ export default function EditEventPage() {
       {/* Tickets Tab */}
       {activeTab === "tickets" && (
         <div className="card">
+          {renderReadinessPanel()}
+
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Ticket Types</h3>
             <button
@@ -1522,7 +1742,7 @@ export default function EditEventPage() {
                         {ticket.currency}{" "}
                         {Number(ticket.price).toLocaleString()}
                       </td>
-                      <td>{ticket.quota}</td>
+                      <td>{ticket.quota === "0" || ticket.quota === "" ? <span className="text-green-600 font-medium">Unlimited</span> : ticket.quota}</td>
                       <td>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${ticket.priority === 'early_bird' ? 'bg-orange-100 text-orange-800' :
                           ticket.priority === 'regular' ? 'bg-gray-100 text-gray-800' :
@@ -1543,11 +1763,11 @@ export default function EditEventPage() {
                                   role === "thpro" ? "bg-indigo-100 text-indigo-800" :
                                     role === "interstd" ? "bg-purple-100 text-purple-800" :
                                       role === "interpro" ? "bg-pink-100 text-pink-800" :
-                                        role === "guest" ? "bg-teal-100 text-teal-800" :
+                                        role === "general" ? "bg-teal-100 text-teal-800" :
                                           "bg-gray-100 text-gray-800"
                                   }`}
                               >
-                                {role === "thstd" ? "THAI STUDENT" : role === "thpro" ? "THAI PRO" : role === "interstd" ? "INTER STUDENT" : role === "interpro" ? "INTER PRO" : role === "guest" ? "GUEST" : "GENERAL"}
+                                {role === "thstd" ? "THAI STUDENT" : role === "thpro" ? "THAI PRO" : role === "interstd" ? "INTER STUDENT" : role === "interpro" ? "INTER PRO" : role === "general" ? "GENERAL" : role.toUpperCase()}
                               </span>
                             ))
                           ) : (
@@ -1591,6 +1811,8 @@ export default function EditEventPage() {
       {/* Venue/Images Tab */}
       {activeTab === "venue" && (
         <div className="space-y-6">
+          {renderReadinessPanel()}
+
           {/* Section 1: Thumbnail Image */}
           <div className="bg-white p-6 rounded-xl border border-gray-200">
             <div className="flex flex-col md:flex-row gap-8">
@@ -1613,7 +1835,7 @@ export default function EditEventPage() {
                       <img src={formData.imageUrl} alt="Thumbnail preview" className="max-h-48 object-contain" />
                       <button
                         type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, imageUrl: "" }))}
+                        onClick={() => { if (pendingThumbnail?.previewUrl) URL.revokeObjectURL(pendingThumbnail.previewUrl); setPendingThumbnail(null); setFormData(prev => ({ ...prev, imageUrl: "" })); }}
                         className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-md z-10 transition-colors"
                         title="Remove thumbnail"
                       >
@@ -1678,7 +1900,7 @@ export default function EditEventPage() {
                       <img src={formData.coverImage} alt="Cover preview" className="max-h-48 object-cover w-full rounded" />
                       <button
                         type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, coverImage: "" }))}
+                        onClick={() => { if (pendingCover?.previewUrl) URL.revokeObjectURL(pendingCover.previewUrl); setPendingCover(null); setFormData(prev => ({ ...prev, coverImage: "" })); }}
                         className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-md z-10 transition-colors"
                         title="Remove cover image"
                       >
@@ -1729,7 +1951,7 @@ export default function EditEventPage() {
                         <video src={formData.videoUrl} controls className="max-h-48 w-full rounded bg-black" />
                         <button
                           type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, videoUrl: "" }))}
+                          onClick={() => { if (pendingVideo?.previewUrl) URL.revokeObjectURL(pendingVideo.previewUrl); setPendingVideo(null); setFormData(prev => ({ ...prev, videoUrl: "" })); }}
                           className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-md z-10 transition-colors"
                           title="Remove video"
                         >
@@ -2090,6 +2312,7 @@ export default function EditEventPage() {
                   </label>
                   <input
                     type="number"
+                    min="0"
                     className="input-field"
                     value={ticketForm.quota}
                     onChange={(e) =>
@@ -2098,8 +2321,9 @@ export default function EditEventPage() {
                         quota: e.target.value,
                       }))
                     }
-                    placeholder="100"
+                    placeholder="0"
                   />
+                  <p className="text-xs text-gray-400 mt-1">0 = Unlimited</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2485,6 +2709,30 @@ export default function EditEventPage() {
                 </div>
               </div>
 
+              {/* Session Type */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Session Type *
+                </label>
+                <select
+                  className="input-field"
+                  value={sessionForm.sessionType}
+                  onChange={(e) =>
+                    setSessionForm((prev) => ({
+                      ...prev,
+                      sessionType: e.target.value as any,
+                    }))
+                  }
+                >
+                  <option value="workshop">Workshop</option>
+                  <option value="gala_dinner">Gala Dinner</option>
+                  <option value="lecture">Lecture</option>
+                  <option value="ceremony">Ceremony</option>
+                  <option value="break">Break</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
               {/* Start Time & End Time */}
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
@@ -2559,7 +2807,8 @@ export default function EditEventPage() {
                   <input
                     type="number"
                     className="input-field"
-                    placeholder="100"
+                    min="0"
+                    placeholder="0"
                     value={sessionForm.maxCapacity}
                     onChange={(e) =>
                       setSessionForm((prev) => ({
@@ -2568,9 +2817,7 @@ export default function EditEventPage() {
                       }))
                     }
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Set to 0 for unlimited capacity
-                  </p>
+                  <p className="text-xs text-gray-400 mt-1">0 = Unlimited</p>
                 </div>
               </div>
 
