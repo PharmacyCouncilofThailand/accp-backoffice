@@ -28,6 +28,7 @@ import {
   IconFileText,
   IconUpload,
   IconAlertTriangle,
+  IconFile,
 } from "@tabler/icons-react";
 
 interface Speaker {
@@ -60,6 +61,7 @@ interface SessionData {
   isMainSession?: boolean;
   selectedSpeakerIds?: number[];
   agenda?: { time: string; topic: string }[];
+  documents?: { name: string; url: string }[];
 }
 
 interface TicketData {
@@ -404,7 +406,10 @@ export default function CreateEventPage() {
     selectedSpeakerIds: [],
     isMainSession: false,
     agenda: [],
+    documents: [],
   });
+
+  const [isSessionDocUploading, setIsSessionDocUploading] = useState(false);
 
   // Ticket form data
   const [ticketForm, setTicketForm] = useState<TicketData>({
@@ -617,8 +622,47 @@ export default function CreateEventPage() {
       selectedSpeakerIds: [],
       isMainSession: false,
       agenda: [],
+      documents: [],
     });
     setShowSessionModal(false);
+  };
+
+  // Session document upload handler
+  const handleSessionDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsSessionDocUploading(true);
+    try {
+      const token = localStorage.getItem('backoffice_token') || sessionStorage.getItem('backoffice_token') || '';
+      const fd = new FormData();
+      fd.append('file', file);
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+      const res = await fetch(`${API_URL}/api/upload/session-document`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Upload failed');
+      setSessionForm(prev => ({
+        ...prev,
+        documents: [...(prev.documents || []), { name: file.name, url: data.url }],
+      }));
+      toast.success('Document uploaded');
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload document');
+    } finally {
+      setIsSessionDocUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveSessionDoc = (index: number) => {
+    setSessionForm(prev => ({
+      ...prev,
+      documents: (prev.documents || []).filter((_, i) => i !== index),
+    }));
   };
 
   // Edit session
@@ -635,6 +679,7 @@ export default function CreateEventPage() {
       selectedSpeakerIds: session.selectedSpeakerIds || [],
       isMainSession: session.isMainSession || false,
       agenda: session.agenda || [],
+      documents: session.documents || [],
     });
     setEditingSessionId(session.id!);
     setShowSessionModal(true);
@@ -886,6 +931,7 @@ export default function CreateEventPage() {
               isMainSession: session.isMainSession || false,
               sessionType: session.sessionType,
               agenda: session.agenda && session.agenda.length > 0 ? session.agenda : undefined,
+              documents: session.documents || [],
             },
           );
           // Map local session ID to API session ID
@@ -1072,7 +1118,7 @@ export default function CreateEventPage() {
                 <input
                   type="text"
                   className={`input-field flex-1 ${validationErrors.eventCode ? "border-red-500" : ""}`}
-                  placeholder="e.g., EVT2026-ABCD"
+                  placeholder="e.g., EVT-ABCD"
                   value={formData.eventCode}
                   onChange={(e) =>
                     setFormData((prev) => ({
@@ -1348,7 +1394,7 @@ export default function CreateEventPage() {
               <input
                 type="text"
                 className="input-field"
-                placeholder="e.g., ACCP2026"
+                placeholder="e.g., CONF2025"
                 value={formData.conferenceCode}
                 onChange={(e) =>
                   setFormData((prev) => ({
@@ -1498,6 +1544,7 @@ export default function CreateEventPage() {
                     endTime: "",
                     maxCapacity: 0,
                     selectedSpeakerIds: [],
+                    documents: [],
                   });
                   setEditingSessionId(null);
                   setShowSessionModal(true);
@@ -2912,8 +2959,60 @@ export default function CreateEventPage() {
                     <IconPlus size={14} /> Add agenda item
                   </button>
                 </div>
+
+                {/* Workshop Documents */}
+                {sessionForm.sessionType === "workshop" && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <IconFile size={16} /> Workshop Documents
+                    </label>
+
+                    {(sessionForm.documents || []).length > 0 && (
+                      <div className="space-y-2 mb-3">
+                        {(sessionForm.documents || []).map((doc, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-2 border border-gray-200 rounded-lg bg-gray-50">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <IconFileText size={16} className="text-blue-500 flex-shrink-0" />
+                              {doc.url && doc.url !== "pending" ? (
+                                <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline truncate">
+                                  {doc.name}
+                                </a>
+                              ) : (
+                                <span className="text-sm text-gray-600 truncate">{doc.name}</span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSessionDoc(idx)}
+                              className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                            >
+                              <IconTrash size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <label className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                      {isSessionDocUploading ? (
+                        <IconLoader2 size={16} className="animate-spin text-blue-500" />
+                      ) : (
+                        <IconUpload size={16} className="text-gray-400" />
+                      )}
+                      <span className="text-sm text-gray-500">
+                        {isSessionDocUploading ? "Uploading..." : "Upload document"}
+                      </span>
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={handleSessionDocUpload}
+                        disabled={isSessionDocUploading}
+                      />
+                    </label>
+                  </div>
+                )}
               </div>
-              <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">
+            <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">
                 <button
                   onClick={() => {
                     setShowSessionModal(false);

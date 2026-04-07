@@ -1,4 +1,4 @@
-// API Type Definitions for ACCP Backoffice
+// API Type Definitions for Conference Backoffice
 
 // ============================================================================
 // User Types

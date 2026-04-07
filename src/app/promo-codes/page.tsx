@@ -698,7 +698,7 @@ export default function PromoCodesPage() {
                                     <input
                                         type="text"
                                         className="input-field font-mono flex-1"
-                                        placeholder="PROMO2026"
+                                        placeholder="PROMO2025"
                                         value={formData.code}
                                         onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                                     />

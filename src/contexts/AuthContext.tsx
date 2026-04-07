@@ -75,7 +75,7 @@ const rolePageAccess: Record<UserRole, string[]> = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTH_UNAUTHORIZED_EVENT = "accp-backoffice-auth:unauthorized";
+const AUTH_UNAUTHORIZED_EVENT = "backoffice-auth:unauthorized";
 
 function clearStoredAuth() {
   localStorage.removeItem("backoffice_token");

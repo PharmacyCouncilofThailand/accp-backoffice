@@ -17,7 +17,7 @@ import type {
 } from '@/types/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
-const AUTH_UNAUTHORIZED_EVENT = "accp-backoffice-auth:unauthorized";
+const AUTH_UNAUTHORIZED_EVENT = "backoffice-auth:unauthorized";
 
 interface FetchOptions extends RequestInit {
   token?: string;

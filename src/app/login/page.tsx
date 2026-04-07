@@ -174,7 +174,7 @@ export default function LoginPage() {
                 ⚠️ Development Only:
               </p>
               <p className="text-sm text-yellow-700 text-center font-mono">
-                admin@accp.org / admin123
+                admin@conference.local / admin123
               </p>
             </div>
           )}

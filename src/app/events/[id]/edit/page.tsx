@@ -27,6 +27,7 @@ import {
   IconFileText,
   IconUpload,
   IconAlertTriangle,
+  IconFile,
 } from "@tabler/icons-react";
 
 interface Speaker {
@@ -57,6 +58,7 @@ interface SessionData {
   isMainSession?: boolean;
   isNew?: boolean;
   agenda?: { time: string; topic: string }[];
+  documents?: { name: string; url: string }[];
 }
 
 interface TicketData {
@@ -222,7 +224,10 @@ export default function EditEventPage() {
     maxCapacity: 0,
     selectedSpeakerIds: [],
     agenda: [],
+    documents: [],
   });
+
+  const [isSessionDocUploading, setIsSessionDocUploading] = useState(false);
 
   // Ticket form
   const [ticketForm, setTicketForm] = useState<TicketData>({
@@ -315,6 +320,7 @@ export default function EditEventPage() {
               maxCapacity: s.maxCapacity ?? 0,
               isMainSession: s.isMainSession,
               agenda: s.agenda || [],
+              documents: s.documents || [],
             })),
           );
         }
@@ -417,6 +423,7 @@ export default function EditEventPage() {
             maxCapacity: sessionForm.maxCapacity,
             isMainSession: sessionForm.isMainSession || false,
             agenda: sessionForm.agenda && sessionForm.agenda.length > 0 ? sessionForm.agenda : undefined,
+            documents: sessionForm.documents || [],
           },
         );
         setSessions((prev) =>
@@ -427,6 +434,7 @@ export default function EditEventPage() {
                 id: editingSessionId,
                 isMainSession: sessionForm.isMainSession,
                 sessionType: sessionForm.sessionType,
+                documents: sessionForm.documents || [],
               }
               : s,
           ),
@@ -449,6 +457,7 @@ export default function EditEventPage() {
             speakers: JSON.stringify(speakerNames),
             maxCapacity: sessionForm.maxCapacity,
             agenda: sessionForm.agenda && sessionForm.agenda.length > 0 ? sessionForm.agenda : undefined,
+            documents: sessionForm.documents || [],
           },
         );
         const session = response.session as Record<string, unknown>;
@@ -466,6 +475,7 @@ export default function EditEventPage() {
             maxCapacity: (session.maxCapacity as number) ?? 0,
             selectedSpeakerIds: sessionForm.selectedSpeakerIds,
             isMainSession: sessionForm.isMainSession,
+            documents: sessionForm.documents || [],
           },
         ]);
         toast.success("Session created successfully");
@@ -482,11 +492,50 @@ export default function EditEventPage() {
         selectedSpeakerIds: [],
         isMainSession: false,
         agenda: [],
+        documents: [],
       });
       setShowSessionModal(false);
     } catch (err: any) {
       toast.error(err.message || "Failed to save session");
     }
+  };
+
+  // Session document upload handler
+  const handleSessionDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsSessionDocUploading(true);
+    try {
+      const token = getBackofficeToken();
+      const fd = new FormData();
+      fd.append('file', file);
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+      const res = await fetch(`${API_URL}/api/upload/session-document`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Upload failed');
+      setSessionForm(prev => ({
+        ...prev,
+        documents: [...(prev.documents || []), { name: file.name, url: data.url }],
+      }));
+      toast.success('Document uploaded');
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload document');
+    } finally {
+      setIsSessionDocUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveSessionDoc = (index: number) => {
+    setSessionForm(prev => ({
+      ...prev,
+      documents: (prev.documents || []).filter((_, i) => i !== index),
+    }));
   };
 
   // Edit session
@@ -503,6 +552,7 @@ export default function EditEventPage() {
       selectedSpeakerIds: session.selectedSpeakerIds || [],
       isMainSession: session.isMainSession || false,
       agenda: session.agenda || [],
+      documents: session.documents || [],
     });
     setEditingSessionId(session.id!);
     setShowSessionModal(true);
@@ -2951,6 +3001,58 @@ export default function EditEventPage() {
                   }
                 />
               </div>
+
+              {/* Workshop Documents */}
+              {sessionForm.sessionType === "workshop" && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <IconFile size={16} /> Workshop Documents
+                  </label>
+
+                  {(sessionForm.documents || []).length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {(sessionForm.documents || []).map((doc, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-2 border border-gray-200 rounded-lg bg-gray-50">
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <IconFileText size={16} className="text-blue-500 flex-shrink-0" />
+                            {doc.url && doc.url !== "pending" ? (
+                              <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline truncate">
+                                {doc.name}
+                              </a>
+                            ) : (
+                              <span className="text-sm text-gray-600 truncate">{doc.name}</span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSessionDoc(idx)}
+                            className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                          >
+                            <IconTrash size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <label className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                    {isSessionDocUploading ? (
+                      <IconLoader2 size={16} className="animate-spin text-blue-500" />
+                    ) : (
+                      <IconUpload size={16} className="text-gray-400" />
+                    )}
+                    <span className="text-sm text-gray-500">
+                      {isSessionDocUploading ? "Uploading..." : "Upload document"}
+                    </span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={handleSessionDocUpload}
+                      disabled={isSessionDocUploading}
+                    />
+                  </label>
+                </div>
+              )}
             </div>
             <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">
               <button
