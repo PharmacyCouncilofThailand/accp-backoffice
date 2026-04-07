@@ -120,11 +120,12 @@ export default function EventsPage() {
     fetchEvents();
   }, [page, statusFilter, typeFilter, debouncedSearchTerm]);
 
-  // Calculate stats
+  // Calculate stats (published/draft are page-level counts)
   const stats = {
     total: totalCount,
     published: events.filter((e) => e.status === "published").length,
     draft: events.filter((e) => e.status === "draft").length,
+    showing: events.length,
   };
 
   const handleDelete = async () => {
@@ -136,6 +137,7 @@ export default function EventsPage() {
       setEvents(events.filter((e) => e.id !== selectedEvent.id));
       setShowDeleteModal(false);
       setSelectedEvent(null);
+      toast.success("Event deleted successfully");
     } catch (err: any) {
       toast.error(err.message || "Failed to delete event");
     } finally {
@@ -167,7 +169,7 @@ export default function EventsPage() {
               <p className="text-2xl font-bold text-green-600">
                 {stats.published}
               </p>
-              <p className="text-sm text-gray-500">Published</p>
+              <p className="text-sm text-gray-500">Published (this page)</p>
             </div>
           </div>
         </div>
@@ -180,7 +182,7 @@ export default function EventsPage() {
               <p className="text-2xl font-bold text-yellow-600">
                 {stats.draft}
               </p>
-              <p className="text-sm text-gray-500">Draft</p>
+              <p className="text-sm text-gray-500">Draft (this page)</p>
             </div>
           </div>
         </div>

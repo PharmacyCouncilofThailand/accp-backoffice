@@ -19,9 +19,9 @@ export default function SettingsPage() {
 
     // General Settings
     const [generalSettings, setGeneralSettings] = useState({
-        organizationName: 'ACCP Thailand',
-        eventName: 'ACCP Annual Conference 2026',
-        contactEmail: 'info@accp2026.org',
+        organizationName: 'Conference Organization',
+        eventName: 'Annual Conference',
+        contactEmail: 'info@conference.example.com',
         supportPhone: '02-123-4567',
         timezone: 'Asia/Bangkok',
         currency: 'THB',
@@ -31,10 +31,10 @@ export default function SettingsPage() {
     const [emailSettings, setEmailSettings] = useState({
         smtpHost: 'smtp.example.com',
         smtpPort: '587',
-        smtpUser: 'noreply@accp2026.org',
+        smtpUser: 'noreply@conference.example.com',
         smtpPassword: '••••••••',
-        senderName: 'ACCP 2026',
-        senderEmail: 'noreply@accp2026.org',
+        senderName: 'Conference System',
+        senderEmail: 'noreply@conference.example.com',
     });
 
     // Appearance Settings

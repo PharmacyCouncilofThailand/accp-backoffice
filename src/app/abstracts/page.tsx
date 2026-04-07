@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { AdminLayout } from "@/components/layout";
 import { api } from "@/lib/api";
+import { exportToExcel } from "@/lib/exportExcel";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDebounce } from "@/hooks/useDebounce";
 import { Pagination } from "@/components/common";
@@ -97,12 +98,24 @@ export default function AbstractsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [presentationTypeFilter, setPresentationTypeFilter] = useState("");
+  const [eventFilter, setEventFilter] = useState("");
+  const [eventOptions, setEventOptions] = useState<{ id: number; name: string }[]>([]);
+  const [eventSelected, setEventSelected] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
   // Debounce search term to avoid API calls on every keystroke
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
+  // Fetch events for filter dropdown
+  useEffect(() => {
+    const token = getBackofficeToken();
+    api.backofficeEvents.list(token, "limit=100").then((res) => {
+      setEventOptions((res.events as any[]).map((e) => ({ id: e.id as number, name: e.eventName as string })));
+    }).catch(() => {});
+  }, []);
 
   // Filter categories based on user role
   // Admin sees all, Reviewer sees only assigned categories
@@ -132,6 +145,51 @@ export default function AbstractsPage() {
     return presentationTypes.filter((type) => assignedTypes.includes(type.id));
   }, [user, isAdmin]);
 
+  const handleExport = async () => {
+    if (!eventFilter) return;
+    setIsExporting(true);
+    try {
+      const token = getBackofficeToken();
+      const params: any = { page: 1, limit: 1000 };
+      if (statusFilter) params.status = statusFilter;
+      if (categoryFilter) params.category = categoryFilter;
+      if (presentationTypeFilter) params.presentationType = presentationTypeFilter;
+      if (eventFilter) params.eventId = eventFilter;
+      if (searchTerm) params.search = searchTerm;
+
+      const res = await api.abstracts.list(token, new URLSearchParams(params).toString());
+      const eventName = eventOptions.find(e => String(e.id) === eventFilter)?.name || 'event';
+
+      const rows = (res.abstracts as any[]).map((a) => ({
+        'Tracking ID': a.trackingId || '',
+        'Title': a.title,
+        'Category': a.category,
+        'Presentation Type': a.presentationType || '',
+        'Status': a.status,
+        'Author First Name': a.author?.firstName || '',
+        'Author Last Name': a.author?.lastName || '',
+        'Author Email': a.author?.email || '',
+        'Author Phone': a.author?.phone || '',
+        'Author Institution': a.author?.institution || '',
+        'Author Country': a.author?.country || '',
+        'Keywords': a.keywords || '',
+        'Background': a.background || '',
+        'Methods': a.methods || '',
+        'Results': a.results || '',
+        'Conclusion': a.conclusion || '',
+        'Full Paper URL': a.fullPaperUrl || '',
+        'Submitted At': new Date(a.createdAt).toLocaleString('th-TH'),
+      }));
+
+      exportToExcel(rows, `abstracts_${eventName.replace(/\s+/g, '_')}`);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const [selectedAbstract, setSelectedAbstract] = useState<Abstract | null>(
     null,
   );
@@ -141,8 +199,9 @@ export default function AbstractsPage() {
   const [reviewComment, setReviewComment] = useState("");
 
   useEffect(() => {
+    if (!eventSelected) return;
     fetchAbstracts();
-  }, [page, debouncedSearchTerm, statusFilter, categoryFilter, presentationTypeFilter]);
+  }, [page, debouncedSearchTerm, statusFilter, categoryFilter, presentationTypeFilter, eventFilter, eventSelected]);
 
   const fetchAbstracts = async () => {
     setIsLoading(true);
@@ -151,8 +210,8 @@ export default function AbstractsPage() {
       const params: any = { page, limit: 10 };
       if (statusFilter) params.status = statusFilter;
       if (categoryFilter) params.category = categoryFilter;
-      if (presentationTypeFilter)
-        params.presentationType = presentationTypeFilter;
+      if (presentationTypeFilter) params.presentationType = presentationTypeFilter;
+      if (eventFilter) params.eventId = eventFilter;
       if (searchTerm) params.search = searchTerm;
 
       const res = await api.abstracts.list(
@@ -226,9 +285,14 @@ export default function AbstractsPage() {
           <h2 className="text-lg font-semibold text-gray-800">
             All Submissions
           </h2>
-          {/* <button className="btn-secondary flex items-center gap-2">
-            <IconDownload size={18} /> Export
-          </button> */}
+          <button
+            onClick={handleExport}
+            disabled={!eventSelected || isExporting}
+            className="btn-secondary flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isExporting ? <IconLoader2 size={18} className="animate-spin" /> : <IconDownload size={18} />}
+            Export Excel
+          </button>
         </div>
 
         {/* Filters */}
@@ -295,6 +359,17 @@ export default function AbstractsPage() {
           </select>
 
           <select
+              value={eventFilter}
+              onChange={(e) => { setEventFilter(e.target.value); setEventSelected(!!e.target.value); setPage(1); }}
+              className="input-field w-auto"
+            >
+              <option value="">-- เลือก Event --</option>
+              {eventOptions.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+
+          <select
             value={presentationTypeFilter}
             onChange={(e) => {
               setPresentationTypeFilter(e.target.value);
@@ -321,7 +396,12 @@ export default function AbstractsPage() {
         </div>
 
         {/* Table */}
-        {isLoading ? (
+        {!eventSelected ? (
+          <div className="text-center py-16 text-gray-400">
+            <IconFileText size={40} className="mx-auto mb-3 opacity-30" />
+            <p className="font-medium">กรุณาเลือก Event เพื่อดูข้อมูล</p>
+          </div>
+        ) : isLoading ? (
           <div className="flex justify-center py-12">
             <IconLoader2 size={32} className="animate-spin text-blue-600" />
           </div>

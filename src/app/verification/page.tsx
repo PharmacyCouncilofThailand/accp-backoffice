@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "@/components/layout";
 import { api } from "@/lib/api";
+import { exportToExcel } from "@/lib/exportExcel";
 import { useAuth } from "@/contexts/AuthContext";
 import { Pagination } from "@/components/common";
 import toast from "react-hot-toast";
@@ -75,6 +76,7 @@ export default function VerificationPage() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [approveComment, setApproveComment] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const [rejectionHistory, setRejectionHistory] = useState<RejectionHistory[]>(
     [],
   );
@@ -120,6 +122,42 @@ export default function VerificationPage() {
       setRejectionHistory([]);
     } finally {
       setIsLoadingHistory(false);
+    }
+  };
+
+  const handleExport = async () => {
+    if (!token) return;
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams();
+      params.append("page", "1");
+      params.append("limit", "1000");
+      if (searchTerm) params.append("search", searchTerm);
+      if (statusFilter) params.append("status", statusFilter);
+
+      const data = await api.verifications.list(token, params.toString());
+      const rows = (data.verifications as any[]).map((v) => ({
+        'Name': v.name,
+        'Email': v.email,
+        'University/Institution': v.university || '',
+        'Student ID': v.studentId || '',
+        'Role': v.role,
+        'Document Type': v.documentType || '',
+        'Status': v.status,
+        'Registration Code': v.registrationCode || '',
+        'Submitted At': v.submittedAt ? new Date(v.submittedAt).toLocaleString('th-TH') : '',
+        'Verified At': v.verifiedAt ? new Date(v.verifiedAt).toLocaleString('th-TH') : '',
+        'Verified By': v.verifiedBy || '',
+        'Rejection Reason': v.rejectionReason || '',
+        'Resubmission Count': v.resubmissionCount ?? 0,
+      }));
+
+      exportToExcel(rows, `verifications_${new Date().toISOString().slice(0,10)}`);
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Export failed');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -268,8 +306,15 @@ export default function VerificationPage() {
           <h2 className="text-lg font-semibold text-gray-800">
             Verification Requests
           </h2>
-          <button className="btn-secondary flex items-center gap-2">
-            <IconDownload size={18} /> Export
+          <button
+            onClick={handleExport}
+            disabled={isExporting}
+            className="btn-secondary flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isExporting
+              ? <span className="animate-spin inline-block w-[18px] h-[18px] border-2 border-current border-t-transparent rounded-full" />
+              : <IconDownload size={18} />}
+            Export Excel
           </button>
         </div>
 
@@ -424,8 +469,9 @@ export default function VerificationPage() {
                                 year: "numeric",
                                 month: "short",
                                 day: "numeric",
-                                hour: "2-digit",
+                                hour: "numeric",
                                 minute: "2-digit",
+                                hour12: true,
                                 timeZone: "Asia/Bangkok",
                               },
                             )}
@@ -659,8 +705,9 @@ export default function VerificationPage() {
                                   year: "numeric",
                                   month: "short",
                                   day: "numeric",
-                                  hour: "2-digit",
+                                  hour: "numeric",
                                   minute: "2-digit",
+                                  hour12: true,
                                   timeZone: "Asia/Bangkok",
                                 },
                               )}

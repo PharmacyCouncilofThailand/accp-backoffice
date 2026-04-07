@@ -26,7 +26,7 @@ const mockPayments = [
         currency: 'THB',
         status: 'completed',
         method: 'Credit Card',
-        date: '2026-01-15 10:30',
+        date: '2025-01-15 10:30',
         items: ['Early Bird - Member'],
     },
     {
@@ -38,7 +38,7 @@ const mockPayments = [
         currency: 'THB',
         status: 'pending',
         method: 'Bank Transfer',
-        date: '2026-01-15 11:45',
+        date: '2025-01-15 11:45',
         items: ['Regular - Public'],
     },
     {
@@ -50,7 +50,7 @@ const mockPayments = [
         currency: 'THB',
         status: 'completed',
         method: 'QR PromptPay',
-        date: '2026-01-16 09:15',
+        date: '2025-01-16 09:15',
         items: ['MIS Registration'],
     },
     {
@@ -62,7 +62,7 @@ const mockPayments = [
         currency: 'THB',
         status: 'failed',
         method: 'Credit Card',
-        date: '2026-01-16 14:20',
+        date: '2025-01-16 14:20',
         items: ['Thai Student'],
     },
     {
@@ -74,7 +74,7 @@ const mockPayments = [
         currency: 'THB',
         status: 'completed',
         method: 'Free (Invite)',
-        date: '2026-01-17 08:00',
+        date: '2025-01-17 08:00',
         items: ['VIP Access'],
     },
 ];

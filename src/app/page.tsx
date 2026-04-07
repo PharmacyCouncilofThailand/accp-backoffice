@@ -65,11 +65,11 @@ const stats = [
 ];
 
 const recentRegistrations = [
-  { id: 1, name: 'สมชาย ใจดี', email: 'somchai@example.com', event: 'ACCP 2026', status: 'confirmed', date: '2026-01-09', photo: 'https://ui-avatars.com/api/?name=Somchai+Jaidee&background=random' },
-  { id: 2, name: 'สมหญิง รักสวย', email: 'somying@example.com', event: 'ACCP 2026', status: 'pending', date: '2026-01-09', photo: 'https://ui-avatars.com/api/?name=Somying+Raksuay&background=random' },
-  { id: 3, name: 'John Doe', email: 'john@example.com', event: 'ACCP 2026', status: 'confirmed', date: '2026-01-08', photo: 'https://ui-avatars.com/api/?name=John+Doe&background=random' },
-  { id: 4, name: 'Jane Smith', email: 'jane@example.com', event: 'Workshop A', status: 'checked_in', date: '2026-01-08', photo: 'https://ui-avatars.com/api/?name=Jane+Smith&background=random' },
-  { id: 5, name: 'วิชัย มั่นคง', email: 'wichai@example.com', event: 'ACCP 2026', status: 'confirmed', date: '2026-01-07', photo: 'https://ui-avatars.com/api/?name=Wichai+Munkong&background=random' },
+  { id: 1, name: 'สมชาย ใจดี', email: 'somchai@example.com', event: 'Conference', status: 'confirmed', date: '2025-01-09', photo: 'https://ui-avatars.com/api/?name=Somchai+Jaidee&background=random' },
+  { id: 2, name: 'สมหญิง รักสวย', email: 'somying@example.com', event: 'Conference', status: 'pending', date: '2025-01-09', photo: 'https://ui-avatars.com/api/?name=Somying+Raksuay&background=random' },
+  { id: 3, name: 'John Doe', email: 'john@example.com', event: 'Conference', status: 'confirmed', date: '2025-01-08', photo: 'https://ui-avatars.com/api/?name=John+Doe&background=random' },
+  { id: 4, name: 'Jane Smith', email: 'jane@example.com', event: 'Workshop A', status: 'checked_in', date: '2025-01-08', photo: 'https://ui-avatars.com/api/?name=Jane+Smith&background=random' },
+  { id: 5, name: 'วิชัย มั่นคง', email: 'wichai@example.com', event: 'Conference', status: 'confirmed', date: '2025-01-07', photo: 'https://ui-avatars.com/api/?name=Wichai+Munkong&background=random' },
 ];
 
 const statusColors: { [key: string]: string } = {

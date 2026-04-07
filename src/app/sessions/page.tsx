@@ -24,6 +24,8 @@ import {
     IconMicrophone,
     IconTargetArrow,
     IconStar,
+    IconFile,
+    IconUpload,
 } from '@tabler/icons-react';
 
 const getBackofficeToken = () =>
@@ -49,6 +51,7 @@ interface Session {
     tags?: string[]; // Not in schema, mocked or derived
     isMainSession?: boolean; // Added for Main Session Logic
     agenda?: { time: string; topic: string }[] | null;
+    documents?: { name: string; url: string }[];
 }
 
 interface EventOption {
@@ -113,7 +116,10 @@ export default function SessionsPage() {
         maxCapacity: 100,
         isMainSession: false, // Added for Main Session Logic
         agenda: [] as { time: string; topic: string }[],
+        documents: [] as { name: string; url: string }[],
     });
+
+    const [isUploading, setIsUploading] = useState(false);
 
     const [eventSessions, setEventSessions] = useState<Session[]>([]); // To track siblings for locking logic
     const [isSessionsLoading, setIsSessionsLoading] = useState(false); // To prevent logic flicker while loading sibling data
@@ -233,7 +239,8 @@ export default function SessionsPage() {
                     enrolledCount: s.enrolledCount || 0,
                     eventCode: s.eventCode,
                     isMainSession: s.isMainSession || false,
-                    agenda: s.agenda || null
+                    agenda: s.agenda || null,
+                    documents: s.documents || [],
                 };
             });
 
@@ -285,6 +292,7 @@ export default function SessionsPage() {
                 maxCapacity: formData.maxCapacity || 100,
                 isMainSession: formData.isMainSession,
                 agenda: formData.agenda && formData.agenda.length > 0 ? formData.agenda : undefined,
+                documents: formData.documents && formData.documents.length > 0 ? formData.documents : [],
             };
             await api.backofficeEvents.createSession(token, formData.eventId, payload);
             toast.success('Session created successfully!');
@@ -321,6 +329,7 @@ export default function SessionsPage() {
                 maxCapacity: formData.maxCapacity || 100,
                 isMainSession: formData.isMainSession,
                 agenda: formData.agenda && formData.agenda.length > 0 ? formData.agenda : undefined,
+                documents: formData.documents && formData.documents.length > 0 ? formData.documents : [],
             };
             await api.backofficeEvents.updateSession(token, formData.eventId, selectedSession.id, payload);
             toast.success('Session updated successfully!');
@@ -367,6 +376,49 @@ export default function SessionsPage() {
         }
     };
 
+    const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        try {
+            const token = getBackofficeToken();
+            const formDataUpload = new FormData();
+            formDataUpload.append('file', file);
+
+            const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+            const res = await fetch(`${API_URL}/api/upload/session-document`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                body: formDataUpload,
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Upload failed');
+            }
+
+            setFormData(prev => ({
+                ...prev,
+                documents: [...prev.documents, { name: file.name, url: data.url }],
+            }));
+            toast.success('Document uploaded');
+        } catch (error) {
+            console.error('Upload error:', error);
+            toast.error('Failed to upload document');
+        } finally {
+            setIsUploading(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleRemoveDocument = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            documents: prev.documents.filter((_, i) => i !== index),
+        }));
+    };
+
     const resetForm = () => {
         setFormData({
             eventId: Number(eventFilter) || (events.length > 0 ? events[0].id : 0),
@@ -381,6 +433,7 @@ export default function SessionsPage() {
             maxCapacity: 100,
             isMainSession: false,
             agenda: [],
+            documents: [],
         });
         setSelectedSession(null);
     };
@@ -418,6 +471,7 @@ export default function SessionsPage() {
             maxCapacity: session.maxCapacity || 100,
             isMainSession: session.isMainSession || false,
             agenda: session.agenda || [],
+            documents: session.documents || [],
         });
         fetchEventSessions(session.eventId); // Fetch siblings for locking logic
         setShowEditModal(true);
@@ -824,7 +878,7 @@ export default function SessionsPage() {
                             <div className="md:w-48 shrink-0 flex flex-row md:flex-col justify-between md:justify-start gap-2 md:border-r md:border-gray-100 md:pr-4">
                                 <div>
                                     <p className="font-bold text-gray-800 text-lg">
-                                        {new Date(session.startTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}
+                                        {new Date(session.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Bangkok' })}
                                     </p>
                                     <p className="text-sm text-gray-500">
                                         {new Date(session.startTime).toLocaleDateString('en-US', { timeZone: 'Asia/Bangkok' })}
@@ -832,7 +886,7 @@ export default function SessionsPage() {
                                 </div>
                                 <div className="text-right md:text-left">
                                     <p className="text-sm text-gray-400">
-                                        to {new Date(session.endTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}
+                                        to {new Date(session.endTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Bangkok' })}
                                     </p>
                                 </div>
                             </div>
@@ -1153,7 +1207,57 @@ export default function SessionsPage() {
                                         value={formData.description}
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                     />
-                                </div>                               
+                                </div>
+
+                                {/* Workshop Documents Upload - only for workshop type */}
+                                {formData.sessionType === 'workshop' && (
+                                    <div className="col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            <IconFile size={16} className="inline mr-1" /> Workshop Documents
+                                        </label>
+                                        <p className="text-xs text-gray-500 mb-2">
+                                            Upload documents related to this workshop (PDF, DOC, XLS, etc.)
+                                        </p>
+
+                                        {/* Existing documents list */}
+                                        {formData.documents.length > 0 && (
+                                            <div className="space-y-2 mb-3">
+                                                {formData.documents.map((doc, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                                                        <a
+                                                            href={doc.url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-sm text-blue-600 hover:underline truncate flex-1 mr-2 flex items-center gap-1"
+                                                        >
+                                                            <IconFile size={14} /> {doc.name}
+                                                        </a>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRemoveDocument(idx)}
+                                                            className="text-red-400 hover:text-red-600 shrink-0"
+                                                        >
+                                                            <IconTrash size={14} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Upload button */}
+                                        <label className={`inline-flex items-center gap-2 px-4 py-2 border border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors text-sm text-gray-600 ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                                            <IconUpload size={16} />
+                                            {isUploading ? 'Uploading...' : 'Upload Document'}
+                                            <input
+                                                type="file"
+                                                className="hidden"
+                                                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                                                onChange={handleDocumentUpload}
+                                                disabled={isUploading}
+                                            />
+                                        </label>
+                                    </div>
+                                )}
                             </div>
                             <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
                                 <button onClick={() => { setShowCreateModal(false); setShowEditModal(false); }} className="btn-secondary" disabled={isSubmitting}>Cancel</button>
@@ -1270,7 +1374,7 @@ export default function SessionsPage() {
                                                 {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Bangkok' })}
                                             </p>
                                             <p className="text-sm text-gray-600">
-                                                {start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })} - {end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })}
+                                                {start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Bangkok' })} - {end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Bangkok' })}
                                             </p>
                                         </div>
                                         <div className="bg-gray-50 p-4 rounded-lg">

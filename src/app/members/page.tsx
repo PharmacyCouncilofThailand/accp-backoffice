@@ -25,7 +25,7 @@ interface Member {
   email: string;
   firstName: string;
   lastName: string;
-  role: "thstd" | "interstd" | "thpro" | "interpro";
+  role: "thstd" | "interstd" | "thpro" | "interpro" | "guest" | "general" | "admin";
   status: "pending_approval" | "active" | "rejected";
   phone: string | null;
   country: string | null;
@@ -55,6 +55,18 @@ const roleLabels: Record<string, { label: string; className: string }> = {
     label: "International Professional",
     className: "bg-orange-100 text-orange-800",
   },
+  guest: {
+    label: "Guest",
+    className: "bg-teal-100 text-teal-800",
+  },
+  general: {
+    label: "General",
+    className: "bg-gray-100 text-gray-800",
+  },
+  admin: {
+    label: "Admin",
+    className: "bg-red-100 text-red-800",
+  },
 };
 
 // Status labels
@@ -81,6 +93,8 @@ export default function MembersPage() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [eventFilter, setEventFilter] = useState("");
+  const [eventOptions, setEventOptions] = useState<{ id: number; name: string }[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Member | null>(null);
@@ -114,6 +128,14 @@ export default function MembersPage() {
     fetchStats();
   }, [fetchStats]);
 
+  // Fetch events for filter dropdown
+  useEffect(() => {
+    if (!token) return;
+    api.backofficeEvents.list(token, 'limit=100').then((res) => {
+      setEventOptions((res.events as any[]).map((e) => ({ id: e.id as number, name: e.eventName as string })));
+    }).catch(() => {});
+  }, [token]);
+
   const fetchMembers = useCallback(async () => {
     if (!token) return;
 
@@ -125,6 +147,7 @@ export default function MembersPage() {
       if (search) params.append("search", search);
       if (roleFilter) params.append("role", roleFilter);
       if (statusFilter) params.append("status", statusFilter);
+      if (eventFilter) params.append("eventId", eventFilter);
 
       const response = await api.members.list(token, params.toString());
       setMembers(response.members as unknown as Member[]);
@@ -134,7 +157,7 @@ export default function MembersPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, currentPage, search, roleFilter, statusFilter]);
+  }, [token, currentPage, search, roleFilter, statusFilter, eventFilter]);
 
   useEffect(() => {
     fetchMembers();
@@ -144,6 +167,7 @@ export default function MembersPage() {
     setSearch("");
     setRoleFilter("");
     setStatusFilter("");
+    setEventFilter("");
     setCurrentPage(1);
   };
 
@@ -253,6 +277,8 @@ export default function MembersPage() {
             <option value="interstd">International Student</option>
             <option value="thpro">Thai Professional</option>
             <option value="interpro">International Professional</option>
+            <option value="guest">Guest</option>
+            <option value="general">General</option>
           </select>
 
           <select
@@ -268,6 +294,19 @@ export default function MembersPage() {
             <option value="active">Active</option>
             <option value="rejected">Rejected</option>
           </select>
+
+          {eventOptions.length > 1 && (
+            <select
+              value={eventFilter}
+              onChange={(e) => { setEventFilter(e.target.value); setCurrentPage(1); }}
+              className="input-field w-auto"
+            >
+              <option value="">All Events</option>
+              {eventOptions.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+          )}
 
           <button
             type="button"
@@ -377,13 +416,12 @@ export default function MembersPage() {
                             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${statusLabels[member.status]?.className}`}
                           >
                             <span
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                member.status === "active"
+                              className={`w-1.5 h-1.5 rounded-full ${member.status === "active"
                                   ? "bg-green-500"
                                   : member.status === "pending_approval"
                                     ? "bg-yellow-500"
                                     : "bg-red-500"
-                              }`}
+                                }`}
                             ></span>
                             {statusLabels[member.status]?.label}
                           </span>

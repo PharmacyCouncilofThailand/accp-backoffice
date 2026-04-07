@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import { exportToExcel } from '@/lib/exportExcel';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Pagination } from '@/components/common';
 import {
@@ -45,6 +46,10 @@ export default function RegistrationsPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [sourceFilter, setSourceFilter] = useState('');
+    const [eventFilter, setEventFilter] = useState('');
+    const [eventOptions, setEventOptions] = useState<{ id: number; name: string }[]>([]);
+    const [eventSelected, setEventSelected] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
 
     // Pagination
     const [page, setPage] = useState(1);
@@ -55,9 +60,54 @@ export default function RegistrationsPage() {
     // Debounce search term to avoid API calls on every keystroke
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
+    // Fetch events for filter dropdown
     useEffect(() => {
+        const token = getBackofficeToken();
+        api.backofficeEvents.list(token, 'limit=100').then((res) => {
+            setEventOptions((res.events as any[]).map((e) => ({ id: e.id as number, name: e.eventName as string })));
+        }).catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        if (!eventSelected) return;
         fetchRegistrations();
-    }, [page, debouncedSearchTerm, statusFilter, sourceFilter]);
+    }, [page, debouncedSearchTerm, statusFilter, sourceFilter, eventFilter, eventSelected]);
+
+    const handleExport = async () => {
+        if (!eventFilter) return;
+        setIsExporting(true);
+        try {
+            const token = getBackofficeToken();
+            const params: any = { page: 1, limit: 1000 };
+            if (statusFilter) params.status = statusFilter;
+            if (searchTerm) params.search = searchTerm;
+            if (sourceFilter) params.source = sourceFilter;
+            if (eventFilter) params.eventId = eventFilter;
+
+            const res = await api.registrations.list(token, new URLSearchParams(params).toString());
+            const eventName = eventOptions.find(e => String(e.id) === eventFilter)?.name || 'event';
+
+            const rows = (res.registrations as any[]).map((r) => ({
+                'Reg Code': r.regCode,
+                'First Name': r.firstName,
+                'Last Name': r.lastName,
+                'Email': r.email,
+                'Ticket': r.ticketName,
+                'Status': r.status,
+                'Source': r.source,
+                'Note': r.addedNote || '',
+                'Added By': r.addedByFirstName ? `${r.addedByFirstName} ${r.addedByLastName}` : '',
+                'Created At': new Date(r.createdAt).toLocaleString('th-TH'),
+            }));
+
+            exportToExcel(rows, `registrations_${eventName.replace(/\s+/g, '_')}`);
+        } catch (error) {
+            console.error('Export failed:', error);
+            alert('Export failed');
+        } finally {
+            setIsExporting(false);
+        }
+    };
 
     const fetchRegistrations = async () => {
         setIsLoading(true);
@@ -67,6 +117,7 @@ export default function RegistrationsPage() {
             if (statusFilter) params.status = statusFilter;
             if (searchTerm) params.search = searchTerm;
             if (sourceFilter) params.source = sourceFilter;
+            if (eventFilter) params.eventId = eventFilter;
 
             const res = await api.registrations.list(token, new URLSearchParams(params).toString());
             setRegistrations(res.registrations as unknown as Registration[]);
@@ -129,12 +180,29 @@ export default function RegistrationsPage() {
                             <option value="">All Source</option>
                             <option value="purchase">Purchase</option>
                             <option value="manual">Manual</option>
+                            <option value="free">Free</option>
                         </select>
+
+                        <select
+                                value={eventFilter}
+                                onChange={(e) => { setEventFilter(e.target.value); setEventSelected(!!e.target.value); setPage(1); }}
+                                className="input-field w-auto"
+                            >
+                                <option value="">-- เลือก Event --</option>
+                                {eventOptions.map((e) => (
+                                    <option key={e.id} value={e.id}>{e.name}</option>
+                                ))}
+                            </select>
                     </div>
 
                     <div className="flex gap-2">
-                        <button className="btn-secondary flex items-center gap-2">
-                            <IconDownload size={18} /> Export
+                        <button
+                            onClick={handleExport}
+                            disabled={!eventSelected || isExporting}
+                            className="btn-secondary flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            {isExporting ? <IconLoader2 size={18} className="animate-spin" /> : <IconDownload size={18} />}
+                            Export Excel
                         </button>
                         <Link
                             href="/registrations/add"
@@ -148,7 +216,12 @@ export default function RegistrationsPage() {
 
             {/* Table */}
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                {isLoading ? (
+                {!eventSelected ? (
+                    <div className="text-center py-16 text-gray-400">
+                        <IconUsers size={40} className="mx-auto mb-3 opacity-30" />
+                        <p className="font-medium">กรุณาเลือก Event เพื่อดูข้อมูล</p>
+                    </div>
+                ) : isLoading ? (
                     <div className="flex justify-center py-12">
                         <IconLoader2 size={32} className="animate-spin text-blue-600" />
                     </div>
@@ -212,6 +285,10 @@ export default function RegistrationsPage() {
                                                         title={`Added by ${reg.addedByFirstName || ''} ${reg.addedByLastName || ''}${reg.addedNote ? ` — ${reg.addedNote}` : ''}`}
                                                     >
                                                         Manual
+                                                    </span>
+                                                ) : reg.source === 'free' ? (
+                                                    <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                                                        Free
                                                     </span>
                                                 ) : (
                                                     <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-500">

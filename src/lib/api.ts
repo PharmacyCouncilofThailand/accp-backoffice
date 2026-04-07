@@ -17,7 +17,7 @@ import type {
 } from '@/types/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
-const AUTH_UNAUTHORIZED_EVENT = "accp-backoffice-auth:unauthorized";
+const AUTH_UNAUTHORIZED_EVENT = "backoffice-auth:unauthorized";
 
 interface FetchOptions extends RequestInit {
   token?: string;
@@ -75,7 +75,8 @@ export async function fetchAPI<T>(
     }
 
     const error = await res.json().catch(() => ({ error: "Request failed" }));
-    throw new Error(error.error || `API Error: ${res.status}`);
+    const details = error.details ? ` — ${JSON.stringify(error.details)}` : '';
+    throw new Error((error.error || `API Error: ${res.status}`) + details);
   }
 
   return res.json();
@@ -118,6 +119,8 @@ export const api = {
       fetchAPI<{ success: boolean }>(`/api/backoffice/users/${id}`, { method: 'DELETE', token }),
     assignEvents: (token: string, id: number, eventIds: number[]) =>
       fetchAPI<{ success: boolean; count: number }>(`/api/backoffice/users/${id}/assignments`, { method: 'POST', body: JSON.stringify({ eventIds }), token }),
+    assignEventsAndSessions: (token: string, id: number, assignments: { eventId: number; sessionIds?: number[] }[]) =>
+      fetchAPI<{ success: boolean }>(`/api/backoffice/users/${id}/assignments`, { method: 'PUT', body: JSON.stringify({ assignments }), token }),
   },
 
   verifications: {
@@ -166,8 +169,8 @@ export const api = {
       fetchAPI<void>(`/api/backoffice/events/${eventId}/tickets/${ticketId}`, { method: 'DELETE', token }),
 
     // Images nested routes
-    addImage: (token: string, eventId: number, data: { url: string; caption?: string }) =>
-      fetchAPI<{ image: { id: number; url: string } }>(`/api/backoffice/events/${eventId}/images`, { method: 'POST', body: JSON.stringify(data), token }),
+    addImage: (token: string, eventId: number, data: { imageUrl: string; caption?: string }) =>
+      fetchAPI<{ image: { id: number; imageUrl: string } }>(`/api/backoffice/events/${eventId}/images`, { method: 'POST', body: JSON.stringify(data), token }),
     deleteImage: (token: string, eventId: number, imageId: number) =>
       fetchAPI<void>(`/api/backoffice/events/${eventId}/images/${imageId}`, { method: 'DELETE', token }),
   },
@@ -218,8 +221,12 @@ export const api = {
   checkins: {
     list: (token: string, query?: string) =>
       fetchAPI<{ checkins: any[]; pagination: Pagination }>(`/api/backoffice/checkins${query ? `?${query}` : ''}`, { token }),
-    create: (token: string, data: { regCode: string; sessionId?: number; checkInAll?: boolean }) =>
+    create: (token: string, data: { regCode: string; sessionId?: number; checkInAll?: boolean; assignedSessionId?: number }) =>
       fetchAPI<any>(`/api/backoffice/checkins`, { method: 'POST', body: JSON.stringify(data), token }),
+    stats: (token: string, query?: string) =>
+      fetchAPI<{ total: number; checkedIn: number; remaining: number; percentage: number }>(`/api/backoffice/checkins/stats${query ? `?${query}` : ''}`, { token }),
+    undo: (token: string, registrationSessionId: number) =>
+      fetchAPI<{ success: boolean; undone: any }>(`/api/backoffice/checkins/undo`, { method: 'POST', body: JSON.stringify({ registrationSessionId }), token }),
   },
 
   tickets: {

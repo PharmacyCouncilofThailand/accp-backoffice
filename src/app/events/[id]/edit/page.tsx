@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { AdminLayout } from "@/components/layout";
 import { api } from "@/lib/api";
+import { getExternalEventReadiness } from "@/lib/eventReadiness";
 import toast from "react-hot-toast";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -23,6 +24,10 @@ import {
   IconPencil,
   IconTarget,
   IconClock,
+  IconFileText,
+  IconUpload,
+  IconAlertTriangle,
+  IconFile,
 } from "@tabler/icons-react";
 
 interface Speaker {
@@ -37,6 +42,13 @@ interface SessionData {
   id?: number;
   sessionCode: string;
   sessionName: string;
+  sessionType:
+    | "workshop"
+    | "gala_dinner"
+    | "lecture"
+    | "ceremony"
+    | "break"
+    | "other";
   description: string;
   room: string;
   startTime: string;
@@ -46,6 +58,7 @@ interface SessionData {
   isMainSession?: boolean;
   isNew?: boolean;
   agenda?: { time: string; topic: string }[];
+  documents?: { name: string; url: string }[];
 }
 
 interface TicketData {
@@ -84,12 +97,17 @@ interface EventFormData {
   eventType: "single_room" | "multi_session";
   location: string;
   mapUrl: string;
+  websiteUrl: string;
   startDate: string;
   endDate: string;
   maxCapacity: number;
   conferenceCode: string;
   cpeCredits: string;
   status: "draft" | "published" | "cancelled" | "completed";
+  imageUrl: string;
+  coverImage: string;
+  videoUrl: string;
+  documents: { name: string; url: string }[];
 }
 
 const roleOptions = [
@@ -97,6 +115,7 @@ const roleOptions = [
   { value: "thpro", label: "Thai Professional" },
   { value: "interstd", label: "International Student" },
   { value: "interpro", label: "International Professional" },
+  { value: "general", label: "General" },
 ];
 
 // Helper to convert ISO date (UTC) to datetime-local string in local browser timezone
@@ -128,9 +147,9 @@ const formatDateTime = (dateTimeStr: string): string => {
     return date.toLocaleString("en-US", {
       month: "short",
       day: "numeric",
-      hour: "2-digit",
+      hour: "numeric",
       minute: "2-digit",
-      hour12: false,
+      hour12: true,
       timeZone: "Asia/Bangkok",
     });
   } catch {
@@ -158,12 +177,17 @@ export default function EditEventPage() {
     eventType: "single_room",
     location: "",
     mapUrl: "",
+    websiteUrl: "",
     startDate: "",
     endDate: "",
-    maxCapacity: 100,
+    maxCapacity: 0,
     conferenceCode: "",
     cpeCredits: "",
     status: "draft",
+    imageUrl: "",
+    coverImage: "",
+    videoUrl: "",
+    documents: [],
   });
 
   // Sessions, Tickets, Images
@@ -172,7 +196,15 @@ export default function EditEventPage() {
   const [venueImages, setVenueImages] = useState<VenueImage[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadingTarget, setUploadingTarget] = useState<string | null>(null);
   const [imageCaption, setImageCaption] = useState("");
+
+  // Pending file objects (uploaded on save)
+  const [pendingThumbnail, setPendingThumbnail] = useState<{ file: File; previewUrl: string } | null>(null);
+  const [pendingCover, setPendingCover] = useState<{ file: File; previewUrl: string } | null>(null);
+  const [pendingVideo, setPendingVideo] = useState<{ file: File; previewUrl: string } | null>(null);
+  const [pendingDocuments, setPendingDocuments] = useState<{ file: File; name: string }[]>([]);
 
   // Modals
   const [showSessionModal, setShowSessionModal] = useState(false);
@@ -184,14 +216,18 @@ export default function EditEventPage() {
   const [sessionForm, setSessionForm] = useState<SessionData>({
     sessionCode: "",
     sessionName: "",
+    sessionType: "other",
     description: "",
     room: "",
     startTime: "",
     endTime: "",
-    maxCapacity: 50,
+    maxCapacity: 0,
     selectedSpeakerIds: [],
     agenda: [],
+    documents: [],
   });
+
+  const [isSessionDocUploading, setIsSessionDocUploading] = useState(false);
 
   // Ticket form
   const [ticketForm, setTicketForm] = useState<TicketData>({
@@ -204,7 +240,7 @@ export default function EditEventPage() {
     description: "",
     features: [],
     badgeText: "",
-    quota: "100",
+    quota: "0",
     saleStartDate: "",
     saleEndDate: "",
     allowedRoles: [],
@@ -214,7 +250,17 @@ export default function EditEventPage() {
   });
   const [ticketFeatureInput, setTicketFeatureInput] = useState("");
 
-  const shouldShowSessions = formData.eventType === "multi_session";
+  const shouldShowSessions = true;
+  const readiness = useMemo(
+    () =>
+      getExternalEventReadiness({
+        websiteUrl: formData.websiteUrl,
+        status: formData.status,
+        sessions,
+        tickets,
+      }),
+    [formData.status, formData.websiteUrl, sessions, tickets],
+  );
 
   // Fetch existing event data and speakers
   useEffect(() => {
@@ -246,12 +292,17 @@ export default function EditEventPage() {
           eventType: event.eventType || "single_room",
           location: event.location || "",
           mapUrl: event.mapUrl || "",
+          websiteUrl: event.websiteUrl || "",
           startDate: toDateTimeLocal(event.startDate),
           endDate: toDateTimeLocal(event.endDate),
-          maxCapacity: event.maxCapacity || 100,
+          maxCapacity: event.maxCapacity ?? 0,
           conferenceCode: event.conferenceCode || "",
           cpeCredits: event.cpeCredits || "",
           status: event.status || "draft",
+          imageUrl: event.imageUrl || "",
+          coverImage: event.coverImage || "",
+          videoUrl: event.videoUrl || "",
+          documents: event.documents || [],
         });
 
         // Load sessions
@@ -261,13 +312,15 @@ export default function EditEventPage() {
               id: s.id,
               sessionCode: s.sessionCode,
               sessionName: s.sessionName,
+              sessionType: s.sessionType || "other",
               description: s.description || "",
               room: s.room || "",
               startTime: toDateTimeLocal(s.startTime),
               endTime: toDateTimeLocal(s.endTime),
-              maxCapacity: s.maxCapacity || 50,
+              maxCapacity: s.maxCapacity ?? 0,
               isMainSession: s.isMainSession,
               agenda: s.agenda || [],
+              documents: s.documents || [],
             })),
           );
         }
@@ -361,6 +414,7 @@ export default function EditEventPage() {
           {
             sessionCode: sessionForm.sessionCode,
             sessionName: sessionForm.sessionName,
+            sessionType: sessionForm.sessionType,
             description: sessionForm.description || undefined,
             room: sessionForm.room || undefined,
             startTime: new Date(sessionForm.startTime).toISOString(),
@@ -369,16 +423,19 @@ export default function EditEventPage() {
             maxCapacity: sessionForm.maxCapacity,
             isMainSession: sessionForm.isMainSession || false,
             agenda: sessionForm.agenda && sessionForm.agenda.length > 0 ? sessionForm.agenda : undefined,
+            documents: sessionForm.documents || [],
           },
         );
         setSessions((prev) =>
           prev.map((s) =>
             s.id === editingSessionId
               ? {
-                  ...sessionForm,
-                  id: editingSessionId,
-                  isMainSession: sessionForm.isMainSession,
-                }
+                ...sessionForm,
+                id: editingSessionId,
+                isMainSession: sessionForm.isMainSession,
+                sessionType: sessionForm.sessionType,
+                documents: sessionForm.documents || [],
+              }
               : s,
           ),
         );
@@ -392,6 +449,7 @@ export default function EditEventPage() {
           {
             sessionCode: sessionForm.sessionCode,
             sessionName: sessionForm.sessionName,
+            sessionType: sessionForm.sessionType,
             description: sessionForm.description || undefined,
             room: sessionForm.room || undefined,
             startTime: new Date(sessionForm.startTime).toISOString(),
@@ -399,6 +457,7 @@ export default function EditEventPage() {
             speakers: JSON.stringify(speakerNames),
             maxCapacity: sessionForm.maxCapacity,
             agenda: sessionForm.agenda && sessionForm.agenda.length > 0 ? sessionForm.agenda : undefined,
+            documents: sessionForm.documents || [],
           },
         );
         const session = response.session as Record<string, unknown>;
@@ -408,13 +467,15 @@ export default function EditEventPage() {
             id: session.id as number,
             sessionCode: session.sessionCode as string,
             sessionName: session.sessionName as string,
+            sessionType: sessionForm.sessionType,
             description: (session.description as string) || "",
             room: (session.room as string) || "",
             startTime: toDateTimeLocal(session.startTime as string),
             endTime: toDateTimeLocal(session.endTime as string),
-            maxCapacity: (session.maxCapacity as number) || 50,
+            maxCapacity: (session.maxCapacity as number) ?? 0,
             selectedSpeakerIds: sessionForm.selectedSpeakerIds,
             isMainSession: sessionForm.isMainSession,
+            documents: sessionForm.documents || [],
           },
         ]);
         toast.success("Session created successfully");
@@ -422,14 +483,16 @@ export default function EditEventPage() {
       setSessionForm({
         sessionCode: "",
         sessionName: "",
+        sessionType: "other",
         description: "",
         room: "",
         startTime: "",
         endTime: "",
-        maxCapacity: 50,
+        maxCapacity: 0,
         selectedSpeakerIds: [],
         isMainSession: false,
         agenda: [],
+        documents: [],
       });
       setShowSessionModal(false);
     } catch (err: any) {
@@ -437,11 +500,50 @@ export default function EditEventPage() {
     }
   };
 
+  // Session document upload handler
+  const handleSessionDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsSessionDocUploading(true);
+    try {
+      const token = getBackofficeToken();
+      const fd = new FormData();
+      fd.append('file', file);
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+      const res = await fetch(`${API_URL}/api/upload/session-document`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Upload failed');
+      setSessionForm(prev => ({
+        ...prev,
+        documents: [...(prev.documents || []), { name: file.name, url: data.url }],
+      }));
+      toast.success('Document uploaded');
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload document');
+    } finally {
+      setIsSessionDocUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveSessionDoc = (index: number) => {
+    setSessionForm(prev => ({
+      ...prev,
+      documents: (prev.documents || []).filter((_, i) => i !== index),
+    }));
+  };
+
   // Edit session
   const handleEditSession = (session: SessionData) => {
     setSessionForm({
       sessionCode: session.sessionCode,
       sessionName: session.sessionName,
+      sessionType: session.sessionType || "other",
       description: session.description || "",
       room: session.room || "",
       startTime: session.startTime,
@@ -450,6 +552,7 @@ export default function EditEventPage() {
       selectedSpeakerIds: session.selectedSpeakerIds || [],
       isMainSession: session.isMainSession || false,
       agenda: session.agenda || [],
+      documents: session.documents || [],
     });
     setEditingSessionId(session.id!);
     setShowSessionModal(true);
@@ -526,26 +629,26 @@ export default function EditEventPage() {
           prev.map((t) =>
             t.id === editingTicketId
               ? {
-                  ...t,
-                  id: editingTicketId,
-                  name: ticketForm.name,
-                  category: ticketForm.category,
-                  groupName: ticketForm.groupName,
-                  price: ticketForm.price,
-                  currency: ticketForm.currency,
-                  originalPrice: ticketForm.originalPrice,
-                  description: ticketForm.description,
-                  features: ticketForm.features,
-                  badgeText: ticketForm.badgeText,
-                  quota: ticketForm.quota,
-                  allowedRoles: ticketForm.allowedRoles,
-                  saleStartDate: ticketForm.saleStartDate,
-                  saleEndDate: ticketForm.saleEndDate,
-                  sessionIds:
-                    ticketForm.category === "addon"
-                      ? ticketForm.sessionIds
-                      : [],
-                }
+                ...t,
+                id: editingTicketId,
+                name: ticketForm.name,
+                category: ticketForm.category,
+                groupName: ticketForm.groupName,
+                price: ticketForm.price,
+                currency: ticketForm.currency,
+                originalPrice: ticketForm.originalPrice,
+                description: ticketForm.description,
+                features: ticketForm.features,
+                badgeText: ticketForm.badgeText,
+                quota: ticketForm.quota,
+                allowedRoles: ticketForm.allowedRoles,
+                saleStartDate: ticketForm.saleStartDate,
+                saleEndDate: ticketForm.saleEndDate,
+                sessionIds:
+                  ticketForm.category === "addon"
+                    ? ticketForm.sessionIds
+                    : [],
+              }
               : t,
           ),
         );
@@ -611,7 +714,7 @@ export default function EditEventPage() {
         description: "",
         features: [],
         badgeText: "",
-        quota: "100",
+        quota: "0",
         saleStartDate: "",
         saleEndDate: "",
         allowedRoles: [],
@@ -677,52 +780,199 @@ export default function EditEventPage() {
 
   // Generate upload handler
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File too large (max 5MB)");
-      return;
+    // Check sizes
+    for (const file of files) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`File ${file.name} too large (max 5MB)`);
+        return;
+      }
     }
 
     setIsUploading(true);
+    const token = getBackofficeToken();
+
     try {
-      const token = getBackofficeToken();
-      const formData = new FormData();
-      formData.append("file", file);
+      const uploadPromises = files.map(async (file) => {
+        const formData = new FormData();
+        formData.append("file", file);
 
-      // 1. Upload to Drive
-      const uploadRes = await api.upload.venueImage(token, formData);
+        // 1. Upload to Drive
+        const uploadRes = await api.upload.venueImage(token, formData);
 
-      // 2. Add to DB
-      const dbRes = await api.backofficeEvents.addImage(
-        token,
-        parseInt(eventId),
-        {
-          url: uploadRes.url,
-          caption: imageCaption || file.name,
-        },
-      );
+        // 2. Add to DB
+        const dbRes = await api.backofficeEvents.addImage(
+          token,
+          parseInt(eventId),
+          {
+            imageUrl: uploadRes.url,
+            caption: imageCaption || file.name,
+          },
+        );
 
-      const image = dbRes.image as Record<string, unknown>;
-      setVenueImages((prev) => [
-        ...prev,
-        {
+        const image = dbRes.image as Record<string, unknown>;
+        return {
           id: image.id as number,
           imageUrl:
             (image.imageUrl as string) ||
             (image.url as string) ||
             uploadRes.url,
           caption: (image.caption as string) || imageCaption || file.name,
-        },
-      ]);
+        };
+      });
+
+      const uploadedImages = await Promise.all(uploadPromises);
+
+      setVenueImages((prev) => [...prev, ...uploadedImages]);
       setImageCaption("");
       e.target.value = ""; // Reset input
+      toast.success(`Successfully uploaded ${files.length} image${files.length > 1 ? 's' : ''}`);
     } catch (err: any) {
-      toast.error(err.message || "Failed to upload image");
+      toast.error(err.message || "Failed to upload images");
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // Helper: upload file via XHR with progress tracking
+  const uploadFileWithProgress = (file: File, endpoint: string, target: string): Promise<{ url: string; filename: string }> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const data = new FormData();
+      data.append("file", file);
+
+      setUploadProgress(0);
+      setUploadingTarget(target);
+      setIsUploading(true);
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          setUploadProgress(Math.round((event.loaded / event.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch {
+            reject(new Error("Invalid server response"));
+          }
+        } else {
+          reject(new Error(`Upload failed (${xhr.status})`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+      xhr.open("POST", `${apiUrl}${endpoint}`);
+      xhr.setRequestHeader("Authorization", `Bearer ${getBackofficeToken()}`);
+      xhr.send(data);
+    });
+  };
+
+  const resetUploadState = () => {
+    setIsUploading(false);
+    setUploadingTarget(null);
+    setUploadProgress(0);
+  };
+
+  // Handle Event Image Selection — store File + preview, upload on save
+  const handleEventImageUpload = (file: File, type: "thumbnail" | "cover") => {
+    const previewUrl = URL.createObjectURL(file);
+    if (type === "thumbnail") {
+      if (pendingThumbnail?.previewUrl) URL.revokeObjectURL(pendingThumbnail.previewUrl);
+      setPendingThumbnail({ file, previewUrl });
+      setFormData((prev) => ({ ...prev, imageUrl: previewUrl }));
+    } else {
+      if (pendingCover?.previewUrl) URL.revokeObjectURL(pendingCover.previewUrl);
+      setPendingCover({ file, previewUrl });
+      setFormData((prev) => ({ ...prev, coverImage: previewUrl }));
+    }
+    toast.success(`${type === "thumbnail" ? "Thumbnail" : "Cover"} image selected! It will be uploaded when you save.`);
+  };
+
+  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("Video file too large (max 50MB)");
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    if (pendingVideo?.previewUrl) URL.revokeObjectURL(pendingVideo.previewUrl);
+    setPendingVideo({ file, previewUrl });
+    setFormData((prev) => ({ ...prev, videoUrl: previewUrl }));
+    toast.success("Video selected! It will be uploaded when you save.");
+    e.target.value = "";
+  };
+
+  const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("Document file too large (max 50MB)");
+      return;
+    }
+
+    setPendingDocuments((prev) => [...prev, { file, name: file.name }]);
+    setFormData((prev) => ({
+      ...prev,
+      documents: [...(prev.documents || []), { name: file.name, url: "pending" }],
+    }));
+    toast.success("Document selected! It will be uploaded when you save.");
+    e.target.value = "";
+  };
+
+  // Upload single file to /upload/event-media
+  const uploadEventMediaFile = (
+    file: File,
+    eventCode: string,
+    eventName: string,
+    mediaType: string,
+    sortOrder?: number,
+  ): Promise<{ url: string; filename: string; mediaType: string }> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const data = new FormData();
+      data.append("file", file);
+      data.append("eventCode", eventCode);
+      data.append("eventName", eventName);
+      data.append("mediaType", mediaType);
+      if (sortOrder !== undefined) data.append("sortOrder", String(sortOrder));
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch {
+            reject(new Error("Invalid server response"));
+          }
+        } else {
+          reject(new Error(`Upload failed (${xhr.status})`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+      xhr.open("POST", `${apiUrl}/api/upload/event-media`);
+      xhr.setRequestHeader("Authorization", `Bearer ${getBackofficeToken()}`);
+      xhr.send(data);
+    });
+  };
+
+  // Extract src from iframe string if present
+  const extractMapUrl = (html: string) => {
+    if (!html || !html.trim().startsWith("<iframe")) return html;
+    const match = html.match(/src="([^"]+)"/);
+    return match ? match[1] : html;
   };
 
   // Save event details
@@ -732,28 +982,168 @@ export default function EditEventPage() {
 
     try {
       const token = getBackofficeToken();
-      const eventData = {
+
+      // Save event fields first (without blob URLs)
+      const eventData: Record<string, unknown> = {
         eventCode: formData.eventCode,
         eventName: formData.eventName,
         description: formData.description || undefined,
         eventType: formData.eventType,
         location: formData.location || undefined,
-        mapUrl: formData.mapUrl || undefined,
+        mapUrl: extractMapUrl(formData.mapUrl) || undefined,
+        websiteUrl: formData.websiteUrl || undefined,
         startDate: new Date(formData.startDate).toISOString(),
         endDate: new Date(formData.endDate).toISOString(),
         maxCapacity: formData.maxCapacity,
         conferenceCode: formData.conferenceCode || undefined,
         cpeCredits: formData.cpeCredits || undefined,
         status: formData.status,
+        imageUrl: formData.imageUrl === "" ? null : formData.imageUrl.startsWith("blob:") ? undefined : formData.imageUrl || undefined,
+        coverImage: formData.coverImage === "" ? null : formData.coverImage.startsWith("blob:") ? undefined : formData.coverImage || undefined,
+        videoUrl: formData.videoUrl === "" ? null : formData.videoUrl.startsWith("blob:") ? undefined : formData.videoUrl || undefined,
+        documents: formData.documents.filter(d => d.url !== "pending").length > 0
+          ? formData.documents.filter(d => d.url !== "pending")
+          : undefined,
       };
 
       await api.backofficeEvents.update(token, parseInt(eventId), eventData);
+
+      // Upload pending media files in parallel
+      const hasPendingFiles = pendingThumbnail || pendingCover || pendingVideo || pendingDocuments.length > 0;
+      if (hasPendingFiles) {
+        setIsUploading(true);
+        setUploadingTarget("media");
+
+        const mediaUploads: Promise<{ type: string; url: string } | null>[] = [];
+        const evCode = formData.eventCode;
+        const evName = formData.eventName;
+
+        if (pendingThumbnail) {
+          mediaUploads.push(
+            uploadEventMediaFile(pendingThumbnail.file, evCode, evName, "thumbnail")
+              .then(r => ({ type: "thumbnail", url: r.url }))
+              .catch(err => { console.error("Failed to upload thumbnail:", err); return null; })
+          );
+        }
+
+        if (pendingCover) {
+          mediaUploads.push(
+            uploadEventMediaFile(pendingCover.file, evCode, evName, "cover_img")
+              .then(r => ({ type: "cover_img", url: r.url }))
+              .catch(err => { console.error("Failed to upload cover:", err); return null; })
+          );
+        }
+
+        if (pendingVideo) {
+          mediaUploads.push(
+            uploadEventMediaFile(pendingVideo.file, evCode, evName, "cover_vdo")
+              .then(r => ({ type: "cover_vdo", url: r.url }))
+              .catch(err => { console.error("Failed to upload video:", err); return null; })
+          );
+        }
+
+        for (const doc of pendingDocuments) {
+          mediaUploads.push(
+            uploadEventMediaFile(doc.file, evCode, evName, "document")
+              .then(r => ({ type: "document", url: r.url, name: doc.name } as any))
+              .catch(err => { console.error("Failed to upload document:", err); return null; })
+          );
+        }
+
+        const mediaResults = await Promise.allSettled(mediaUploads);
+        const resolved = mediaResults
+          .filter((r): r is PromiseFulfilledResult<{ type: string; url: string } | null> => r.status === "fulfilled")
+          .map(r => r.value)
+          .filter((r): r is { type: string; url: string } => r !== null);
+
+        // PATCH event with uploaded URLs
+        const patchData: Record<string, unknown> = {};
+        for (const result of resolved) {
+          if (result.type === "thumbnail") patchData.imageUrl = result.url;
+          if (result.type === "cover_img") patchData.coverImage = result.url;
+          if (result.type === "cover_vdo") patchData.videoUrl = result.url;
+        }
+
+        const uploadedDocs = resolved.filter(r => r.type === "document") as any[];
+        if (uploadedDocs.length > 0) {
+          const existingDocs = (formData.documents || []).filter(d => d.url !== "pending");
+          patchData.documents = [...existingDocs, ...uploadedDocs.map((d: any) => ({ name: d.name || "document", url: d.url }))];
+        }
+
+        if (Object.keys(patchData).length > 0) {
+          await api.backofficeEvents.update(token, parseInt(eventId), patchData);
+          // Update local formData with real URLs
+          setFormData((prev) => ({
+            ...prev,
+            ...(patchData.imageUrl ? { imageUrl: patchData.imageUrl as string } : {}),
+            ...(patchData.coverImage ? { coverImage: patchData.coverImage as string } : {}),
+            ...(patchData.videoUrl ? { videoUrl: patchData.videoUrl as string } : {}),
+            ...(patchData.documents ? { documents: patchData.documents as { name: string; url: string }[] } : {}),
+          }));
+        }
+
+        // Clear pending states
+        setPendingThumbnail(null);
+        setPendingCover(null);
+        setPendingVideo(null);
+        setPendingDocuments([]);
+        resetUploadState();
+      }
+
       toast.success("Event details saved!");
     } catch (err: any) {
       setError(err.message || "Failed to save event");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const renderReadinessPanel = () => {
+    if (!readiness.enabled) return null;
+
+    return (
+      <div
+        className={`mb-6 rounded-xl border px-4 py-4 ${
+          readiness.ready
+            ? "border-emerald-200 bg-emerald-50"
+            : "border-amber-200 bg-amber-50"
+        }`}
+      >
+        <div className="flex items-start gap-3">
+          <div
+            className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full ${
+              readiness.ready
+                ? "bg-emerald-100 text-emerald-700"
+                : "bg-amber-100 text-amber-700"
+            }`}
+          >
+            {readiness.ready ? <IconCheck size={18} /> : <IconAlertTriangle size={18} />}
+          </div>
+          <div className="flex-1">
+            <h4 className="text-sm font-semibold text-gray-900">
+              External Event Readiness
+            </h4>
+            {readiness.ready ? (
+              <p className="mt-1 text-sm text-emerald-800">
+                This event is ready for the external site handoff flow.
+              </p>
+            ) : (
+              <>
+                <p className="mt-1 text-sm text-amber-900">
+                  Fix these items before linking an external site like
+                  `newpharmacist` to this event.
+                </p>
+                <ul className="mt-2 space-y-1 text-sm text-amber-900">
+                  {readiness.warnings.map((warning) => (
+                    <li key={warning.code}>- {warning.message}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (isLoading) {
@@ -810,15 +1200,14 @@ export default function EditEventPage() {
           </div>
           <div className="text-right">
             <span
-              className={`inline-block px-4 py-2 rounded-full text-sm font-semibold ${
-                formData.status === "published"
-                  ? "bg-green-500"
-                  : formData.status === "draft"
-                    ? "bg-yellow-500"
-                    : formData.status === "cancelled"
-                      ? "bg-red-500"
-                      : "bg-gray-500"
-              }`}
+              className={`inline-block px-4 py-2 rounded-full text-sm font-semibold ${formData.status === "published"
+                ? "bg-green-500"
+                : formData.status === "draft"
+                  ? "bg-yellow-500"
+                  : formData.status === "cancelled"
+                    ? "bg-red-500"
+                    : "bg-gray-500"
+                }`}
             >
               {formData.status.charAt(0).toUpperCase() +
                 formData.status.slice(1)}
@@ -844,11 +1233,10 @@ export default function EditEventPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
-                activeTab === tab.id
-                  ? "bg-blue-600 text-white shadow-md"
-                  : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
-              }`}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${activeTab === tab.id
+                ? "bg-blue-600 text-white shadow-md"
+                : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                }`}
             >
               <Icon size={18} />
               {tab.label}
@@ -866,6 +1254,8 @@ export default function EditEventPage() {
       {/* Event Details Tab */}
       {activeTab === "details" && (
         <div className="card">
+          {renderReadinessPanel()}
+
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -933,6 +1323,68 @@ export default function EditEventPage() {
             />
           </div>
 
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Attachments / Documents
+            </label>
+            <div className="space-y-3">
+              {(formData.documents || []).length > 0 && (
+                <div className="grid gap-2">
+                  {(formData.documents || []).map((doc, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="w-8 h-8 rounded bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
+                          <IconFileText size={18} />
+                        </div>
+                        <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-600 hover:underline truncate">
+                          {doc.name}
+                        </a>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({
+                          ...prev,
+                          documents: prev.documents.filter((_, i) => i !== idx)
+                        }))}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <IconTrash size={18} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="relative">
+                <input
+                  type="file"
+                  id="document-upload"
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx"
+                  onChange={handleDocumentUpload}
+                  disabled={isUploading}
+                />
+                <label
+                  htmlFor="document-upload"
+                  className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isUploading ? "bg-gray-100 border-gray-300 opacity-70" : "border-gray-300 bg-gray-50 hover:bg-gray-100"
+                    }`}
+                >
+                  <div className="flex flex-col items-center justify-center pb-6 pt-5">
+                    {isUploading ? (
+                      <IconLoader2 size={24} className="text-gray-400 mb-2 animate-spin" />
+                    ) : (
+                      <IconUpload size={24} className="text-gray-400 mb-2" />
+                    )}
+                    <p className="mb-2 text-sm text-gray-500">
+                      <span className="font-semibold">Click to upload</span> a document
+                    </p>
+                    <p className="text-xs text-gray-500">PDF, DOC, DOCX, XLS or XLSX (Max 50MB)</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -992,17 +1444,36 @@ export default function EditEventPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Google Maps Link
+                Website URL
               </label>
               <input
                 type="url"
                 className="input-field"
-                value={formData.mapUrl}
+                placeholder="https://newpharmacist.example.com"
+                value={formData.websiteUrl}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, mapUrl: e.target.value }))
+                  setFormData((prev) => ({ ...prev, websiteUrl: e.target.value }))
                 }
               />
+              <p className="mt-1 text-xs text-gray-500">
+                Optional metadata for events launched from an external site.
+              </p>
             </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Google Maps Embed Code (iframe)
+            </label>
+            <input
+              type="text"
+              className="input-field"
+              placeholder='<iframe src="https://www.google.com/maps/embed?..." ></iframe>'
+              value={formData.mapUrl || ""}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, mapUrl: e.target.value }))
+              }
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-4 mb-4">
@@ -1012,15 +1483,17 @@ export default function EditEventPage() {
               </label>
               <input
                 type="number"
+                min="0"
                 className="input-field"
                 value={formData.maxCapacity}
                 onChange={(e) =>
                   setFormData((prev) => ({
                     ...prev,
-                    maxCapacity: parseInt(e.target.value) || 100,
+                    maxCapacity: parseInt(e.target.value) || 0,
                   }))
                 }
               />
+              <p className="text-xs text-gray-400 mt-1">0 = Unlimited</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1084,7 +1557,7 @@ export default function EditEventPage() {
           <div className="flex justify-end">
             <button
               onClick={handleSaveDetails}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isUploading}
               className="btn-primary flex items-center gap-2"
             >
               {isSubmitting ? (
@@ -1101,6 +1574,8 @@ export default function EditEventPage() {
       {/* Sessions Tab */}
       {activeTab === "sessions" && shouldShowSessions && (
         <div className="card">
+          {renderReadinessPanel()}
+
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Sessions</h3>
             <button
@@ -1108,11 +1583,12 @@ export default function EditEventPage() {
                 setSessionForm({
                   sessionCode: "",
                   sessionName: "",
+                  sessionType: "other",
                   description: "",
                   room: "",
                   startTime: "",
                   endTime: "",
-                  maxCapacity: 50,
+                  maxCapacity: 0,
                   selectedSpeakerIds: [],
                   isMainSession: false,
                 });
@@ -1167,7 +1643,7 @@ export default function EditEventPage() {
                           <td className="text-sm">
                             {formatDateTime(session.startTime)}
                           </td>
-                          <td>{session.maxCapacity}</td>
+                          <td>{session.maxCapacity === 0 ? <span className="text-green-600 font-medium">Unlimited</span> : session.maxCapacity}</td>
                           <td className="flex gap-1">
                             <button
                               onClick={() => handleEditSession(session)}
@@ -1218,7 +1694,7 @@ export default function EditEventPage() {
                           <td className="text-sm">
                             {formatDateTime(session.startTime)}
                           </td>
-                          <td>{session.maxCapacity}</td>
+                          <td>{session.maxCapacity === 0 ? <span className="text-green-600 font-medium">Unlimited</span> : session.maxCapacity}</td>
                           <td className="flex gap-1">
                             <button
                               onClick={() => handleEditSession(session)}
@@ -1250,6 +1726,8 @@ export default function EditEventPage() {
       {/* Tickets Tab */}
       {activeTab === "tickets" && (
         <div className="card">
+          {renderReadinessPanel()}
+
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Ticket Types</h3>
             <button
@@ -1314,16 +1792,15 @@ export default function EditEventPage() {
                         {ticket.currency}{" "}
                         {Number(ticket.price).toLocaleString()}
                       </td>
-                      <td>{ticket.quota}</td>
+                      <td>{ticket.quota === "0" || ticket.quota === "" ? <span className="text-green-600 font-medium">Unlimited</span> : ticket.quota}</td>
                       <td>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          ticket.priority === 'early_bird' ? 'bg-orange-100 text-orange-800' :
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${ticket.priority === 'early_bird' ? 'bg-orange-100 text-orange-800' :
                           ticket.priority === 'regular' ? 'bg-gray-100 text-gray-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
+                            'bg-gray-100 text-gray-800'
+                          }`}>
                           {ticket.priority === 'early_bird' ? 'Early Bird' :
-                           ticket.priority === 'regular' ? 'Regular' :
-                           'Regular'}
+                            ticket.priority === 'regular' ? 'Regular' :
+                              'Regular'}
                         </span>
                       </td>
                       <td>
@@ -1332,10 +1809,15 @@ export default function EditEventPage() {
                             ticket.allowedRoles.map((role) => (
                               <span
                                 key={role}
-                                className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-600"
+                                className={`text-xs px-1.5 py-0.5 rounded font-medium ${role === "thstd" ? "bg-blue-100 text-blue-800" :
+                                  role === "thpro" ? "bg-indigo-100 text-indigo-800" :
+                                    role === "interstd" ? "bg-purple-100 text-purple-800" :
+                                      role === "interpro" ? "bg-pink-100 text-pink-800" :
+                                        role === "general" ? "bg-teal-100 text-teal-800" :
+                                          "bg-gray-100 text-gray-800"
+                                  }`}
                               >
-                                {roleOptions.find((r) => r.value === role)
-                                  ?.label || role}
+                                {role === "thstd" ? "THAI STUDENT" : role === "thpro" ? "THAI PRO" : role === "interstd" ? "INTER STUDENT" : role === "interpro" ? "INTER PRO" : role === "general" ? "GENERAL" : role.toUpperCase()}
                               </span>
                             ))
                           ) : (
@@ -1378,81 +1860,334 @@ export default function EditEventPage() {
 
       {/* Venue/Images Tab */}
       {activeTab === "venue" && (
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Venue Images</h3>
-          </div>
+        <div className="space-y-6">
+          {renderReadinessPanel()}
 
-          <div className="bg-white p-4 border border-gray-200 rounded-lg mb-6 shadow-sm">
-            <h4 className="font-semibold mb-3 text-gray-800">Add New Image</h4>
-            <div className="flex gap-4 items-end">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Caption
-                </label>
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="e.g. Main Hall"
-                  value={imageCaption}
-                  onChange={(e) => setImageCaption(e.target.value)}
-                  disabled={isUploading}
-                />
+          {/* Section 1: Thumbnail Image */}
+          <div className="bg-white p-6 rounded-xl border border-gray-200">
+            <div className="flex flex-col md:flex-row gap-8">
+              <div className="md:w-1/3">
+                <h3 className="text-lg font-medium text-gray-900 md:mb-2 flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <IconPhoto size={18} />
+                  </div>
+                  Thumbnail Image
+                </h3>
+                <p className="text-sm text-gray-500 hidden md:block">
+                  This image is used on event cards and listings on the homepage.
+                  Recommended aspect ratio is 1:1 or 4:3.
+                </p>
               </div>
-              <div>
-                <input
-                  type="file"
-                  id="venue-image-upload"
-                  className="hidden"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  disabled={isUploading}
-                />
-                <label
-                  htmlFor="venue-image-upload"
-                  className={`btn-primary flex items-center gap-2 cursor-pointer ${isUploading ? "opacity-70 cursor-not-allowed" : ""}`}
-                >
-                  {isUploading ? (
-                    <IconLoader2 size={18} className="animate-spin" />
+              <div className="md:w-2/3">
+                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-xl relative overflow-hidden group bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                  {formData.imageUrl ? (
+                    <>
+                      <img src={formData.imageUrl} alt="Thumbnail preview" className="max-h-48 object-contain" />
+                      <button
+                        type="button"
+                        onClick={() => { if (pendingThumbnail?.previewUrl) URL.revokeObjectURL(pendingThumbnail.previewUrl); setPendingThumbnail(null); setFormData(prev => ({ ...prev, imageUrl: "" })); }}
+                        className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-md z-10 transition-colors"
+                        title="Remove thumbnail"
+                      >
+                        <IconX size={16} />
+                      </button>
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <label className="cursor-pointer text-white flex items-center gap-2 bg-black/50 px-4 py-2 rounded-full hover:bg-black/70 transition-colors">
+                          <IconPlus size={20} />
+                          <span>Change Thumbnail</span>
+                          <input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleEventImageUpload(e.target.files[0], "thumbnail")} />
+                        </label>
+                      </div>
+                    </>
                   ) : (
-                    <IconPlus size={18} />
+                    <div className="space-y-2 text-center">
+                      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm border border-gray-100">
+                        <IconPhoto size={32} className="text-blue-400" />
+                      </div>
+                      <div className="flex text-sm text-gray-600 justify-center mt-4">
+                        <label className="relative cursor-pointer bg-white px-4 py-2 border border-gray-200 rounded-lg font-medium text-blue-600 hover:bg-gray-50 hover:text-blue-500 transition-colors shadow-sm">
+                          <span>Select an image file</span>
+                          <input type="file" className="sr-only" accept="image/*" onChange={(e) => e.target.files?.[0] && handleEventImageUpload(e.target.files[0], "thumbnail")} />
+                        </label>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">PNG, JPG, WEBP up to 5MB</p>
+                    </div>
                   )}
-                  Upload Image
-                </label>
+                  {isUploading && uploadingTarget === "thumbnail" && (
+                    <div className="absolute inset-0 bg-white/80 flex items-center justify-center backdrop-blur-sm z-20">
+                      <div className="bg-white p-5 rounded-xl shadow-lg flex flex-col items-center w-52">
+                        <div className="w-full bg-gray-200 rounded-full h-2.5 mb-3">
+                          <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                        </div>
+                        <span className="text-sm font-medium text-gray-700">Uploading... {uploadProgress}%</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
-          {venueImages.length > 0 ? (
-            <div className="grid grid-cols-4 gap-4">
-              {venueImages.map((img) => (
-                <div
-                  key={img.id}
-                  className="border border-gray-200 rounded-lg overflow-hidden"
-                >
-                  <div className="h-32 bg-gray-100 flex items-center justify-center">
-                    <img
-                      src={img.imageUrl}
-                      alt={img.caption}
-                      className="h-full w-full object-cover"
-                    />
+          {/* Section 2: Cover Image */}
+          <div className="bg-white p-6 rounded-xl border border-gray-200">
+            <div className="flex flex-col md:flex-row gap-8">
+              <div className="md:w-1/3">
+                <h3 className="text-lg font-medium text-gray-900 md:mb-2 flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <IconPhoto size={18} />
                   </div>
-                  <div className="p-2 text-center">
-                    <button
-                      onClick={() => handleDeleteImage(img.id!)}
-                      className="text-red-600 hover:bg-red-100 p-1 rounded text-sm flex items-center gap-1 mx-auto"
-                    >
-                      <IconTrash size={14} /> Remove
-                    </button>
+                  Cover Image
+                </h3>
+                <p className="text-sm text-gray-500 hidden md:block">
+                  This image appears as the large banner at the top of the event detail page.
+                  Recommended aspect ratio is 16:9 for best display.
+                </p>
+              </div>
+              <div className="md:w-2/3">
+                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-xl relative overflow-hidden group bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                  {formData.coverImage ? (
+                    <>
+                      <img src={formData.coverImage} alt="Cover preview" className="max-h-48 object-cover w-full rounded" />
+                      <button
+                        type="button"
+                        onClick={() => { if (pendingCover?.previewUrl) URL.revokeObjectURL(pendingCover.previewUrl); setPendingCover(null); setFormData(prev => ({ ...prev, coverImage: "" })); }}
+                        className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-md z-10 transition-colors"
+                        title="Remove cover image"
+                      >
+                        <IconX size={16} />
+                      </button>
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <label className="cursor-pointer text-white flex items-center gap-2 bg-black/50 px-4 py-2 rounded-full hover:bg-black/70 transition-colors">
+                          <IconPlus size={20} />
+                          <span>Change Cover</span>
+                          <input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleEventImageUpload(e.target.files[0], "cover")} />
+                        </label>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-2 text-center">
+                      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm border border-gray-100">
+                        <IconPhoto size={32} className="text-indigo-400" />
+                      </div>
+                      <div className="flex text-sm text-gray-600 justify-center mt-4">
+                        <label className="relative cursor-pointer bg-white px-4 py-2 border border-gray-200 rounded-lg font-medium text-indigo-600 hover:bg-gray-50 hover:text-indigo-500 transition-colors shadow-sm">
+                          <span>Select an image file</span>
+                          <input type="file" className="sr-only" accept="image/*" onChange={(e) => e.target.files?.[0] && handleEventImageUpload(e.target.files[0], "cover")} />
+                        </label>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">PNG, JPG, WEBP up to 10MB</p>
+                    </div>
+                  )}
+                  {isUploading && uploadingTarget === "cover" && (
+                    <div className="absolute inset-0 bg-white/80 flex items-center justify-center backdrop-blur-sm z-20">
+                      <div className="bg-white p-5 rounded-xl shadow-lg flex flex-col items-center w-52">
+                        <div className="w-full bg-gray-200 rounded-full h-2.5 mb-3">
+                          <div className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                        </div>
+                        <span className="text-sm font-medium text-gray-700">Uploading... {uploadProgress}%</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Cover Video Upload */}
+                <div className="mt-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Cover Video (MP4/WebM) - Optional
+                  </label>
+                  <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-xl relative overflow-hidden group bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                    {formData.videoUrl ? (
+                      <>
+                        <video src={formData.videoUrl} controls className="max-h-48 w-full rounded bg-black" />
+                        <button
+                          type="button"
+                          onClick={() => { if (pendingVideo?.previewUrl) URL.revokeObjectURL(pendingVideo.previewUrl); setPendingVideo(null); setFormData(prev => ({ ...prev, videoUrl: "" })); }}
+                          className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-md z-10 transition-colors"
+                          title="Remove video"
+                        >
+                          <IconX size={16} />
+                        </button>
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <label className="cursor-pointer text-white flex items-center gap-2 bg-black/50 px-4 py-2 rounded-full hover:bg-black/70 transition-colors">
+                            <IconPlus size={20} />
+                            <span>Change Video</span>
+                            <input type="file" className="hidden" accept="video/mp4,video/webm" onChange={handleVideoUpload} />
+                          </label>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-2 text-center">
+                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm border border-gray-100">
+                          <svg className="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <div className="flex text-sm text-gray-600 justify-center mt-4">
+                          <label className={`relative cursor-pointer bg-white px-4 py-2 border border-gray-200 rounded-lg font-medium text-indigo-600 hover:bg-gray-50 hover:text-indigo-500 transition-colors shadow-sm ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <span>Select a video file</span>
+                            <input type="file" className="sr-only" accept="video/mp4,video/webm" onChange={handleVideoUpload} disabled={isUploading} />
+                          </label>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">MP4 or WEBM up to 50MB</p>
+                      </div>
+                    )}
+
+                    {isUploading && uploadingTarget === "video" && (
+                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center backdrop-blur-sm z-20">
+                        <div className="bg-white p-5 rounded-xl shadow-lg flex flex-col items-center w-52">
+                          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-3">
+                            <div className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                          </div>
+                          <span className="text-sm font-medium text-gray-700">Uploading... {uploadProgress}%</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    If provided, this video will be played as the background on the event details page.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Venue Gallery */}
+          <div className="bg-white p-6 rounded-xl border border-gray-200">
+            <div className="flex flex-col md:flex-row gap-8 mb-6">
+              <div className="md:w-1/3">
+                <h3 className="text-lg font-medium text-gray-900 md:mb-2 flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
+                    <IconPhoto size={18} />
+                  </div>
+                  Venue Gallery
+                </h3>
+                <p className="text-sm text-gray-500 hidden md:block mb-4">
+                  Add multiple photos to showcase the event venue, parking area, or previous events.
+                </p>
+              </div>
+              <div className="md:w-2/3">
+                <div className="bg-gray-50 p-5 border border-gray-200 rounded-xl shadow-inner">
+                  <h4 className="font-semibold mb-3 text-gray-800 text-sm uppercase tracking-wider">Add Gallery Image</h4>
+                  <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                    <div className="flex-1 w-full">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Caption (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        className="input-field bg-white shadow-sm"
+                        placeholder="e.g. Main Conference Hall"
+                        value={imageCaption}
+                        onChange={(e) => setImageCaption(e.target.value)}
+                        disabled={isUploading}
+                      />
+                    </div>
+                    <div className="w-full sm:w-auto">
+                      <input
+                        type="file"
+                        id="venue-image-upload"
+                        className="hidden"
+                        accept="image/*"
+                        multiple
+                        onChange={handleImageUpload}
+                        disabled={isUploading}
+                      />
+                      <label
+                        htmlFor="venue-image-upload"
+                        className={`btn-primary w-full sm:w-auto flex items-center justify-center gap-2 cursor-pointer shadow-sm ${isUploading ? "opacity-70 cursor-not-allowed" : ""}`}
+                      >
+                        {isUploading ? (
+                          <>
+                            <IconLoader2 size={18} className="animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <IconPlus size={18} />
+                            Upload Image
+                          </>
+                        )}
+                      </label>
+                    </div>
                   </div>
                 </div>
-              ))}
+              </div>
             </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              No venue images yet.
+
+            {/* Gallery Grid */}
+            <div className="pt-6 border-t border-gray-100">
+              <h4 className="font-medium text-gray-800 mb-4 flex items-center gap-2">
+                Uploaded Images
+                <span className="bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs font-semibold">
+                  {venueImages.length}
+                </span>
+              </h4>
+
+              {venueImages.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {venueImages.map((img) => (
+                    <div
+                      key={img.id}
+                      className="group border border-gray-200 rounded-xl overflow-hidden relative shadow-sm hover:shadow-md transition-all hover:-translate-y-1"
+                    >
+                      <div className="aspect-video bg-gray-100 flex items-center justify-center relative">
+                        <img
+                          src={img.imageUrl}
+                          alt={img.caption}
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                      <div className="absolute inset-0 flex flex-col justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 pt-8">
+                          {img.caption && (
+                            <div className="text-white text-sm font-medium truncate drop-shadow-md mb-2">
+                              {img.caption}
+                            </div>
+                          )}
+                          <button
+                            onClick={() => handleDeleteImage(img.id!)}
+                            className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg text-sm flex items-center justify-center gap-1 w-full shadow-lg transition-colors border border-red-400"
+                          >
+                            <IconTrash size={16} /> <span className="font-medium">Remove</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                  <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm border border-gray-100 mb-3">
+                    <IconPhoto size={28} className="text-green-400" />
+                  </div>
+                  <h5 className="text-gray-700 font-medium">No gallery images</h5>
+                  <p className="text-sm text-gray-500 mt-1">Upload images to display them here.</p>
+                </div>
+              )}
             </div>
-          )}
+          </div>
+
+          {/* Save Button Row */}
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex justify-end sticky bottom-4 z-10">
+            <button
+              onClick={handleSaveDetails}
+              disabled={isSubmitting || isUploading}
+              className="btn-primary flex items-center gap-2 px-6 py-2.5 text-base font-medium shadow-md hover:shadow-lg transition-all"
+            >
+              {isSubmitting ? (
+                <>
+                  <IconLoader2 size={20} className="animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <IconCheck size={20} />
+                  Save Changes
+                </>
+              )}
+            </button>
+          </div>
         </div>
       )}
 
@@ -1497,25 +2232,45 @@ export default function EditEventPage() {
                     <option value="addon">Add-on</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Target Audience *
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Target Audience (Role) *
                   </label>
-                  <select
-                    className="input-field"
-                    value={ticketForm.allowedRoles[0] || "thstd"}
-                    onChange={(e) =>
-                      setTicketForm((prev) => ({
-                        ...prev,
-                        allowedRoles: [e.target.value],
-                      }))
-                    }
-                  >
-                    <option value="thstd">Thai Student</option>
-                    <option value="thpro">Thai Professional</option>
-                    <option value="interstd">International Student</option>
-                    <option value="interpro">International Professional</option>
-                  </select>
+                  <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2 bg-gray-50">
+                    {[
+                      { value: "thstd", label: "Thai Student" },
+                      { value: "thpro", label: "Thai Professional" },
+                      { value: "interstd", label: "International Student" },
+                      { value: "interpro", label: "International Professional" },
+                      { value: "general", label: "General" },
+                    ].map((role) => (
+                      <label
+                        key={role.value}
+                        className="flex items-start gap-2 cursor-pointer hover:bg-gray-100 p-1 rounded"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={(ticketForm.allowedRoles || []).includes(role.value)}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            setTicketForm((prev) => {
+                              const currentRoles = prev.allowedRoles || [];
+                              if (isChecked) {
+                                return { ...prev, allowedRoles: [...currentRoles, role.value] };
+                              } else {
+                                return { ...prev, allowedRoles: currentRoles.filter(r => r !== role.value) };
+                              }
+                            });
+                          }}
+                        />
+                        <span className="text-sm font-medium text-gray-700">{role.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {(ticketForm.allowedRoles || []).length === 0 && (
+                    <p className="text-xs text-red-500 mt-1">Please select at least one target audience.</p>
+                  )}
                 </div>
               </div>
 
@@ -1607,6 +2362,7 @@ export default function EditEventPage() {
                   </label>
                   <input
                     type="number"
+                    min="0"
                     className="input-field"
                     value={ticketForm.quota}
                     onChange={(e) =>
@@ -1615,8 +2371,9 @@ export default function EditEventPage() {
                         quota: e.target.value,
                       }))
                     }
-                    placeholder="100"
+                    placeholder="0"
                   />
+                  <p className="text-xs text-gray-400 mt-1">0 = Unlimited</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1932,37 +2689,37 @@ export default function EditEventPage() {
                 !sessions.some(
                   (s) => s.isMainSession && s.id !== editingSessionId,
                 )) && (
-                <div className="mb-4">
-                  <label className="flex items-center gap-2 cursor-pointer p-3 border rounded-lg hover:bg-gray-50 bg-blue-50/50 border-blue-100/50">
-                    <input
-                      type="checkbox"
-                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                      checked={sessionForm.isMainSession || false}
-                      onChange={(e) =>
-                        setSessionForm((prev) => ({
-                          ...prev,
-                          isMainSession: e.target.checked,
-                        }))
-                      }
-                      disabled={sessionForm.isMainSession} // Lock if checked
-                    />
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        Main session
-                        {sessionForm.isMainSession && (
-                          <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
-                            Default (Locked)
-                          </span>
-                        )}
+                  <div className="mb-4">
+                    <label className="flex items-center gap-2 cursor-pointer p-3 border rounded-lg hover:bg-gray-50 bg-blue-50/50 border-blue-100/50">
+                      <input
+                        type="checkbox"
+                        className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        checked={sessionForm.isMainSession || false}
+                        onChange={(e) =>
+                          setSessionForm((prev) => ({
+                            ...prev,
+                            isMainSession: e.target.checked,
+                          }))
+                        }
+                        disabled={sessionForm.isMainSession} // Lock if checked
+                      />
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          Main session
+                          {sessionForm.isMainSession && (
+                            <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                              Default (Locked)
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Main sessions appear prominently and are auto-linked to
+                          Primary tickets.
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-500">
-                        Main sessions appear prominently and are auto-linked to
-                        Primary tickets.
-                      </div>
-                    </div>
-                  </label>
-                </div>
-              )}
+                    </label>
+                  </div>
+                )}
 
               {/* Session Code & Session Name */}
               <div className="grid grid-cols-2 gap-4 mb-4">
@@ -2000,6 +2757,30 @@ export default function EditEventPage() {
                     }
                   />
                 </div>
+              </div>
+
+              {/* Session Type */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Session Type *
+                </label>
+                <select
+                  className="input-field"
+                  value={sessionForm.sessionType}
+                  onChange={(e) =>
+                    setSessionForm((prev) => ({
+                      ...prev,
+                      sessionType: e.target.value as any,
+                    }))
+                  }
+                >
+                  <option value="workshop">Workshop</option>
+                  <option value="gala_dinner">Gala Dinner</option>
+                  <option value="lecture">Lecture</option>
+                  <option value="ceremony">Ceremony</option>
+                  <option value="break">Break</option>
+                  <option value="other">Other</option>
+                </select>
               </div>
 
               {/* Start Time & End Time */}
@@ -2076,7 +2857,8 @@ export default function EditEventPage() {
                   <input
                     type="number"
                     className="input-field"
-                    placeholder="100"
+                    min="0"
+                    placeholder="0"
                     value={sessionForm.maxCapacity}
                     onChange={(e) =>
                       setSessionForm((prev) => ({
@@ -2085,9 +2867,7 @@ export default function EditEventPage() {
                       }))
                     }
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Set to 0 for unlimited capacity
-                  </p>
+                  <p className="text-xs text-gray-400 mt-1">0 = Unlimited</p>
                 </div>
               </div>
 
@@ -2174,8 +2954,8 @@ export default function EditEventPage() {
                                 selectedSpeakerIds: e.target.checked
                                   ? [...(prev.selectedSpeakerIds || []), id]
                                   : (prev.selectedSpeakerIds || []).filter(
-                                      (sid) => sid !== id,
-                                    ),
+                                    (sid) => sid !== id,
+                                  ),
                               }));
                             }}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -2221,6 +3001,58 @@ export default function EditEventPage() {
                   }
                 />
               </div>
+
+              {/* Workshop Documents */}
+              {sessionForm.sessionType === "workshop" && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <IconFile size={16} /> Workshop Documents
+                  </label>
+
+                  {(sessionForm.documents || []).length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {(sessionForm.documents || []).map((doc, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-2 border border-gray-200 rounded-lg bg-gray-50">
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <IconFileText size={16} className="text-blue-500 flex-shrink-0" />
+                            {doc.url && doc.url !== "pending" ? (
+                              <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline truncate">
+                                {doc.name}
+                              </a>
+                            ) : (
+                              <span className="text-sm text-gray-600 truncate">{doc.name}</span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSessionDoc(idx)}
+                            className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                          >
+                            <IconTrash size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <label className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                    {isSessionDocUploading ? (
+                      <IconLoader2 size={16} className="animate-spin text-blue-500" />
+                    ) : (
+                      <IconUpload size={16} className="text-gray-400" />
+                    )}
+                    <span className="text-sm text-gray-500">
+                      {isSessionDocUploading ? "Uploading..." : "Upload document"}
+                    </span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={handleSessionDocUpload}
+                      disabled={isSessionDocUploading}
+                    />
+                  </label>
+                </div>
+              )}
             </div>
             <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">
               <button

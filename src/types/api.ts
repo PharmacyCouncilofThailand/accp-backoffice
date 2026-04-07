@@ -1,4 +1,4 @@
-// API Type Definitions for ACCP Backoffice
+// API Type Definitions for Conference Backoffice
 
 // ============================================================================
 // User Types
@@ -54,6 +54,9 @@ export interface Event {
     maxCapacity: number;
     status: EventStatus;
     imageUrl?: string | null;
+    coverImage?: string | null;
+    videoUrl?: string | null;
+    websiteUrl?: string | null;
     createdAt: string;
     updatedAt: string;
     // Additional optional fields used in edit page
@@ -65,6 +68,7 @@ export interface Event {
     saleEndDate?: string | null;
     conferenceCode?: string | null;
     cpeCredits?: string | null;
+    documents?: { name: string; url: string }[] | null;
 }
 
 export interface EventCreateInput {
@@ -77,9 +81,17 @@ export interface EventCreateInput {
     endDate: string;
     maxCapacity: number;
     status?: EventStatus;
+    imageUrl?: string;
+    coverImage?: string;
+    videoUrl?: string;
+    mapUrl?: string;
+    websiteUrl?: string;
+    conferenceCode?: string;
+    cpeCredits?: string;
+    documents?: { name: string; url: string }[];
 }
 
-export interface EventUpdateInput extends Partial<EventCreateInput> {}
+export interface EventUpdateInput extends Partial<EventCreateInput> { }
 
 // ============================================================================
 // Session Types

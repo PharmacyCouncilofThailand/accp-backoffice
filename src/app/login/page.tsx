@@ -174,14 +174,14 @@ export default function LoginPage() {
                 ⚠️ Development Only:
               </p>
               <p className="text-sm text-yellow-700 text-center font-mono">
-                admin@accp.org / admin123
+                admin@conference.local / admin123
               </p>
             </div>
           )}
         </div>
 
         <p className="text-center text-blue-200 text-sm mt-6">
-          © 2026 ConferenceHub. All rights reserved.
+          © {new Date().getFullYear()} ConferenceHub. All rights reserved.
         </p>
       </div>
     </div>
