@@ -60,7 +60,7 @@ interface RejectionHistory {
 function getProxyUrl(url: string | null | undefined): string {
   if (!url) return "";
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-  return `${apiUrl}/upload/proxy?url=${encodeURIComponent(url)}`;
+  return `${apiUrl}/api/upload/proxy?url=${encodeURIComponent(url)}`;
 }
 
 export default function VerificationPage() {
