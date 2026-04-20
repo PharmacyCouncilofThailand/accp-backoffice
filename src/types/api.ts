@@ -273,6 +273,74 @@ export interface Payment {
 }
 
 // ============================================================================
+// Order Types (Backoffice)
+// ============================================================================
+
+export type OrderStatus = 'pending' | 'paid' | 'cancelled';
+
+export interface OrderListItem {
+    id: number;
+    orderNumber: string;
+    totalAmount: string;
+    subtotalAmount: string | null;
+    discountAmount: string | null;
+    promoCode: string | null;
+    currency: string;
+    status: OrderStatus;
+    needTaxInvoice: boolean;
+    createdAt: string;
+    user: {
+        id: number;
+        email: string;
+        firstName: string;
+        lastName: string;
+        phone: string | null;
+        role: string;
+        institution: string | null;
+        country: string | null;
+    };
+    event: {
+        id: number;
+        name: string;
+        code: string;
+    } | null;
+    payment: {
+        status: string;
+        channel: string | null;
+        provider: string;
+        paidAt: string | null;
+    } | null;
+    items: {
+        ticketName: string;
+        category: string;
+        price: string;
+        quantity: number;
+        groupName: string | null;
+    }[];
+    addonSessions: {
+        sessionName: string;
+        sessionCode: string;
+        sessionType: string;
+        room: string | null;
+        startTime: string;
+        endTime: string;
+    }[];
+    regCode: string | null;
+    receiptUrl: string;
+}
+
+export interface OrderStats {
+    successCount: number;
+    totalCount: number;
+}
+
+export interface OrdersResponse {
+    orders: OrderListItem[];
+    pagination: Pagination;
+    stats: OrderStats;
+}
+
+// ============================================================================
 // Pagination Types
 // ============================================================================
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { AdminLayout } from "@/components/layout";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,6 +18,9 @@ import {
   IconBuilding,
   IconWorld,
   IconTrash,
+  IconEye,
+  IconEdit,
+  IconPlus,
 } from "@tabler/icons-react";
 
 // Types
@@ -87,6 +91,7 @@ const statusLabels: Record<string, { label: string; className: string }> = {
 
 export default function MembersPage() {
   const { token } = useAuth();
+  const router = useRouter();
   const [members, setMembers] = useState<Member[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
@@ -247,18 +252,28 @@ export default function MembersPage() {
       <div className="card">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <h2 className="text-lg font-semibold text-gray-800">Member List</h2>
-          <div className="relative flex-1 max-w-md">
-            <IconSearch
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              size={18}
-            />
-            <input
-              type="text"
-              placeholder="Search by name or email..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="input-field !pl-10"
-            />
+          <div className="flex items-center gap-3 flex-1 md:justify-end">
+            <div className="relative flex-1 max-w-md">
+              <IconSearch
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                size={18}
+              />
+              <input
+                type="text"
+                placeholder="Search by name or email..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="input-field !pl-10"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/members/create")}
+              className="btn-primary flex items-center gap-2 whitespace-nowrap"
+            >
+              <IconPlus size={18} />
+              Add Member
+            </button>
           </div>
         </div>
 
@@ -384,9 +399,13 @@ export default function MembersPage() {
                               {member.lastName.charAt(0)}
                             </div>
                             <div>
-                              <p className="font-medium text-gray-900">
+                              <button
+                                type="button"
+                                onClick={() => router.push(`/members/${member.id}`)}
+                                className="font-medium text-gray-900 hover:text-blue-600 transition-colors text-left"
+                              >
                                 {member.firstName} {member.lastName}
-                              </p>
+                              </button>
                             </div>
                           </div>
                         </td>
@@ -455,19 +474,37 @@ export default function MembersPage() {
                           </span>
                         </td>
                         <td className="px-4 py-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => setDeleteConfirm(member)}
-                            disabled={deletingId === member.id}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                            title="Delete member"
-                          >
-                            {deletingId === member.id ? (
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                            ) : (
-                              <IconTrash size={18} stroke={1.5} />
-                            )}
-                          </button>
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/members/${member.id}`)}
+                              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="View details"
+                            >
+                              <IconEye size={18} stroke={1.5} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/members/${member.id}`)}
+                              className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                              title="Edit member"
+                            >
+                              <IconEdit size={18} stroke={1.5} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteConfirm(member)}
+                              disabled={deletingId === member.id}
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                              title="Delete member"
+                            >
+                              {deletingId === member.id ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                              ) : (
+                                <IconTrash size={18} stroke={1.5} />
+                              )}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
