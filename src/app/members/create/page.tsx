@@ -9,6 +9,8 @@ import toast from "react-hot-toast";
 import {
   IconArrowLeft,
   IconDeviceFloppy,
+  IconEye,
+  IconEyeOff,
 } from "@tabler/icons-react";
 
 const roleOptions = [
@@ -28,6 +30,7 @@ export default function CreateMemberPage() {
   const { token } = useAuth();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [form, setForm] = useState({
     email: "",
@@ -126,15 +129,25 @@ export default function CreateMemberPage() {
                   <label className="block text-sm font-medium text-gray-600 mb-1">
                     Password <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="password"
-                    value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    className="input-field"
-                    required
-                    minLength={6}
-                    placeholder="Minimum 6 characters"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={form.password}
+                      onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      className="input-field !pr-10"
+                      required
+                      minLength={6}
+                      placeholder="Minimum 6 characters"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -168,31 +181,40 @@ export default function CreateMemberPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Phone</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Phone <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                     className="input-field"
+                    required
                     placeholder="e.g. +66812345678"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Country</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Country <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={form.country}
                     onChange={(e) => setForm({ ...form, country: e.target.value })}
                     className="input-field"
+                    required
                     placeholder="e.g. Thailand"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Role</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Role <span className="text-red-500">*</span>
+                  </label>
                   <select
                     value={form.role}
                     onChange={(e) => setForm({ ...form, role: e.target.value })}
                     className="input-field"
+                    required
                   >
                     {roleOptions.map((opt) => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -200,11 +222,14 @@ export default function CreateMemberPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Status</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Status <span className="text-red-500">*</span>
+                  </label>
                   <select
                     value={form.status}
                     onChange={(e) => setForm({ ...form, status: e.target.value })}
                     className="input-field"
+                    required
                   >
                     {statusOptions.map((opt) => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
