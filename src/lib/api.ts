@@ -14,6 +14,7 @@ import type {
   PromoCode,
   Payment,
   Pagination,
+  OrdersResponse,
 } from '@/types/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
@@ -244,6 +245,11 @@ export const api = {
       fetchAPI<{ payments: Payment[] }>("/api/payments", { token }),
   },
 
+  orders: {
+    list: (token: string, query?: string) =>
+      fetchAPI<OrdersResponse>(`/api/backoffice/orders${query ? `?${query}` : ''}`, { token }),
+  },
+
   promoCodes: {
     list: (token: string, query?: string) =>
       fetchAPI<{ promoCodes: Record<string, unknown>[]; pagination: Pagination }>(`/api/backoffice/promo-codes${query ? `?${query}` : ''}`, { token }),
@@ -264,6 +270,10 @@ export const api = {
       fetchAPI<{ members: Record<string, unknown>[]; pagination: Pagination }>(`/api/backoffice/members${query ? `?${query}` : ''}`, { token }),
     get: (token: string, id: number) =>
       fetchAPI<{ member: Record<string, unknown> }>(`/api/backoffice/members/${id}`, { token }),
+    create: (token: string, data: Record<string, unknown>) =>
+      fetchAPI<{ member: Record<string, unknown> }>('/api/backoffice/members', { method: 'POST', body: JSON.stringify(data), token }),
+    update: (token: string, id: number, data: Record<string, unknown>) =>
+      fetchAPI<{ member: Record<string, unknown> }>(`/api/backoffice/members/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
     stats: (token: string) =>
       fetchAPI<{ total: number; byRole: { role: string; count: number }[]; byStatus: { status: string; count: number }[] }>('/api/backoffice/members/stats/summary', { token }),
     delete: (token: string, id: number) =>
