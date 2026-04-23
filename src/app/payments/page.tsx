@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import { getFullName } from '@/lib/name';
 import { Pagination } from '@/components/common';
 import {
     IconCreditCard,
@@ -100,7 +101,7 @@ function OrderDetailModal({ order, onClose }: { order: OrderListItem; onClose: (
                                     href={`/members?search=${encodeURIComponent(order.user.email)}`}
                                     className="text-sm font-medium text-blue-600 hover:underline"
                                 >
-                                    {order.user.firstName} {order.user.lastName}
+                                    {getFullName(order.user.firstName, order.user.middleName, order.user.lastName)}
                                 </Link>
                             </div>
                             <div className="flex justify-between">
@@ -453,7 +454,7 @@ export default function PaymentsPage() {
                                                         href={`/members?search=${encodeURIComponent(order.user.email)}`}
                                                         className="font-medium text-gray-900 hover:text-blue-600 transition-colors"
                                                     >
-                                                        {order.user.firstName} {order.user.lastName}
+                                                        {getFullName(order.user.firstName, order.user.middleName, order.user.lastName)}
                                                     </Link>
                                                     <div className="text-sm text-gray-500">{order.user.email}</div>
                                                     <div className="flex items-center gap-2 mt-0.5">

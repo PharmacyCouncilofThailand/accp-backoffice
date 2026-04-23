@@ -5,6 +5,7 @@ import { Scanner } from '@yudiel/react-qr-scanner';
 import { AdminLayout } from '@/components/layout';
 import { useAuth, type AssignedSession } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { getFullName } from '@/lib/name';
 import toast from 'react-hot-toast';
 import {
     IconScan,
@@ -65,6 +66,7 @@ interface PendingRegistration {
     id: number;
     regCode: string;
     firstName: string;
+    middleName?: string | null;
     lastName: string;
     email: string;
     ticketName: string;
@@ -75,6 +77,7 @@ interface RecentCheckin {
     id: number;
     regCode: string;
     firstName: string;
+    middleName?: string | null;
     lastName: string;
     ticketName: string;
     sessionName?: string;
@@ -265,6 +268,7 @@ export default function CheckinPage() {
                 id: c.id,
                 regCode: c.regCode,
                 firstName: c.firstName,
+                middleName: c.middleName,
                 lastName: c.lastName,
                 ticketName: c.ticketName,
                 sessionName: c.sessionName,
@@ -320,7 +324,7 @@ export default function CheckinPage() {
                     setScanResult({
                         status: 'success',
                         code,
-                        name: `${res.registration.firstName} ${res.registration.lastName}`,
+                        name: getFullName(res.registration.firstName, res.registration.middleName, res.registration.lastName),
                         ticketType: res.registration.ticketName,
                         eventName: res.registration.eventName,
                         message: `Checked in: ${res.checkedInSession?.sessionName}`,
@@ -345,7 +349,7 @@ export default function CheckinPage() {
                     setScanResult({
                         status: 'success',
                         code,
-                        name: `${res.registration.firstName} ${res.registration.lastName}`,
+                        name: getFullName(res.registration.firstName, res.registration.middleName, res.registration.lastName),
                         ticketType: res.registration.ticketName,
                         eventName: res.registration.eventName,
                         message: res.checkedInCount
@@ -418,7 +422,7 @@ export default function CheckinPage() {
                 setScanResult({
                     status: 'success',
                     code: pendingRegistration.regCode,
-                    name: `${pendingRegistration.firstName} ${pendingRegistration.lastName}`,
+                    name: getFullName(pendingRegistration.firstName, pendingRegistration.middleName, pendingRegistration.lastName),
                     ticketType: pendingRegistration.ticketName,
                     eventName: pendingRegistration.eventName,
                     message: `Checked in ${res.checkedInCount} sessions!`,
@@ -793,7 +797,7 @@ export default function CheckinPage() {
                                             </div>
                                             <div>
                                                 <p className="font-semibold text-gray-800">
-                                                    {pendingRegistration.firstName} {pendingRegistration.lastName}
+                                                    {getFullName(pendingRegistration.firstName, pendingRegistration.middleName, pendingRegistration.lastName)}
                                                 </p>
                                                 <p className="text-xs text-gray-500 font-mono">{pendingRegistration.regCode}</p>
                                             </div>
@@ -1034,8 +1038,8 @@ export default function CheckinPage() {
                                                 <IconCheck size={16} />
                                             </div>
                                             <div>
-                                                <p className="font-medium text-gray-800 text-sm truncate max-w-[120px]" title={`${checkin.firstName} ${checkin.lastName}`}>
-                                                    {checkin.firstName} {checkin.lastName}
+                                                <p className="font-medium text-gray-800 text-sm truncate max-w-[120px]" title={getFullName(checkin.firstName, checkin.middleName, checkin.lastName)}>
+                                                    {getFullName(checkin.firstName, checkin.middleName, checkin.lastName)}
                                                 </p>
                                                 <p className="text-xs text-gray-500 font-mono">{checkin.regCode}</p>
                                                 {checkin.sessionName && (

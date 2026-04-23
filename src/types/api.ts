@@ -150,6 +150,7 @@ export interface Registration {
     eventId: number;
     email: string;
     firstName: string;
+    middleName?: string | null;
     lastName: string;
     status: RegistrationStatus;
     createdAt: string;
@@ -160,6 +161,7 @@ export interface Registration {
     source?: 'purchase' | 'manual';
     addedNote?: string | null;
     addedByFirstName?: string | null;
+    addedByMiddleName?: string | null;
     addedByLastName?: string | null;
 }
 
@@ -293,6 +295,7 @@ export interface OrderListItem {
         id: number;
         email: string;
         firstName: string;
+        middleName?: string | null;
         lastName: string;
         phone: string | null;
         role: string;

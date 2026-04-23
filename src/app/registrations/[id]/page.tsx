@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import { getFullName } from '@/lib/name';
 import {
     IconArrowLeft,
     IconLoader2,
@@ -46,6 +47,7 @@ interface RegistrationSession {
     ticketName: string;
     ticketCategory: string;
     checkedInByFirstName: string | null;
+    checkedInByMiddleName: string | null;
     checkedInByLastName: string | null;
 }
 
@@ -54,6 +56,7 @@ interface RegistrationDetail {
     regCode: string;
     email: string;
     firstName: string;
+    middleName: string | null;
     lastName: string;
     dietaryRequirements: string | null;
     status: string;
@@ -75,6 +78,7 @@ interface RegistrationDetail {
     userCountry: string | null;
     addedById: number | null;
     addedByFirstName: string | null;
+    addedByMiddleName: string | null;
     addedByLastName: string | null;
     sessions: RegistrationSession[];
 }
@@ -185,7 +189,7 @@ export default function RegistrationDetailPage() {
                     </Link>
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900">
-                            {registration.firstName} {registration.lastName}
+                            {getFullName(registration.firstName, registration.middleName, registration.lastName)}
                         </h1>
                         <p className="text-gray-500 font-mono">{registration.regCode}</p>
                     </div>
@@ -244,7 +248,7 @@ export default function RegistrationDetailPage() {
                                         </span>
                                         {registration.addedByFirstName && (
                                             <p className="text-sm text-gray-500 mt-1">
-                                                Added by {registration.addedByFirstName} {registration.addedByLastName}
+                                                Added by {getFullName(registration.addedByFirstName, registration.addedByMiddleName, registration.addedByLastName)}
                                             </p>
                                         )}
                                     </div>

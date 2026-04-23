@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AdminLayout } from "@/components/layout";
 import { api } from "@/lib/api";
+import { getFullName } from "@/lib/name";
 import {
   IconArrowLeft,
   IconCheck,
@@ -44,6 +45,7 @@ const getBackofficeToken = () =>
 interface CoAuthor {
   id: number;
   firstName: string;
+  middleName: string | null;
   lastName: string;
   email: string;
   institution: string | null;
@@ -67,6 +69,7 @@ interface AbstractDetail {
   createdAt: string;
   author: {
     firstName: string;
+    middleName: string | null;
     lastName: string;
     email: string;
     phone: string | null;
@@ -290,7 +293,7 @@ export default function AbstractDetailPage() {
               <div className="flex items-center gap-3">
                 <IconUser size={16} className="text-gray-400" />
                 <span className="font-medium text-gray-800">
-                  {abstract.author.firstName} {abstract.author.lastName}
+                  {getFullName(abstract.author.firstName, abstract.author.middleName, abstract.author.lastName)}
                 </span>
               </div>
               <div className="flex items-center gap-3">
@@ -341,7 +344,7 @@ export default function AbstractDetailPage() {
                     className="p-3 bg-gray-50 rounded-lg text-sm"
                   >
                     <div className="font-medium text-gray-800">
-                      {idx + 1}. {ca.firstName} {ca.lastName}
+                      {idx + 1}. {getFullName(ca.firstName, ca.middleName, ca.lastName)}
                     </div>
                     <div className="text-gray-600">{ca.email}</div>
                     {(ca.institution || ca.country) && (

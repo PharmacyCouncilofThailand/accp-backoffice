@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { AdminLayout } from "@/components/layout";
 import { api } from "@/lib/api";
+import { getFullName, getInitials } from "@/lib/name";
 import { useAuth } from "@/contexts/AuthContext";
 import { Pagination } from "@/components/common";
 import {
@@ -28,6 +29,7 @@ interface Member {
   id: number;
   email: string;
   firstName: string;
+  middleName?: string | null;
   lastName: string;
   role: "thstd" | "interstd" | "thpro" | "interpro" | "guest" | "general" | "admin";
   status: "pending_approval" | "active" | "rejected";
@@ -395,8 +397,7 @@ export default function MembersPage() {
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-medium">
-                              {member.firstName.charAt(0)}
-                              {member.lastName.charAt(0)}
+                              {getInitials(member.firstName, member.lastName)}
                             </div>
                             <div>
                               <button
@@ -404,7 +405,7 @@ export default function MembersPage() {
                                 onClick={() => router.push(`/members/${member.id}`)}
                                 className="font-medium text-gray-900 hover:text-blue-600 transition-colors text-left"
                               >
-                                {member.firstName} {member.lastName}
+                                {getFullName(member.firstName, member.middleName, member.lastName)}
                               </button>
                             </div>
                           </div>
@@ -540,7 +541,7 @@ export default function MembersPage() {
             <p className="text-gray-600 mb-2">
               Are you sure you want to delete{" "}
               <span className="font-medium text-gray-900">
-                {deleteConfirm.firstName} {deleteConfirm.lastName}
+                {getFullName(deleteConfirm.firstName, deleteConfirm.middleName, deleteConfirm.lastName)}
               </span>
               ?
             </p>

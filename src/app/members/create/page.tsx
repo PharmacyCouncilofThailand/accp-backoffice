@@ -36,6 +36,7 @@ export default function CreateMemberPage() {
     email: "",
     password: "",
     firstName: "",
+    middleName: "",
     lastName: "",
     role: "thstd",
     status: "active",
@@ -68,6 +69,7 @@ export default function CreateMemberPage() {
         email: form.email,
         password: form.password,
         firstName: form.firstName,
+        middleName: form.middleName || null,
         lastName: form.lastName,
         role: form.role,
         status: form.status,
@@ -155,7 +157,7 @@ export default function CreateMemberPage() {
             {/* Basic Information */}
             <div className="card">
               <h2 className="text-lg font-semibold text-gray-800 mb-4">Basic Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">
                     First Name <span className="text-red-500">*</span>
@@ -170,6 +172,17 @@ export default function CreateMemberPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Middle Name <span className="text-xs text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.middleName}
+                    onChange={(e) => setForm({ ...form, middleName: e.target.value })}
+                    className="input-field"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
                     Last Name <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -180,6 +193,8 @@ export default function CreateMemberPage() {
                     required
                   />
                 </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">
                     Phone <span className="text-red-500">*</span>

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import { getFullName } from '@/lib/name';
 import { exportToExcel } from '@/lib/exportExcel';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Pagination } from '@/components/common';
@@ -22,6 +23,7 @@ interface Registration {
     id: number;
     regCode: string;
     firstName: string;
+    middleName?: string | null;
     lastName: string;
     email: string;
     status: string;
@@ -32,6 +34,7 @@ interface Registration {
     source?: string;
     addedNote?: string | null;
     addedByFirstName?: string | null;
+    addedByMiddleName?: string | null;
     addedByLastName?: string | null;
 }
 
@@ -90,13 +93,14 @@ export default function RegistrationsPage() {
             const rows = (res.registrations as any[]).map((r) => ({
                 'Reg Code': r.regCode,
                 'First Name': r.firstName,
+                'Middle Name': r.middleName || '',
                 'Last Name': r.lastName,
                 'Email': r.email,
                 'Ticket': r.ticketName,
                 'Status': r.status,
                 'Source': r.source,
                 'Note': r.addedNote || '',
-                'Added By': r.addedByFirstName ? `${r.addedByFirstName} ${r.addedByLastName}` : '',
+                'Added By': r.addedByFirstName ? getFullName(r.addedByFirstName, r.addedByMiddleName, r.addedByLastName) : '',
                 'Created At': new Date(r.createdAt).toLocaleString('th-TH'),
             }));
 
@@ -254,7 +258,7 @@ export default function RegistrationsPage() {
                                             </td>
                                             <td className="px-4 py-4">
                                                 <div>
-                                                    <p className="font-medium text-gray-900">{reg.firstName} {reg.lastName}</p>
+                                                    <p className="font-medium text-gray-900">{getFullName(reg.firstName, reg.middleName, reg.lastName)}</p>
                                                     <p className="text-sm text-gray-500">{reg.email}</p>
                                                 </div>
                                             </td>
@@ -282,7 +286,7 @@ export default function RegistrationsPage() {
                                             <td className="px-4 py-4 text-center">
                                                 {reg.source === 'manual' ? (
                                                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200"
-                                                        title={`Added by ${reg.addedByFirstName || ''} ${reg.addedByLastName || ''}${reg.addedNote ? ` — ${reg.addedNote}` : ''}`}
+                                                        title={`Added by ${getFullName(reg.addedByFirstName, reg.addedByMiddleName, reg.addedByLastName)}${reg.addedNote ? ` — ${reg.addedNote}` : ''}`}
                                                     >
                                                         Manual
                                                     </span>

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { AdminLayout } from "@/components/layout";
 import { api } from "@/lib/api";
+import { getFullName } from "@/lib/name";
 import { exportToExcel } from "@/lib/exportExcel";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -77,6 +78,7 @@ interface Abstract {
   createdAt: string;
   author: {
     firstName: string;
+    middleName: string | null;
     lastName: string;
     email: string;
     phone: string | null;
@@ -167,6 +169,7 @@ export default function AbstractsPage() {
         'Presentation Type': a.presentationType || '',
         'Status': a.status,
         'Author First Name': a.author?.firstName || '',
+        'Author Middle Name': a.author?.middleName || '',
         'Author Last Name': a.author?.lastName || '',
         'Author Email': a.author?.email || '',
         'Author Phone': a.author?.phone || '',
@@ -453,7 +456,7 @@ export default function AbstractsPage() {
                         {abs.title}
                       </h5>
                       <p className="text-sm text-gray-500">
-                        {abs.author?.firstName} {abs.author?.lastName}
+                        {getFullName(abs.author?.firstName, abs.author?.middleName, abs.author?.lastName)}
                       </p>
                       {abs.author?.institution && (
                         <p className="text-xs text-gray-400">

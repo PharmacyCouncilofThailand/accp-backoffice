@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AdminLayout } from "@/components/layout";
 import { api } from "@/lib/api";
+import { getFullName, getInitials } from "@/lib/name";
 import { useAuth } from "@/contexts/AuthContext";
 import toast from "react-hot-toast";
 import {
@@ -24,6 +25,7 @@ interface MemberDetail {
   id: number;
   email: string;
   firstName: string;
+  middleName?: string | null;
   lastName: string;
   role: string;
   status: string;
@@ -85,6 +87,7 @@ export default function MemberDetailPage() {
   const [form, setForm] = useState({
     email: "",
     firstName: "",
+    middleName: "",
     lastName: "",
     role: "",
     status: "",
@@ -108,6 +111,7 @@ export default function MemberDetailPage() {
       setForm({
         email: m.email,
         firstName: m.firstName,
+        middleName: m.middleName || "",
         lastName: m.lastName,
         role: m.role,
         status: m.status,
@@ -139,6 +143,7 @@ export default function MemberDetailPage() {
       const updateData: Record<string, unknown> = {
         email: form.email,
         firstName: form.firstName,
+        middleName: form.middleName || null,
         lastName: form.lastName,
         role: form.role,
         status: form.status,
@@ -173,6 +178,7 @@ export default function MemberDetailPage() {
     setForm({
       email: member.email,
       firstName: member.firstName,
+      middleName: member.middleName || "",
       lastName: member.lastName,
       role: member.role,
       status: member.status,
@@ -225,11 +231,11 @@ export default function MemberDetailPage() {
           </button>
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-lg">
-              {member.firstName.charAt(0)}{member.lastName.charAt(0)}
+              {getInitials(member.firstName, member.lastName)}
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">
-                {member.firstName} {member.lastName}
+                {getFullName(member.firstName, member.middleName, member.lastName)}
               </h1>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium ${roleLabels[member.role]?.className}`}>
@@ -268,7 +274,7 @@ export default function MemberDetailPage() {
           {/* Basic Information */}
           <div className="card">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Basic Information</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">First Name</label>
                 {editing ? (
@@ -280,6 +286,21 @@ export default function MemberDetailPage() {
                   />
                 ) : (
                   <p className="text-gray-900">{member.firstName}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">
+                  Middle Name <span className="text-xs text-gray-400 font-normal">(optional)</span>
+                </label>
+                {editing ? (
+                  <input
+                    type="text"
+                    value={form.middleName}
+                    onChange={(e) => setForm({ ...form, middleName: e.target.value })}
+                    className="input-field"
+                  />
+                ) : (
+                  <p className="text-gray-900">{member.middleName || "-"}</p>
                 )}
               </div>
               <div>
@@ -295,6 +316,8 @@ export default function MemberDetailPage() {
                   <p className="text-gray-900">{member.lastName}</p>
                 )}
               </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Email</label>
                 {editing ? (

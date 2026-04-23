@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AdminLayout } from '@/components/layout';
 import { api } from '@/lib/api';
+import { getFullName } from '@/lib/name';
 import { useDebounce } from '@/hooks/useDebounce';
 import {
     IconSearch,
@@ -512,7 +513,7 @@ export default function AddRegistrationPage() {
                                                 >
                                                     <div className="flex-1">
                                                         <div className="font-medium text-gray-900">
-                                                            {user.firstName} {user.lastName}
+                                                            {getFullName(user.firstName, user.middleName, user.lastName)}
                                                         </div>
                                                         <div className="text-sm text-gray-500">{user.email}</div>
                                                         <div className="text-xs text-gray-400 mt-1">
@@ -556,7 +557,7 @@ export default function AddRegistrationPage() {
                                                 >
                                                     <div className="flex-1">
                                                         <p className={`font-medium ${isRegistered ? 'text-yellow-800' : 'text-blue-900'}`}>
-                                                            {user.firstName} {user.lastName}
+                                                            {getFullName(user.firstName, user.middleName, user.lastName)}
                                                         </p>
                                                         <p className={`text-sm ${isRegistered ? 'text-yellow-700' : 'text-blue-700'}`}>
                                                             {user.email}
