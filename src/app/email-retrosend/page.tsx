@@ -63,6 +63,11 @@ interface LogEntry {
     message: string;
     severity: string;
     timestamp: string;
+    attributes?: {
+        req?: { method?: string; url?: string };
+        reqId?: string;
+        [key: string]: unknown;
+    };
 }
 
 interface ParsedLog {
@@ -71,6 +76,7 @@ interface ParsedLog {
     windowFrom: string;   // ISO datetime-local
     windowTo: string;
     orderIds: string;     // comma-separated
+    abstractIds: string;  // comma-separated, extracted from nearby PATCH requests
     counts: Record<RetrosendType, number>;
     abstractStatusBreakdown: {
         acceptedPoster: number;
@@ -109,6 +115,20 @@ function parseLogEntries(entries: LogEntry[]): ParsedLog | null {
     const orderIdSet = new Set<number>();
     const timestamps: Date[] = [];
     const paymentErrorTimestamps: Date[] = [];
+
+    // Abstract status IDs: extract from PATCH /api/backoffice/abstracts/{id}/status
+    // request log entries that were made close in time to an abstract status email error.
+    // These request entries are logged by Fastify as severity "info" with message
+    // "incoming request" and the URL in attributes.req.url.
+    const abstractStatusRequests: { id: number; ts: Date }[] = [];
+    for (const entry of entries) {
+        const url = entry.attributes?.req?.url ?? '';
+        const method = entry.attributes?.req?.method ?? '';
+        if (method === 'PATCH' || (entry.message === 'incoming request' && url)) {
+            const m = url.match(/\/api\/backoffice\/abstracts\/(\d+)\/status/);
+            if (m) abstractStatusRequests.push({ id: parseInt(m[1]), ts: new Date(entry.timestamp) });
+        }
+    }
 
     for (const entry of entries) {
         if (!entry.message) continue;
@@ -151,6 +171,35 @@ function parseLogEntries(entries: LogEntry[]): ParsedLog | null {
     // Payment count = unique order IDs found; fallback to console.error count if none
     const paymentCount = orderIdSet.size > 0 ? orderIdSet.size : paymentErrorTimestamps.length;
 
+    // Collect abstract status error timestamps for ID correlation
+    const abstractStatusErrorTimestamps: Date[] = [];
+    for (const entry of errorEntries) {
+        if (PATTERNS.acceptedPoster.test(entry.message) || PATTERNS.acceptedOral.test(entry.message) || PATTERNS.rejected.test(entry.message)) {
+            abstractStatusErrorTimestamps.push(new Date(entry.timestamp));
+        }
+    }
+    // Also scan all entries for the fastify.log.error pattern (severity "info" on Railway)
+    for (const entry of entries) {
+        if (/Failed to send abstract status email/.test(entry.message ?? '')) {
+            abstractStatusErrorTimestamps.push(new Date(entry.timestamp));
+            // New format includes abstract ID directly
+            const m = entry.message.match(/Failed to send abstract status email for abstract (\d+)/);
+            if (m) abstractStatusRequests.push({ id: parseInt(m[1]), ts: new Date(entry.timestamp) });
+        }
+    }
+
+    // Correlate: for each abstract status error, find nearest PATCH request within ±10 s
+    const abstractIdSet = new Set<number>();
+    for (const errTs of abstractStatusErrorTimestamps) {
+        let best: { id: number; ts: Date } | null = null;
+        let bestDiff = Infinity;
+        for (const req of abstractStatusRequests) {
+            const diff = Math.abs(req.ts.getTime() - errTs.getTime());
+            if (diff < bestDiff && diff <= 10_000) { best = req; bestDiff = diff; }
+        }
+        if (best) abstractIdSet.add(best.id);
+    }
+
     if (timestamps.length === 0) return null;
 
     timestamps.sort((a, b) => a.getTime() - b.getTime());
@@ -163,6 +212,7 @@ function parseLogEntries(entries: LogEntry[]): ParsedLog | null {
         windowFrom,
         windowTo,
         orderIds: [...orderIdSet].sort((a, b) => a - b).join(', '),
+        abstractIds: [...abstractIdSet].sort((a, b) => a - b).join(', '),
         counts: {
             payment:              paymentCount,
             signup:               signupCount + pendingApprovalCount,
@@ -361,6 +411,7 @@ export default function EmailRetrosendPage() {
             parsed.fileName = file.name;
             setParsedLog(parsed);
             setOrderIds(parsed.orderIds);
+            setAbstractIds(parsed.abstractIds);
             setFromDate(parsed.windowFrom);
             setToDate(parsed.windowTo);
             setResults(null);
@@ -635,11 +686,15 @@ export default function EmailRetrosendPage() {
 
                             {selectedType === 'abstract-status' && (
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">Abstract IDs (ระบุเอง)</label>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                                        Abstract IDs {parsedLog && abstractIds ? <span className="text-green-600">(auto-filled จาก log)</span> : <span className="text-slate-400">(ระบุเอง)</span>}
+                                    </label>
                                     <input type="text" value={abstractIds} onChange={(e) => setAbstractIds(e.target.value)}
                                         className="border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono w-72 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                                         placeholder="101, 102, 103" />
-                                    <p className="text-xs text-orange-600 mt-1">⚠ ต้องระบุ IDs เองเนื่องจากไม่มี updatedAt ใน DB</p>
+                                    {parsedLog && !abstractIds && (
+                                        <p className="text-xs text-orange-600 mt-1">⚠ ไม่พบ PATCH request ใน log — ต้องระบุ IDs เอง</p>
+                                    )}
                                 </div>
                             )}
 
