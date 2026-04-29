@@ -15,6 +15,7 @@ import {
     IconDownload,
     IconUserPlus,
     IconLoader2,
+    IconWorld,
 } from '@tabler/icons-react';
 
 
@@ -36,6 +37,14 @@ interface Registration {
     addedByFirstName?: string | null;
     addedByMiddleName?: string | null;
     addedByLastName?: string | null;
+    userCountry?: string | null;
+}
+
+interface CountryStats {
+    total: number;
+    withCountry: number;
+    unknown: number;
+    byCountry: { country: string; count: number }[];
 }
 
 const getBackofficeToken = () =>
@@ -50,9 +59,12 @@ export default function RegistrationsPage() {
     const [statusFilter, setStatusFilter] = useState('');
     const [sourceFilter, setSourceFilter] = useState('');
     const [eventFilter, setEventFilter] = useState('');
+    const [countryFilter, setCountryFilter] = useState('');
     const [eventOptions, setEventOptions] = useState<{ id: number; name: string }[]>([]);
     const [eventSelected, setEventSelected] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [countryStats, setCountryStats] = useState<CountryStats | null>(null);
+    const [isLoadingStats, setIsLoadingStats] = useState(false);
 
     // Pagination
     const [page, setPage] = useState(1);
@@ -74,7 +86,30 @@ export default function RegistrationsPage() {
     useEffect(() => {
         if (!eventSelected) return;
         fetchRegistrations();
-    }, [page, debouncedSearchTerm, statusFilter, sourceFilter, eventFilter, eventSelected]);
+    }, [page, debouncedSearchTerm, statusFilter, sourceFilter, eventFilter, countryFilter, eventSelected]);
+
+    // Load country stats whenever event changes (and clear country filter)
+    useEffect(() => {
+        if (!eventSelected || !eventFilter) {
+            setCountryStats(null);
+            return;
+        }
+        const fetchStats = async () => {
+            setIsLoadingStats(true);
+            try {
+                const token = getBackofficeToken();
+                const params = new URLSearchParams({ eventId: eventFilter, status: 'confirmed' });
+                const res = await api.registrations.statsByCountry(token, params.toString());
+                setCountryStats(res);
+            } catch (error) {
+                console.error('Failed to fetch country stats:', error);
+                setCountryStats(null);
+            } finally {
+                setIsLoadingStats(false);
+            }
+        };
+        fetchStats();
+    }, [eventFilter, eventSelected]);
 
     const handleExport = async () => {
         if (!eventFilter) return;
@@ -86,6 +121,7 @@ export default function RegistrationsPage() {
             if (searchTerm) params.search = searchTerm;
             if (sourceFilter) params.source = sourceFilter;
             if (eventFilter) params.eventId = eventFilter;
+            if (countryFilter) params.country = countryFilter;
 
             const res = await api.registrations.list(token, new URLSearchParams(params).toString());
             const eventName = eventOptions.find(e => String(e.id) === eventFilter)?.name || 'event';
@@ -96,6 +132,7 @@ export default function RegistrationsPage() {
                 'Middle Name': r.middleName || '',
                 'Last Name': r.lastName,
                 'Email': r.email,
+                'Country': r.userCountry || '',
                 'Ticket': r.ticketName,
                 'Status': r.status,
                 'Source': r.source,
@@ -122,6 +159,7 @@ export default function RegistrationsPage() {
             if (searchTerm) params.search = searchTerm;
             if (sourceFilter) params.source = sourceFilter;
             if (eventFilter) params.eventId = eventFilter;
+            if (countryFilter) params.country = countryFilter;
 
             const res = await api.registrations.list(token, new URLSearchParams(params).toString());
             setRegistrations(res.registrations as unknown as Registration[]);
@@ -149,7 +187,100 @@ export default function RegistrationsPage() {
                         </div>
                     </div>
                 </div>
+                {countryStats && (
+                    <>
+                        <div className="card py-4">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
+                                    <IconWorld size={24} stroke={1.5} />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-gray-800">{countryStats.byCountry.length}</p>
+                                    <p className="text-sm text-gray-500">Distinct Countries</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="card py-4">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
+                                    <IconWorld size={24} stroke={1.5} />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-gray-800">{countryStats.unknown}</p>
+                                    <p className="text-sm text-gray-500">Unknown Country</p>
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
+
+            {/* Country Breakdown Widget */}
+            {eventSelected && (
+                <div className="card mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <IconWorld size={20} className="text-emerald-600" />
+                            <h3 className="font-semibold text-gray-800">Registrations by Country</h3>
+                            <span className="text-xs text-gray-500">(confirmed only)</span>
+                        </div>
+                        {countryFilter && (
+                            <button
+                                onClick={() => { setCountryFilter(''); setPage(1); }}
+                                className="text-xs text-blue-600 hover:underline"
+                            >
+                                Clear filter
+                            </button>
+                        )}
+                    </div>
+                    {isLoadingStats ? (
+                        <div className="flex justify-center py-6">
+                            <IconLoader2 size={24} className="animate-spin text-emerald-600" />
+                        </div>
+                    ) : !countryStats || countryStats.byCountry.length === 0 ? (
+                        <p className="text-sm text-gray-400 py-4">No country data available for this event.</p>
+                    ) : (
+                        <div className="space-y-2">
+                            {countryStats.byCountry.map((c) => {
+                                const denominator = countryStats.withCountry || 1;
+                                const pct = (c.count / denominator) * 100;
+                                const isActive = countryFilter === c.country;
+                                return (
+                                    <button
+                                        key={c.country}
+                                        onClick={() => {
+                                            setCountryFilter(isActive ? '' : c.country);
+                                            setPage(1);
+                                        }}
+                                        className={`w-full text-left transition-colors ${isActive ? 'ring-2 ring-blue-400 rounded-lg' : ''}`}
+                                        title={`Click to filter by ${c.country}`}
+                                    >
+                                        <div className="flex items-center justify-between text-sm mb-1">
+                                            <span className={`font-medium ${isActive ? 'text-blue-700' : 'text-gray-700'}`}>
+                                                {c.country}
+                                            </span>
+                                            <span className="text-gray-500 tabular-nums">
+                                                {c.count} <span className="text-gray-400">({pct.toFixed(1)}%)</span>
+                                            </span>
+                                        </div>
+                                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full ${isActive ? 'bg-blue-500' : 'bg-emerald-500'}`}
+                                                style={{ width: `${Math.max(pct, 2)}%` }}
+                                            />
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                            {countryStats.unknown > 0 && (
+                                <div className="pt-2 border-t border-gray-100 text-xs text-gray-500">
+                                    + {countryStats.unknown} registration{countryStats.unknown > 1 ? 's' : ''} without country info (free/manual without user account)
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Filters & Actions */}
             <div className="card mb-6">
@@ -189,7 +320,7 @@ export default function RegistrationsPage() {
 
                         <select
                                 value={eventFilter}
-                                onChange={(e) => { setEventFilter(e.target.value); setEventSelected(!!e.target.value); setPage(1); }}
+                                onChange={(e) => { setEventFilter(e.target.value); setEventSelected(!!e.target.value); setCountryFilter(''); setPage(1); }}
                                 className="input-field w-auto"
                             >
                                 <option value="">-- เลือก Event --</option>
@@ -197,6 +328,20 @@ export default function RegistrationsPage() {
                                     <option key={e.id} value={e.id}>{e.name}</option>
                                 ))}
                             </select>
+
+                        <select
+                            value={countryFilter}
+                            onChange={(e) => { setCountryFilter(e.target.value); setPage(1); }}
+                            disabled={!eventSelected || !countryStats || countryStats.byCountry.length === 0}
+                            className="input-field w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <option value="">All Countries</option>
+                            {countryStats?.byCountry.map((c) => (
+                                <option key={c.country} value={c.country}>
+                                    {c.country} ({c.count})
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
                     <div className="flex gap-2">
@@ -241,6 +386,7 @@ export default function RegistrationsPage() {
                                     <tr className="bg-gray-50 border-b border-gray-200">
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Code</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Attendee</th>
+                                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Country</th>
                                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Event</th>
                                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Ticket</th>
                                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
@@ -261,6 +407,16 @@ export default function RegistrationsPage() {
                                                     <p className="font-medium text-gray-900">{getFullName(reg.firstName, reg.middleName, reg.lastName)}</p>
                                                     <p className="text-sm text-gray-500">{reg.email}</p>
                                                 </div>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                {reg.userCountry ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                        <IconWorld size={12} />
+                                                        {reg.userCountry}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-xs text-gray-400">—</span>
+                                                )}
                                             </td>
                                             <td className="px-4 py-4 text-center">
                                                 <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">

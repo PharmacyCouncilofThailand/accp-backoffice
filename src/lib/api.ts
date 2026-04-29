@@ -208,6 +208,13 @@ export const api = {
       fetchAPI<{ registeredUserIds: number[]; ticketCategory?: string }>(`/api/backoffice/registrations/registered-users?eventId=${eventId}${ticketTypeId ? `&ticketTypeId=${ticketTypeId}` : ''}`, { token }),
     addSessions: (token: string, id: number, data: { sessionIds: number[]; ticketTypeId: number; note?: string }) =>
       fetchAPI<{ success: boolean; addedCount: number }>(`/api/backoffice/registrations/${id}/sessions`, { method: 'POST', body: JSON.stringify(data), token }),
+    statsByCountry: (token: string, query?: string) =>
+      fetchAPI<{
+        total: number;
+        withCountry: number;
+        unknown: number;
+        byCountry: { country: string; count: number }[];
+      }>(`/api/backoffice/registrations/stats/by-country${query ? `?${query}` : ''}`, { token }),
   },
 
   abstracts: {
@@ -278,6 +285,34 @@ export const api = {
       fetchAPI<{ total: number; byRole: { role: string; count: number }[]; byStatus: { status: string; count: number }[] }>('/api/backoffice/members/stats/summary', { token }),
     delete: (token: string, id: number) =>
       fetchAPI<{ success: boolean }>(`/api/backoffice/members/${id}`, { method: 'DELETE', token }),
+    impersonate: (token: string, id: number) =>
+      fetchAPI<{
+        success: boolean;
+        ssoToken: string;
+        targetUrl: string;
+        expiresInSeconds: number;
+        user: { id: number; email: string; firstName: string; lastName: string };
+      }>(`/api/backoffice/members/${id}/impersonate`, { method: 'POST', token }),
+    requestVerification: (token: string, id: number, data: { targetRole: 'thstd' | 'interstd'; reason: string }) =>
+      fetchAPI<{
+        success: boolean;
+        emailSent: boolean;
+        user: {
+          id: number;
+          email: string;
+          firstName: string;
+          middleName: string | null;
+          lastName: string;
+          role: string;
+          status: string;
+          rejectionReason: string | null;
+          country: string | null;
+        };
+      }>(`/api/backoffice/members/${id}/request-verification`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+        token,
+      }),
   },
 
   // File Upload

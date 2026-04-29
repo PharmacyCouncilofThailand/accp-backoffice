@@ -19,6 +19,10 @@ import {
   IconId,
   IconCertificate,
   IconCalendar,
+  IconLogin2,
+  IconLoader2,
+  IconSchool,
+  IconAlertTriangle,
 } from "@tabler/icons-react";
 
 interface MemberDetail {
@@ -74,7 +78,7 @@ const statusLabels: Record<string, { label: string; className: string }> = {
 };
 
 export default function MemberDetailPage() {
-  const { token } = useAuth();
+  const { token, isAdmin } = useAuth();
   const params = useParams();
   const router = useRouter();
   const memberId = Number(params.id);
@@ -83,6 +87,13 @@ export default function MemberDetailPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [impersonating, setImpersonating] = useState(false);
+
+  // Convert to Student modal state
+  const [showConvertModal, setShowConvertModal] = useState(false);
+  const [convertTargetRole, setConvertTargetRole] = useState<"thstd" | "interstd">("thstd");
+  const [convertReason, setConvertReason] = useState("");
+  const [converting, setConverting] = useState(false);
 
   const [form, setForm] = useState({
     email: "",
@@ -170,6 +181,75 @@ export default function MemberDetailPage() {
       toast.error(error instanceof Error ? error.message : "Failed to update member");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleImpersonate = async () => {
+    if (!token || !member) return;
+    if (member.status !== "active") {
+      toast.error("Cannot login as a user whose account is not active");
+      return;
+    }
+    const confirmed = window.confirm(
+      `Login as ${member.firstName} ${member.lastName} (${member.email})?\n\nYou will be redirected to the public site and logged in as this user in a new tab.`
+    );
+    if (!confirmed) return;
+
+    setImpersonating(true);
+    try {
+      const res = await api.members.impersonate(token, member.id);
+      if (!res.success || !res.ssoToken || !res.targetUrl) {
+        throw new Error("Failed to generate SSO token");
+      }
+      const url = `${res.targetUrl.replace(/\/$/, "")}/auth/sso?sso=${encodeURIComponent(
+        res.ssoToken
+      )}&redirect=${encodeURIComponent("/")}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+      toast.success("Opened public site in a new tab");
+    } catch (error) {
+      console.error("Failed to impersonate user:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to login as user");
+    } finally {
+      setImpersonating(false);
+    }
+  };
+
+  const openConvertModal = () => {
+    if (!member) return;
+    // Smart defaults: country=Thailand -> thstd, else interstd
+    const isThaiUser = (member.country || "").toLowerCase() === "thailand";
+    setConvertTargetRole(isThaiUser ? "thstd" : "interstd");
+    const currentRoleLabel = roleLabels[member.role]?.label ?? member.role;
+    setConvertReason(
+      `Your account was registered as ${currentRoleLabel} but should be a student account. Please upload your student ID card or enrollment certificate so we can verify your student status.`,
+    );
+    setShowConvertModal(true);
+  };
+
+  const handleRequestVerification = async () => {
+    if (!token || !member) return;
+    if (convertReason.trim().length < 10) {
+      toast.error("Reason must be at least 10 characters");
+      return;
+    }
+    setConverting(true);
+    try {
+      const res = await api.members.requestVerification(token, member.id, {
+        targetRole: convertTargetRole,
+        reason: convertReason.trim(),
+      });
+      if (res.emailSent) {
+        toast.success("Account converted. Email sent to user.");
+      } else {
+        toast.success("Account converted, but email failed to send. Please notify the user manually.");
+      }
+      setShowConvertModal(false);
+      fetchMember();
+    } catch (error) {
+      console.error("Failed to request verification:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to convert account");
+    } finally {
+      setConverting(false);
     }
   };
 
@@ -261,9 +341,37 @@ export default function MemberDetailPage() {
               </button>
             </>
           ) : (
-            <button onClick={() => setEditing(true)} className="btn-primary flex items-center gap-2">
-              <IconEdit size={18} /> Edit Member
-            </button>
+            <>
+              {/* Convert to Student: only for non-student / non-admin accounts */}
+              {(member.role === "thpro" || member.role === "interpro" || member.role === "general") && (
+                <button
+                  onClick={openConvertModal}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors text-sm font-medium"
+                  title="Change account to Student and request student verification document"
+                >
+                  <IconSchool size={18} />
+                  Convert to Student
+                </button>
+              )}
+              {isAdmin && member.status === "active" && (
+                <button
+                  onClick={handleImpersonate}
+                  className="btn-secondary flex items-center gap-2"
+                  disabled={impersonating}
+                  title="Open the public site logged in as this user (new tab)"
+                >
+                  {impersonating ? (
+                    <IconLoader2 size={18} className="animate-spin" />
+                  ) : (
+                    <IconLogin2 size={18} />
+                  )}
+                  {impersonating ? "Opening..." : "Login as User"}
+                </button>
+              )}
+              <button onClick={() => setEditing(true)} className="btn-primary flex items-center gap-2">
+                <IconEdit size={18} /> Edit Member
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -560,6 +668,127 @@ export default function MemberDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Convert to Student Modal */}
+      {showConvertModal && member && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => !converting && setShowConvertModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <IconSchool size={22} className="text-orange-600" />
+                <h2 className="text-lg font-semibold text-gray-900">Convert Account to Student</h2>
+              </div>
+              <button
+                onClick={() => setShowConvertModal(false)}
+                disabled={converting}
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <IconX size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5 space-y-4">
+              {/* Warning */}
+              <div className="flex gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                <IconAlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-sm text-amber-800">
+                  <p className="font-medium mb-1">This action will:</p>
+                  <ul className="list-disc list-inside space-y-0.5 text-amber-700">
+                    <li>Change role to the selected student type</li>
+                    <li>Mark account as <strong>rejected</strong> until document is approved</li>
+                    <li>Clear any existing verification document</li>
+                    <li>Email the user with a link to upload their student document</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Member info */}
+              <div className="text-sm text-gray-600">
+                <span className="text-gray-500">User:</span>{" "}
+                <span className="font-medium text-gray-900">
+                  {getFullName(member.firstName, member.middleName, member.lastName)}
+                </span>{" "}
+                <span className="text-gray-400">({member.email})</span>
+              </div>
+              <div className="text-sm text-gray-600">
+                <span className="text-gray-500">Current role:</span>{" "}
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${roleLabels[member.role]?.className}`}>
+                  {roleLabels[member.role]?.label}
+                </span>
+              </div>
+
+              {/* Target role */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Convert to <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={convertTargetRole}
+                  onChange={(e) => setConvertTargetRole(e.target.value as "thstd" | "interstd")}
+                  disabled={converting}
+                  className="input-field"
+                >
+                  <option value="thstd">Thai Student (thstd)</option>
+                  <option value="interstd">International Student (interstd)</option>
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  Default suggested based on user&apos;s country. You can override if needed.
+                </p>
+              </div>
+
+              {/* Reason */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Reason / Note to user <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={convertReason}
+                  onChange={(e) => setConvertReason(e.target.value)}
+                  disabled={converting}
+                  rows={5}
+                  maxLength={1000}
+                  className="input-field resize-none"
+                  placeholder="Explain why the account is being converted..."
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  {convertReason.length}/1000 characters — included in the email to the user.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+              <button
+                onClick={() => setShowConvertModal(false)}
+                disabled={converting}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRequestVerification}
+                disabled={converting || convertReason.trim().length < 10}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {converting ? (
+                  <IconLoader2 size={18} className="animate-spin" />
+                ) : (
+                  <IconSchool size={18} />
+                )}
+                {converting ? "Converting..." : "Convert & Send Email"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }
