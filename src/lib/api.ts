@@ -283,6 +283,10 @@ export const api = {
       fetchAPI<{ member: Record<string, unknown> }>(`/api/backoffice/members/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
     stats: (token: string) =>
       fetchAPI<{ total: number; byRole: { role: string; count: number }[]; byStatus: { status: string; count: number }[] }>('/api/backoffice/members/stats/summary', { token }),
+    statsByCountry: (token: string, query?: string) =>
+      fetchAPI<{ total: number; withCountry: number; unknown: number; byCountry: { country: string; count: number }[] }>(`/api/backoffice/members/stats/by-country${query ? `?${query}` : ''}`, { token }),
+    statsByCountryNoPrimaryTicket: (token: string, query: string) =>
+      fetchAPI<{ total: number; withCountry: number; unknown: number; byCountry: { country: string; count: number }[] }>(`/api/backoffice/members/stats/by-country/no-primary-ticket?${query}`, { token }),
     delete: (token: string, id: number) =>
       fetchAPI<{ success: boolean }>(`/api/backoffice/members/${id}`, { method: 'DELETE', token }),
     impersonate: (token: string, id: number) =>

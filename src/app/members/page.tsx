@@ -22,6 +22,10 @@ import {
   IconEye,
   IconEdit,
   IconPlus,
+  IconLoader2,
+  IconChevronDown,
+  IconChevronUp,
+  IconTicketOff,
 } from "@tabler/icons-react";
 
 // Types
@@ -44,6 +48,13 @@ interface Pagination {
   limit: number;
   total: number;
   totalPages: number;
+}
+
+interface CountryStats {
+  total: number;
+  withCountry: number;
+  unknown: number;
+  byCountry: { country: string; count: number }[];
 }
 
 // Role labels
@@ -103,8 +114,19 @@ export default function MembersPage() {
   const [eventFilter, setEventFilter] = useState("");
   const [eventOptions, setEventOptions] = useState<{ id: number; name: string }[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [countryFilter, setCountryFilter] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Member | null>(null);
+
+  // Country stats
+  const [countryStats, setCountryStats] = useState<CountryStats | null>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [isCountryChartOpen, setIsCountryChartOpen] = useState(true);
+
+  // Country stats: members WITHOUT primary ticket
+  const [noTicketStats, setNoTicketStats] = useState<CountryStats | null>(null);
+  const [isLoadingNoTicketStats, setIsLoadingNoTicketStats] = useState(false);
+  const [isNoTicketChartOpen, setIsNoTicketChartOpen] = useState(true);
 
   // Stats (global totals from API)
   const [stats, setStats] = useState({
@@ -143,6 +165,54 @@ export default function MembersPage() {
     }).catch(() => {});
   }, [token]);
 
+  // Load country stats on mount and when role/status filters change
+  const fetchCountryStats = useCallback(async () => {
+    if (!token) return;
+    setIsLoadingStats(true);
+    try {
+      const params = new URLSearchParams();
+      if (roleFilter) params.append("role", roleFilter);
+      if (statusFilter) params.append("status", statusFilter);
+      const res = await api.members.statsByCountry(token, params.toString());
+      setCountryStats(res);
+    } catch (error) {
+      console.error("Failed to fetch country stats:", error);
+      setCountryStats(null);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  }, [token, roleFilter, statusFilter]);
+
+  useEffect(() => {
+    fetchCountryStats();
+  }, [fetchCountryStats]);
+
+  // Load no-primary-ticket stats when an event is selected
+  const fetchNoTicketStats = useCallback(async () => {
+    if (!token || !eventFilter) {
+      setNoTicketStats(null);
+      return;
+    }
+    setIsLoadingNoTicketStats(true);
+    try {
+      const params = new URLSearchParams();
+      params.append("eventId", eventFilter);
+      if (roleFilter) params.append("role", roleFilter);
+      if (statusFilter) params.append("status", statusFilter);
+      const res = await api.members.statsByCountryNoPrimaryTicket(token, params.toString());
+      setNoTicketStats(res);
+    } catch (error) {
+      console.error("Failed to fetch no-ticket country stats:", error);
+      setNoTicketStats(null);
+    } finally {
+      setIsLoadingNoTicketStats(false);
+    }
+  }, [token, eventFilter, roleFilter, statusFilter]);
+
+  useEffect(() => {
+    fetchNoTicketStats();
+  }, [fetchNoTicketStats]);
+
   const fetchMembers = useCallback(async () => {
     if (!token) return;
 
@@ -155,6 +225,7 @@ export default function MembersPage() {
       if (roleFilter) params.append("role", roleFilter);
       if (statusFilter) params.append("status", statusFilter);
       if (eventFilter) params.append("eventId", eventFilter);
+      if (countryFilter) params.append("country", countryFilter);
 
       const response = await api.members.list(token, params.toString());
       setMembers(response.members as unknown as Member[]);
@@ -164,7 +235,7 @@ export default function MembersPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, currentPage, search, roleFilter, statusFilter, eventFilter]);
+  }, [token, currentPage, search, roleFilter, statusFilter, eventFilter, countryFilter]);
 
   useEffect(() => {
     fetchMembers();
@@ -175,6 +246,7 @@ export default function MembersPage() {
     setRoleFilter("");
     setStatusFilter("");
     setEventFilter("");
+    setCountryFilter("");
     setCurrentPage(1);
   };
 
@@ -250,6 +322,231 @@ export default function MembersPage() {
         </div>
       </div>
 
+      {/* Country Breakdown Widget */}
+      <div className="card mb-6">
+        <button
+          onClick={() => setIsCountryChartOpen(!isCountryChartOpen)}
+          className="w-full flex items-center justify-between cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+              <IconWorld size={18} className="text-emerald-600" />
+            </div>
+            <h3 className="font-semibold text-gray-800">Members by Country</h3>
+            {countryStats && (
+              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                {countryStats.byCountry.length} countries
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {countryFilter && (
+              <span
+                onClick={(e) => { e.stopPropagation(); setCountryFilter(""); setCurrentPage(1); }}
+                className="text-xs text-blue-600 hover:underline cursor-pointer"
+              >
+                Clear filter
+              </span>
+            )}
+            {countryStats && (
+              <span className="text-sm font-semibold text-gray-700 tabular-nums">
+                {countryStats.total.toLocaleString()} total
+              </span>
+            )}
+            {isCountryChartOpen ? (
+              <IconChevronUp size={18} className="text-gray-400" />
+            ) : (
+              <IconChevronDown size={18} className="text-gray-400" />
+            )}
+          </div>
+        </button>
+
+        {isCountryChartOpen && (
+          <div className="mt-4">
+            {isLoadingStats ? (
+              <div className="flex justify-center py-6">
+                <IconLoader2 size={24} className="animate-spin text-emerald-600" />
+              </div>
+            ) : !countryStats || countryStats.byCountry.length === 0 ? (
+              <p className="text-sm text-gray-400 py-4">No country data available.</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-0.5">
+                  {countryStats.byCountry.map((c, idx) => {
+                    const maxCount = countryStats.byCountry[0]?.count || 1;
+                    const barPct = (c.count / maxCount) * 100;
+                    const denominator = countryStats.withCountry || 1;
+                    const pct = (c.count / denominator) * 100;
+                    const isActive = countryFilter === c.country;
+                    return (
+                      <button
+                        key={c.country}
+                        onClick={() => {
+                          setCountryFilter(isActive ? "" : c.country);
+                          setCurrentPage(1);
+                        }}
+                        className={`group flex items-center gap-2 px-2 py-1.5 rounded-md transition-all ${
+                          isActive
+                            ? "bg-blue-50 ring-1 ring-blue-300"
+                            : "hover:bg-gray-50"
+                        }`}
+                        title={`Click to filter by ${c.country}`}
+                      >
+                        <span className={`w-4 text-[10px] font-semibold text-right shrink-0 ${
+                          idx < 3 ? "text-emerald-600" : "text-gray-300"
+                        }`}>
+                          {idx + 1}
+                        </span>
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          <span className={`text-xs font-medium truncate shrink-0 w-28 text-left ${
+                            isActive ? "text-blue-700" : "text-gray-700"
+                          }`}>
+                            {c.country}
+                          </span>
+                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                isActive
+                                  ? "bg-blue-500"
+                                  : idx < 3
+                                    ? "bg-emerald-500"
+                                    : "bg-emerald-300"
+                              }`}
+                              style={{ width: `${Math.max(barPct, 3)}%` }}
+                            />
+                          </div>
+                        </div>
+                        <span className="text-[11px] tabular-nums text-gray-500 shrink-0 w-16 text-right">
+                          <span className={`font-semibold ${isActive ? "text-blue-700" : "text-gray-700"}`}>{c.count}</span>
+                          <span className="text-gray-300 ml-0.5">({pct.toFixed(0)}%)</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {countryStats.unknown > 0 && (
+                  <div className="pt-2 mt-2 border-t border-gray-100 text-xs text-gray-400 text-center">
+                    + {countryStats.unknown} member{countryStats.unknown > 1 ? "s" : ""} without country info
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Country Chart 2: Members WITHOUT Primary Ticket (only when event is selected) */}
+      {eventFilter && (
+        <div className="card mb-6">
+          <button
+            onClick={() => setIsNoTicketChartOpen(!isNoTicketChartOpen)}
+            className="w-full flex items-center justify-between cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                <IconTicketOff size={18} className="text-amber-600" />
+              </div>
+              <h3 className="font-semibold text-gray-800">Without Primary Ticket by Country</h3>
+              <span className="text-xs text-gray-500">
+                ({eventOptions.find((e) => String(e.id) === eventFilter)?.name || "selected event"})
+              </span>
+              {noTicketStats && (
+                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                  {noTicketStats.byCountry.length} countries
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {noTicketStats && (
+                <span className="text-sm font-semibold text-amber-700 tabular-nums">
+                  {noTicketStats.total.toLocaleString()} pending
+                </span>
+              )}
+              {isNoTicketChartOpen ? (
+                <IconChevronUp size={18} className="text-gray-400" />
+              ) : (
+                <IconChevronDown size={18} className="text-gray-400" />
+              )}
+            </div>
+          </button>
+
+          {isNoTicketChartOpen && (
+            <div className="mt-4">
+              {isLoadingNoTicketStats ? (
+                <div className="flex justify-center py-6">
+                  <IconLoader2 size={24} className="animate-spin text-amber-600" />
+                </div>
+              ) : !noTicketStats || noTicketStats.byCountry.length === 0 ? (
+                <p className="text-sm text-gray-400 py-4 text-center">
+                  All members have purchased a primary ticket for this event 🎉
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-0.5">
+                    {noTicketStats.byCountry.map((c, idx) => {
+                      const maxCount = noTicketStats.byCountry[0]?.count || 1;
+                      const barPct = (c.count / maxCount) * 100;
+                      const denominator = noTicketStats.withCountry || 1;
+                      const pct = (c.count / denominator) * 100;
+                      const isActive = countryFilter === c.country;
+                      return (
+                        <button
+                          key={c.country}
+                          onClick={() => {
+                            setCountryFilter(isActive ? "" : c.country);
+                            setCurrentPage(1);
+                          }}
+                          className={`group flex items-center gap-2 px-2 py-1.5 rounded-md transition-all ${
+                            isActive
+                              ? "bg-blue-50 ring-1 ring-blue-300"
+                              : "hover:bg-gray-50"
+                          }`}
+                          title={`Click to filter members by ${c.country}`}
+                        >
+                          <span className={`w-4 text-[10px] font-semibold text-right shrink-0 ${
+                            idx < 3 ? "text-amber-600" : "text-gray-300"
+                          }`}>
+                            {idx + 1}
+                          </span>
+                          <div className="flex-1 min-w-0 flex items-center gap-2">
+                            <span className={`text-xs font-medium truncate shrink-0 w-28 text-left ${
+                              isActive ? "text-blue-700" : "text-gray-700"
+                            }`}>
+                              {c.country}
+                            </span>
+                            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${
+                                  isActive
+                                    ? "bg-blue-500"
+                                    : idx < 3
+                                      ? "bg-amber-500"
+                                      : "bg-amber-300"
+                                }`}
+                                style={{ width: `${Math.max(barPct, 3)}%` }}
+                              />
+                            </div>
+                          </div>
+                          <span className="text-[11px] tabular-nums text-gray-500 shrink-0 w-16 text-right">
+                            <span className={`font-semibold ${isActive ? "text-blue-700" : "text-gray-700"}`}>{c.count}</span>
+                            <span className="text-gray-300 ml-0.5">({pct.toFixed(0)}%)</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {noTicketStats.unknown > 0 && (
+                    <div className="pt-2 mt-2 border-t border-gray-100 text-xs text-gray-400 text-center">
+                      + {noTicketStats.unknown} member{noTicketStats.unknown > 1 ? "s" : ""} without country info
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="card">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -324,6 +621,20 @@ export default function MembersPage() {
               ))}
             </select>
           )}
+
+          <select
+            value={countryFilter}
+            onChange={(e) => { setCountryFilter(e.target.value); setCurrentPage(1); }}
+            disabled={!countryStats || countryStats.byCountry.length === 0}
+            className="input-field w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <option value="">All Countries</option>
+            {countryStats?.byCountry.map((c) => (
+              <option key={c.country} value={c.country}>
+                {c.country} ({c.count})
+              </option>
+            ))}
+          </select>
 
           <button
             type="button"

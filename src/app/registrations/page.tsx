@@ -16,6 +16,8 @@ import {
     IconUserPlus,
     IconLoader2,
     IconWorld,
+    IconChevronDown,
+    IconChevronUp,
 } from '@tabler/icons-react';
 
 
@@ -65,6 +67,7 @@ export default function RegistrationsPage() {
     const [isExporting, setIsExporting] = useState(false);
     const [countryStats, setCountryStats] = useState<CountryStats | null>(null);
     const [isLoadingStats, setIsLoadingStats] = useState(false);
+    const [isCountryChartOpen, setIsCountryChartOpen] = useState(true);
 
     // Pagination
     const [page, setPage] = useState(1);
@@ -218,64 +221,113 @@ export default function RegistrationsPage() {
             {/* Country Breakdown Widget */}
             {eventSelected && (
                 <div className="card mb-6">
-                    <div className="flex items-center justify-between mb-4">
+                    <button
+                        onClick={() => setIsCountryChartOpen(!isCountryChartOpen)}
+                        className="w-full flex items-center justify-between cursor-pointer"
+                    >
                         <div className="flex items-center gap-2">
-                            <IconWorld size={20} className="text-emerald-600" />
+                            <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                                <IconWorld size={18} className="text-emerald-600" />
+                            </div>
                             <h3 className="font-semibold text-gray-800">Registrations by Country</h3>
                             <span className="text-xs text-gray-500">(confirmed only)</span>
+                            {countryStats && (
+                                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                    {countryStats.byCountry.length} countries
+                                </span>
+                            )}
                         </div>
-                        {countryFilter && (
-                            <button
-                                onClick={() => { setCountryFilter(''); setPage(1); }}
-                                className="text-xs text-blue-600 hover:underline"
-                            >
-                                Clear filter
-                            </button>
-                        )}
-                    </div>
-                    {isLoadingStats ? (
-                        <div className="flex justify-center py-6">
-                            <IconLoader2 size={24} className="animate-spin text-emerald-600" />
+                        <div className="flex items-center gap-3">
+                            {countryFilter && (
+                                <span
+                                    onClick={(e) => { e.stopPropagation(); setCountryFilter(''); setPage(1); }}
+                                    className="text-xs text-blue-600 hover:underline cursor-pointer"
+                                >
+                                    Clear filter
+                                </span>
+                            )}
+                            {countryStats && (
+                                <span className="text-sm font-semibold text-gray-700 tabular-nums">
+                                    {countryStats.total.toLocaleString()} total
+                                </span>
+                            )}
+                            {isCountryChartOpen ? (
+                                <IconChevronUp size={18} className="text-gray-400" />
+                            ) : (
+                                <IconChevronDown size={18} className="text-gray-400" />
+                            )}
                         </div>
-                    ) : !countryStats || countryStats.byCountry.length === 0 ? (
-                        <p className="text-sm text-gray-400 py-4">No country data available for this event.</p>
-                    ) : (
-                        <div className="space-y-2">
-                            {countryStats.byCountry.map((c) => {
-                                const denominator = countryStats.withCountry || 1;
-                                const pct = (c.count / denominator) * 100;
-                                const isActive = countryFilter === c.country;
-                                return (
-                                    <button
-                                        key={c.country}
-                                        onClick={() => {
-                                            setCountryFilter(isActive ? '' : c.country);
-                                            setPage(1);
-                                        }}
-                                        className={`w-full text-left transition-colors ${isActive ? 'ring-2 ring-blue-400 rounded-lg' : ''}`}
-                                        title={`Click to filter by ${c.country}`}
-                                    >
-                                        <div className="flex items-center justify-between text-sm mb-1">
-                                            <span className={`font-medium ${isActive ? 'text-blue-700' : 'text-gray-700'}`}>
-                                                {c.country}
-                                            </span>
-                                            <span className="text-gray-500 tabular-nums">
-                                                {c.count} <span className="text-gray-400">({pct.toFixed(1)}%)</span>
-                                            </span>
-                                        </div>
-                                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                            <div
-                                                className={`h-full rounded-full ${isActive ? 'bg-blue-500' : 'bg-emerald-500'}`}
-                                                style={{ width: `${Math.max(pct, 2)}%` }}
-                                            />
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                            {countryStats.unknown > 0 && (
-                                <div className="pt-2 border-t border-gray-100 text-xs text-gray-500">
-                                    + {countryStats.unknown} registration{countryStats.unknown > 1 ? 's' : ''} without country info (free/manual without user account)
+                    </button>
+
+                    {isCountryChartOpen && (
+                        <div className="mt-4">
+                            {isLoadingStats ? (
+                                <div className="flex justify-center py-6">
+                                    <IconLoader2 size={24} className="animate-spin text-emerald-600" />
                                 </div>
+                            ) : !countryStats || countryStats.byCountry.length === 0 ? (
+                                <p className="text-sm text-gray-400 py-4">No country data available for this event.</p>
+                            ) : (
+                                <>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-0.5">
+                                        {countryStats.byCountry.map((c, idx) => {
+                                            const maxCount = countryStats.byCountry[0]?.count || 1;
+                                            const barPct = (c.count / maxCount) * 100;
+                                            const denominator = countryStats.withCountry || 1;
+                                            const pct = (c.count / denominator) * 100;
+                                            const isActive = countryFilter === c.country;
+                                            return (
+                                                <button
+                                                    key={c.country}
+                                                    onClick={() => {
+                                                        setCountryFilter(isActive ? '' : c.country);
+                                                        setPage(1);
+                                                    }}
+                                                    className={`group flex items-center gap-2 px-2 py-1.5 rounded-md transition-all ${
+                                                        isActive
+                                                            ? 'bg-blue-50 ring-1 ring-blue-300'
+                                                            : 'hover:bg-gray-50'
+                                                    }`}
+                                                    title={`Click to filter by ${c.country}`}
+                                                >
+                                                    <span className={`w-4 text-[10px] font-semibold text-right shrink-0 ${
+                                                        idx < 3 ? 'text-emerald-600' : 'text-gray-300'
+                                                    }`}>
+                                                        {idx + 1}
+                                                    </span>
+                                                    <div className="flex-1 min-w-0 flex items-center gap-2">
+                                                        <span className={`text-xs font-medium truncate shrink-0 w-28 text-left ${
+                                                            isActive ? 'text-blue-700' : 'text-gray-700'
+                                                        }`}>
+                                                            {c.country}
+                                                        </span>
+                                                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                            <div
+                                                                className={`h-full rounded-full transition-all duration-500 ${
+                                                                    isActive
+                                                                        ? 'bg-blue-500'
+                                                                        : idx < 3
+                                                                            ? 'bg-emerald-500'
+                                                                            : 'bg-emerald-300'
+                                                                }`}
+                                                                style={{ width: `${Math.max(barPct, 3)}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-[11px] tabular-nums text-gray-500 shrink-0 w-16 text-right">
+                                                        <span className={`font-semibold ${isActive ? 'text-blue-700' : 'text-gray-700'}`}>{c.count}</span>
+                                                        <span className="text-gray-300 ml-0.5">({pct.toFixed(0)}%)</span>
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    {countryStats.unknown > 0 && (
+                                        <div className="pt-2 mt-2 border-t border-gray-100 text-xs text-gray-400 text-center">
+                                            + {countryStats.unknown} registration{countryStats.unknown > 1 ? 's' : ''} without country info
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     )}
