@@ -215,6 +215,13 @@ export const api = {
         unknown: number;
         byCountry: { country: string; count: number }[];
       }>(`/api/backoffice/registrations/stats/by-country${query ? `?${query}` : ''}`, { token }),
+    statsByAddon: (token: string, query: string) =>
+      fetchAPI<{
+        total: number;
+        gala: number;
+        workshop: number;
+        ticketOnly: number;
+      }>(`/api/backoffice/registrations/stats/by-addon?${query}`, { token }),
   },
 
   abstracts: {
@@ -224,6 +231,45 @@ export const api = {
       fetchAPI<{ abstract: Record<string, unknown> }>(`/api/backoffice/abstracts/${id}`, { token }),
     updateStatus: (token: string, id: number, status: string, comment?: string) =>
       fetchAPI<{ abstract: Record<string, unknown> }>(`/api/backoffice/abstracts/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, comment }), token }),
+
+    /**
+     * Download the acceptance letter for an accepted abstract as PDF or DOCX.
+     * Works for both Oral and Poster abstracts; the server renders the correct
+     * presentation-type wording based on the stored value (override with
+     * opts.type if needed).
+     */
+    downloadAcceptLetter: async (
+      token: string,
+      abstractId: number,
+      format: 'pdf' | 'docx' = 'pdf',
+      opts?: { name?: string; date?: string; type?: 'oral' | 'poster' }
+    ): Promise<void> => {
+      const resolvedToken = token || getStoredBackofficeToken();
+      const qs = new URLSearchParams();
+      if (opts?.name) qs.set('name', opts.name);
+      if (opts?.date) qs.set('date', opts.date);
+      if (opts?.type) qs.set('type', opts.type);
+      const suffix = qs.toString() ? `?${qs.toString()}` : '';
+      const url = `${API_BASE}/api/backoffice/abstracts/${abstractId}/accept-letter.${format}${suffix}`;
+
+      const res = await fetch(url, {
+        headers: resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {},
+      });
+      if (!res.ok) {
+        if (res.status === 401) dispatchUnauthorizedEvent();
+        const err = await res.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(err.error || `Request failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = `ACCP2026-Accept-${abstractId}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    },
   },
 
   checkins: {
@@ -255,6 +301,43 @@ export const api = {
   orders: {
     list: (token: string, query?: string) =>
       fetchAPI<OrdersResponse>(`/api/backoffice/orders${query ? `?${query}` : ''}`, { token }),
+
+    /**
+     * Download invitation letter as PDF (requires LibreOffice on API) or DOCX.
+     * Fetches with Bearer auth, converts response to blob, and triggers a
+     * browser download. Only paid orders are accepted by the API.
+     */
+    downloadInvitationLetter: async (
+      token: string,
+      orderId: number,
+      format: 'pdf' | 'docx' = 'pdf',
+      opts?: { name?: string; date?: string }
+    ): Promise<void> => {
+      const resolvedToken = token || getStoredBackofficeToken();
+      const qs = new URLSearchParams();
+      if (opts?.name) qs.set('name', opts.name);
+      if (opts?.date) qs.set('date', opts.date);
+      const suffix = qs.toString() ? `?${qs.toString()}` : '';
+      const url = `${API_BASE}/api/backoffice/orders/${orderId}/invitation-letter.${format}${suffix}`;
+
+      const res = await fetch(url, {
+        headers: resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {},
+      });
+      if (!res.ok) {
+        if (res.status === 401) dispatchUnauthorizedEvent();
+        const err = await res.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(err.error || `Request failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = `ACCP2026-Invitation-${orderId}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    },
   },
 
   promoCodes: {

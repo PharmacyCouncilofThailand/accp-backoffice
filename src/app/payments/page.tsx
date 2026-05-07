@@ -14,7 +14,9 @@ import {
     IconCheck,
     IconLoader2,
     IconX,
+    IconFileText,
 } from '@tabler/icons-react';
+import toast from 'react-hot-toast';
 import type { OrderListItem, OrderStats } from '@/types/api';
 
 const getBackofficeToken = () =>
@@ -262,7 +264,7 @@ function OrderDetailModal({ order, onClose }: { order: OrderListItem; onClose: (
                 </div>
 
                 {/* Footer */}
-                <div className="flex justify-end gap-2 p-5 border-t border-gray-200">
+                <div className="flex flex-wrap justify-end gap-2 p-5 border-t border-gray-200">
                     <a
                         href={order.receiptUrl}
                         target="_blank"
@@ -270,8 +272,44 @@ function OrderDetailModal({ order, onClose }: { order: OrderListItem; onClose: (
                         className="btn-secondary text-sm px-4 py-2 flex items-center gap-1.5"
                     >
                         <IconDownload size={16} />
-                        Download Receipt
+                        Receipt
                     </a>
+                    <button
+                        type="button"
+                        onClick={async () => {
+                            const token = getBackofficeToken();
+                            const t = toast.loading('Generating invitation letter…');
+                            try {
+                                await api.orders.downloadInvitationLetter(token, order.id, 'pdf');
+                                toast.success('Invitation letter downloaded', { id: t });
+                            } catch (err) {
+                                toast.error((err as Error).message || 'Failed to download letter', { id: t });
+                            }
+                        }}
+                        className="btn-secondary text-sm px-4 py-2 flex items-center gap-1.5"
+                        title="Download invitation letter as PDF"
+                    >
+                        <IconFileText size={16} />
+                        Letter (PDF)
+                    </button>
+                    <button
+                        type="button"
+                        onClick={async () => {
+                            const token = getBackofficeToken();
+                            const t = toast.loading('Generating invitation letter…');
+                            try {
+                                await api.orders.downloadInvitationLetter(token, order.id, 'docx');
+                                toast.success('Invitation letter downloaded', { id: t });
+                            } catch (err) {
+                                toast.error((err as Error).message || 'Failed to download letter', { id: t });
+                            }
+                        }}
+                        className="btn-secondary text-sm px-4 py-2 flex items-center gap-1.5"
+                        title="Download invitation letter as DOCX (editable)"
+                    >
+                        <IconFileText size={16} />
+                        Letter (DOCX)
+                    </button>
                     <button onClick={onClose} className="btn-primary text-sm px-4 py-2">
                         Close
                     </button>

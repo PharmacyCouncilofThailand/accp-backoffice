@@ -20,6 +20,7 @@ import {
   IconCalendar,
   IconTag,
   IconPresentation,
+  IconDownload,
 } from "@tabler/icons-react";
 
 const statusColors: { [key: string]: string } = {
@@ -415,6 +416,53 @@ export default function AbstractDetailPage() {
               >
                 <IconX size={20} /> Reject
               </button>
+            </div>
+          )}
+
+          {/* Acceptance Letter download (only for accepted abstracts) */}
+          {abstract.status === "accepted" && (
+            <div className="space-y-2">
+              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+                Acceptance Letter
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={async () => {
+                    const token = getBackofficeToken();
+                    try {
+                      await api.abstracts.downloadAcceptLetter(
+                        token,
+                        abstract.id,
+                        "pdf",
+                      );
+                    } catch (err) {
+                      alert((err as Error).message || "Failed to download letter");
+                    }
+                  }}
+                  className="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-semibold shadow-sm transition-colors"
+                  title="Download acceptance letter as PDF"
+                >
+                  <IconDownload size={20} /> Letter (PDF)
+                </button>
+                <button
+                  onClick={async () => {
+                    const token = getBackofficeToken();
+                    try {
+                      await api.abstracts.downloadAcceptLetter(
+                        token,
+                        abstract.id,
+                        "docx",
+                      );
+                    } catch (err) {
+                      alert((err as Error).message || "Failed to download letter");
+                    }
+                  }}
+                  className="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-semibold shadow-sm transition-colors"
+                  title="Download acceptance letter as editable DOCX"
+                >
+                  <IconFileText size={20} /> Letter (DOCX)
+                </button>
+              </div>
             </div>
           )}
         </div>

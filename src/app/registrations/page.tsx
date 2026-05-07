@@ -18,6 +18,9 @@ import {
     IconWorld,
     IconChevronDown,
     IconChevronUp,
+    IconGlassFull,
+    IconTool,
+    IconTicket,
 } from '@tabler/icons-react';
 
 
@@ -49,6 +52,13 @@ interface CountryStats {
     byCountry: { country: string; count: number }[];
 }
 
+interface AddonStats {
+    total: number;
+    gala: number;
+    workshop: number;
+    ticketOnly: number;
+}
+
 const getBackofficeToken = () =>
     localStorage.getItem('backoffice_token') ||
     sessionStorage.getItem('backoffice_token') ||
@@ -68,6 +78,8 @@ export default function RegistrationsPage() {
     const [countryStats, setCountryStats] = useState<CountryStats | null>(null);
     const [isLoadingStats, setIsLoadingStats] = useState(false);
     const [isCountryChartOpen, setIsCountryChartOpen] = useState(true);
+    const [addonStats, setAddonStats] = useState<AddonStats | null>(null);
+    const [isLoadingAddonStats, setIsLoadingAddonStats] = useState(false);
 
     // Pagination
     const [page, setPage] = useState(1);
@@ -112,6 +124,29 @@ export default function RegistrationsPage() {
             }
         };
         fetchStats();
+    }, [eventFilter, eventSelected]);
+
+    // Load add-on stats (Gala / Workshop / Ticket Only) whenever event changes
+    useEffect(() => {
+        if (!eventSelected || !eventFilter) {
+            setAddonStats(null);
+            return;
+        }
+        const fetchAddonStats = async () => {
+            setIsLoadingAddonStats(true);
+            try {
+                const token = getBackofficeToken();
+                const params = new URLSearchParams({ eventId: eventFilter, status: 'confirmed' });
+                const res = await api.registrations.statsByAddon(token, params.toString());
+                setAddonStats(res);
+            } catch (error) {
+                console.error('Failed to fetch addon stats:', error);
+                setAddonStats(null);
+            } finally {
+                setIsLoadingAddonStats(false);
+            }
+        };
+        fetchAddonStats();
     }, [eventFilter, eventSelected]);
 
     const handleExport = async () => {
@@ -217,6 +252,72 @@ export default function RegistrationsPage() {
                     </>
                 )}
             </div>
+
+            {/* Add-on Breakdown Stats (Gala / Workshop / Ticket Only) */}
+            {eventSelected && eventFilter && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="card py-4">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-pink-100 rounded-xl flex items-center justify-center text-pink-600">
+                                <IconGlassFull size={24} stroke={1.5} />
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {isLoadingAddonStats ? '-' : (addonStats?.gala ?? 0).toLocaleString()}
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                    Gala Dinner
+                                    {addonStats && addonStats.total > 0 && (
+                                        <span className="text-gray-400 ml-1">
+                                            ({((addonStats.gala / addonStats.total) * 100).toFixed(0)}%)
+                                        </span>
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="card py-4">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
+                                <IconTool size={24} stroke={1.5} />
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {isLoadingAddonStats ? '-' : (addonStats?.workshop ?? 0).toLocaleString()}
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                    Workshop
+                                    {addonStats && addonStats.total > 0 && (
+                                        <span className="text-gray-400 ml-1">
+                                            ({((addonStats.workshop / addonStats.total) * 100).toFixed(0)}%)
+                                        </span>
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="card py-4">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600">
+                                <IconTicket size={24} stroke={1.5} />
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {isLoadingAddonStats ? '-' : (addonStats?.ticketOnly ?? 0).toLocaleString()}
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                    Ticket Only (no add-on)
+                                    {addonStats && addonStats.total > 0 && (
+                                        <span className="text-gray-400 ml-1">
+                                            ({((addonStats.ticketOnly / addonStats.total) * 100).toFixed(0)}%)
+                                        </span>
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Country Breakdown Widget */}
             {eventSelected && (
