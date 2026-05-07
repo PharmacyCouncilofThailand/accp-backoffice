@@ -26,12 +26,30 @@ import {
     IconStar,
     IconFile,
     IconUpload,
+    IconDownload,
 } from '@tabler/icons-react';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 const getBackofficeToken = () =>
     localStorage.getItem('backoffice_token') ||
     sessionStorage.getItem('backoffice_token') ||
     '';
+
+async function exportSessionCSV(session: { id: number; sessionCode: string }) {
+    const token = getBackofficeToken();
+    const res = await fetch(`${API_BASE}/api/backoffice/sessions/${session.id}/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) { toast.error('Export failed'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `session_${session.sessionCode}_participants.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
 
 interface Session {
     id: number;
@@ -551,6 +569,13 @@ export default function SessionsPage() {
                         </div>
                         {/* Actions */}
                         <div className="flex gap-2">
+                            <button
+                                onClick={() => exportSessionCSV(session)}
+                                className="p-2 bg-white/20 hover:bg-green-500 rounded-lg transition-colors border border-white/10"
+                                title="Export participant list (CSV)"
+                            >
+                                <IconDownload size={16} />
+                            </button>
                             <button
                                 onClick={() => openEditModal(session)}
                                 className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors border border-white/10"
