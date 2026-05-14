@@ -160,9 +160,6 @@ export default function AddRegistrationPage() {
     const selectedAddonTickets = addonTickets.filter((ticket: any) =>
         form.addonTicketTypeIds.includes(ticket.id)
     );
-    const selectedAddonSessionIds = new Set(
-        selectedAddonTickets.flatMap((ticket: any) => getTicketSessionIds(ticket))
-    );
     const linkedSessionIdsForSelectedTickets = new Set([
         ...getTicketSessionIds(selectedTicket),
         ...selectedAddonTickets.flatMap((ticket: any) => getTicketSessionIds(ticket)),
@@ -170,27 +167,47 @@ export default function AddRegistrationPage() {
     const linkedSessionsForSelectedTickets = sessionsList.filter((session: any) =>
         linkedSessionIdsForSelectedTickets.has(session.id)
     );
-    const linkedSessionCount = linkedSessionsForSelectedTickets.length;
+    const selectedTickets = selectedTicket ? [selectedTicket, ...selectedAddonTickets] : [];
+
+    const isWorkshopTicket = (ticket: any) =>
+        (ticket?.groupName || '').toLowerCase() === 'workshop' ||
+        getTicketSessions(ticket).some((session: any) => session.sessionType === 'workshop');
+
+    const getDefaultSessionIdsForTicket = (ticket: any) => {
+        const linkedIds = getTicketSessionIds(ticket);
+        if (isWorkshopTicket(ticket) && linkedIds.length > 1) return [];
+        return linkedIds;
+    };
+
+    const getSelectedSessionIdsForTicket = (ticket: any) => {
+        const linkedIds = new Set(getTicketSessionIds(ticket));
+        return form.sessionIds.filter((sessionId) => linkedIds.has(sessionId));
+    };
+
+    const getTicketSessionSelections = () =>
+        selectedTickets.map((ticket: any) => ({
+            ticketTypeId: ticket.id,
+            sessionIds: getSelectedSessionIdsForTicket(ticket),
+        }));
 
     useEffect(() => {
         if (selectedTicket?.category !== 'primary' && form.addonTicketTypeIds.length > 0) {
-            setForm(prev => ({ ...prev, addonTicketTypeIds: [] }));
+            setForm(prev => ({ ...prev, addonTicketTypeIds: [], sessionIds: getTicketSessionIds(selectedTicket) }));
         }
     }, [selectedTicket, form.addonTicketTypeIds.length]);
 
     useEffect(() => {
         if (!selectedTicket || form.sessionIds.length === 0) return;
 
-        const selectedTicketSessionIds = new Set(getTicketSessionIds(selectedTicket));
-        const cleanedSessionIds = form.sessionIds.filter((id) => selectedTicketSessionIds.has(id));
+        const cleanedSessionIds = form.sessionIds.filter((id) => linkedSessionIdsForSelectedTickets.has(id));
 
         if (cleanedSessionIds.length !== form.sessionIds.length) {
             setForm(prev => ({
                 ...prev,
-                sessionIds: prev.sessionIds.filter((id) => selectedTicketSessionIds.has(id)),
+                sessionIds: prev.sessionIds.filter((id) => linkedSessionIdsForSelectedTickets.has(id)),
             }));
         }
-    }, [selectedTicket, form.sessionIds]);
+    }, [selectedTicket, form.sessionIds, linkedSessionsForSelectedTickets]);
 
     const getSoldCount = (ticket: any) => ticket.soldCount ?? ticket.sold ?? 0;
     const formatTicketPrice = (ticket: any) => {
@@ -241,6 +258,20 @@ export default function AddRegistrationPage() {
             return;
         }
 
+        const ticketSessionSelections = getTicketSessionSelections();
+        for (const ticket of selectedTickets) {
+            const linkedSessionIds = getTicketSessionIds(ticket);
+            const selectedSessionIds = getSelectedSessionIdsForTicket(ticket);
+            if (linkedSessionIds.length > 0 && selectedSessionIds.length === 0) {
+                toast.error(`Please select at least one session for ${ticket.name}`);
+                return;
+            }
+            if (isWorkshopTicket(ticket) && selectedSessionIds.length !== 1) {
+                toast.error(`Please select exactly one workshop session for ${ticket.name}`);
+                return;
+            }
+        }
+
         setIsSubmitting(true);
         try {
             const token = getBackofficeToken();
@@ -251,6 +282,7 @@ export default function AddRegistrationPage() {
                 eventId: form.eventId,
                 ticketTypeId: form.ticketTypeId,
                 addonTicketTypeIds: form.addonTicketTypeIds.length > 0 ? form.addonTicketTypeIds : undefined,
+                ticketSessionSelections,
                 note: form.note || undefined,
             });
 
@@ -380,7 +412,12 @@ export default function AddRegistrationPage() {
                                                     key={t.id}
                                                     type="button"
                                                     onClick={() => {
-                                                        setForm(prev => ({ ...prev, ticketTypeId: t.id, addonTicketTypeIds: [], sessionIds: [] }));
+                                                        setForm(prev => ({
+                                                            ...prev,
+                                                            ticketTypeId: t.id,
+                                                            addonTicketTypeIds: [],
+                                                            sessionIds: getDefaultSessionIdsForTicket(t),
+                                                        }));
                                                         setSelectedTicket(t);
                                                         setTicketSearch(t.name);
                                                         setIsTicketDropdownOpen(false);
@@ -460,10 +497,18 @@ export default function AddRegistrationPage() {
                                                 checked={checked}
                                                 disabled={soldOut}
                                                 onChange={(e) => {
+                                                    const ticketSessionIds = getTicketSessionIds(ticket);
+                                                    const defaultSessionIds = getDefaultSessionIdsForTicket(ticket);
                                                     const ids = e.target.checked
                                                         ? [...form.addonTicketTypeIds, ticket.id]
                                                         : form.addonTicketTypeIds.filter((id: number) => id !== ticket.id);
-                                                    setForm(prev => ({ ...prev, addonTicketTypeIds: ids }));
+                                                    setForm(prev => ({
+                                                        ...prev,
+                                                        addonTicketTypeIds: ids,
+                                                        sessionIds: e.target.checked
+                                                            ? [...new Set([...prev.sessionIds, ...defaultSessionIds])]
+                                                            : prev.sessionIds.filter((id) => !ticketSessionIds.includes(id)),
+                                                    }));
                                                 }}
                                                 className="mt-1 accent-pink-600"
                                             />
@@ -518,43 +563,45 @@ export default function AddRegistrationPage() {
                         }, {});
 
                         const renderSessionItem = (session: any, colorConfig: typeof sessionTypeConfig[string]) => {
-                            const isSelectedAddonSession = selectedAddonSessionIds.has(session.id);
-                            const isAddonLikeSession = !isSelectedAddonSession && selectedTicket?.category === 'primary' &&
-                                ['gala_dinner', 'workshop'].includes(session.sessionType || '');
-                            const isReadOnly = true;
+                            const ownerTicket = selectedAddonTickets.find((ticket: any) =>
+                                getTicketSessionIds(ticket).includes(session.id)
+                            ) || selectedTicket;
+                            const ownerSessionIds = getTicketSessionIds(ownerTicket);
+                            const ownerIsWorkshop = isWorkshopTicket(ownerTicket);
+                            const checked = form.sessionIds.includes(session.id);
 
                             return (
                                 <label
                                     key={session.id}
                                     className={`flex items-start gap-3 p-3 border rounded-lg transition-colors ${colorConfig.bg} ${colorConfig.border} ${
-                                        isReadOnly ? 'cursor-default' : 'cursor-pointer hover:opacity-80'
+                                        checked ? 'ring-1 ring-green-300' : 'opacity-75'
                                     }`}
                                 >
                                     <input
                                         type="checkbox"
-                                        disabled={isReadOnly}
-                                        checked
+                                        checked={checked}
                                         onChange={(e) => {
-                                            const ids = e.target.checked
-                                                ? [...form.sessionIds, session.id]
-                                                : form.sessionIds.filter((id: number) => id !== session.id);
-                                            setForm(prev => ({ ...prev, sessionIds: ids }));
+                                            setForm(prev => {
+                                                const withoutThisTicket = prev.sessionIds.filter((id) => !ownerSessionIds.includes(id));
+                                                const withoutThisSession = prev.sessionIds.filter((id) => id !== session.id);
+                                                const sessionIds = e.target.checked
+                                                    ? ownerIsWorkshop
+                                                        ? [...withoutThisTicket, session.id]
+                                                        : [...new Set([...prev.sessionIds, session.id])]
+                                                    : withoutThisSession;
+                                                return { ...prev, sessionIds };
+                                            });
                                         }}
-                                        className="mt-1 accent-current disabled:cursor-not-allowed"
+                                        className="mt-1 accent-current"
                                     />
                                     <div className="flex-1">
                                         <p className={`font-medium ${colorConfig.text}`}>{session.sessionName}</p>
                                         {session.description && (
                                             <p className="text-sm text-gray-600 mt-0.5">{session.description}</p>
                                         )}
-                                        {isAddonLikeSession && (
+                                        {ownerTicket && (
                                             <p className="text-xs text-gray-500 mt-1">
-                                                Select the matching add-on ticket above to include this session.
-                                            </p>
-                                        )}
-                                        {isSelectedAddonSession && (
-                                            <p className="text-xs text-gray-500 mt-1">
-                                                Included by selected add-on ticket.
+                                                Linked from {ownerTicket.name}{ownerIsWorkshop ? ' - select one workshop session only.' : ''}
                                             </p>
                                         )}
                                         <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
@@ -811,10 +858,10 @@ export default function AddRegistrationPage() {
                                         </div>
                                     </div>
                                 )}
-                                {linkedSessionCount > 0 && (
+                                {form.sessionIds.length > 0 && (
                                     <div className="flex justify-between py-2 border-b border-gray-100">
-                                        <span className="text-gray-600">Linked Sessions:</span>
-                                        <span className="font-medium">{linkedSessionCount} linked</span>
+                                        <span className="text-gray-600">Selected Sessions:</span>
+                                        <span className="font-medium">{form.sessionIds.length} selected</span>
                                     </div>
                                 )}
                                 {form.note && (
