@@ -90,11 +90,22 @@ export default function RegistrationsPage() {
     // Debounce search term to avoid API calls on every keystroke
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-    // Fetch events for filter dropdown
+    // Fetch events for filter dropdown and auto-select the first event
     useEffect(() => {
         const token = getBackofficeToken();
         api.backofficeEvents.list(token, 'limit=100').then((res) => {
-            setEventOptions((res.events as any[]).map((e) => ({ id: e.id as number, name: e.eventName as string })));
+            const opts = (res.events as any[]).map((e) => ({ id: e.id as number, name: e.eventName as string }));
+            setEventOptions(opts);
+            // Auto-select first event so users don't have to manually trigger a fetch.
+            // Previously the page required a manual event change to set `eventSelected`,
+            // which led to confusing empty/'No registrations found' states on first load.
+            if (opts.length > 0) {
+                setEventFilter((prev) => {
+                    if (prev) return prev;
+                    setEventSelected(true);
+                    return String(opts[0].id);
+                });
+            }
         }).catch(() => {});
     }, []);
 
@@ -437,18 +448,48 @@ export default function RegistrationsPage() {
 
             {/* Filters & Actions */}
             <div className="card mb-6">
-                <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-                    <div className="flex flex-col md:flex-row gap-4 flex-1">
-                        <div className="relative flex-1 max-w-md">
-                            <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                            <input
-                                type="text"
-                                placeholder="Search by name, email, or code..."
-                                value={searchTerm}
-                                onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-                                className="input-field-search"
-                            />
-                        </div>
+                {/* Top row: long search bar + action buttons pinned to the top-right */}
+                <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-end mb-4">
+                    <div className="relative w-full md:flex-1 md:max-w-xl md:ml-auto">
+                        <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <input
+                            type="text"
+                            placeholder="Search by name, email, or code..."
+                            value={searchTerm}
+                            onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+                            className="input-field-search w-full"
+                        />
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                        <button
+                            onClick={handleExport}
+                            disabled={!eventSelected || isExporting}
+                            className="btn-secondary flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            {isExporting ? <IconLoader2 size={18} className="animate-spin" /> : <IconDownload size={18} />}
+                            Export Excel
+                        </button>
+                        <Link
+                            href="/registrations/add"
+                            className="btn-primary flex items-center gap-2"
+                        >
+                            <IconUserPlus size={18} /> Add Registration
+                        </Link>
+                    </div>
+                </div>
+
+                {/* Filters row: 4-column grid (Event, Status, Source, Country) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <select
+                            value={eventFilter}
+                            onChange={(e) => { setEventFilter(e.target.value); setEventSelected(!!e.target.value); setCountryFilter(''); setPage(1); }}
+                            className="input-field w-auto"
+                        >
+                            <option value="">-- เลือก Event --</option>
+                            {eventOptions.map((e) => (
+                                <option key={e.id} value={e.id}>{e.name}</option>
+                            ))}
+                        </select>
 
                         <select
                             value={statusFilter}
@@ -472,17 +513,6 @@ export default function RegistrationsPage() {
                         </select>
 
                         <select
-                                value={eventFilter}
-                                onChange={(e) => { setEventFilter(e.target.value); setEventSelected(!!e.target.value); setCountryFilter(''); setPage(1); }}
-                                className="input-field w-auto"
-                            >
-                                <option value="">-- เลือก Event --</option>
-                                {eventOptions.map((e) => (
-                                    <option key={e.id} value={e.id}>{e.name}</option>
-                                ))}
-                            </select>
-
-                        <select
                             value={countryFilter}
                             onChange={(e) => { setCountryFilter(e.target.value); setPage(1); }}
                             disabled={!eventSelected || !countryStats || countryStats.byCountry.length === 0}
@@ -495,24 +525,6 @@ export default function RegistrationsPage() {
                                 </option>
                             ))}
                         </select>
-                    </div>
-
-                    <div className="flex gap-2">
-                        <button
-                            onClick={handleExport}
-                            disabled={!eventSelected || isExporting}
-                            className="btn-secondary flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                            {isExporting ? <IconLoader2 size={18} className="animate-spin" /> : <IconDownload size={18} />}
-                            Export Excel
-                        </button>
-                        <Link
-                            href="/registrations/add"
-                            className="btn-primary flex items-center gap-2"
-                        >
-                            <IconUserPlus size={18} /> Add Registration
-                        </Link>
-                    </div>
                 </div>
             </div>
 
