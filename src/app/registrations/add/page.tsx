@@ -251,10 +251,23 @@ export default function AddRegistrationPage() {
             return;
         }
 
-        // Filter out already registered users
-        const validUsers = selectedUsers.filter(u => !registeredUserIds.has(u.id));
+        // Filter out already registered users if we are not adding add-ons.
+        // If add-ons are selected, already-registered users are valid.
+        const hasAddons = form.addonTicketTypeIds.length > 0;
+        const validUsers = selectedUsers.filter(u => {
+            const isRegistered = registeredUserIds.has(u.id);
+            if (isRegistered) {
+                return hasAddons;
+            }
+            return true;
+        });
+
         if (validUsers.length === 0) {
-            toast.error('All selected users are already registered');
+            if (selectedUsers.some(u => registeredUserIds.has(u.id))) {
+                toast.error('Please select at least one add-on for already registered users');
+            } else {
+                toast.error('Please select at least one valid user to register');
+            }
             return;
         }
 
@@ -300,6 +313,12 @@ export default function AddRegistrationPage() {
             setIsSubmitting(false);
         }
     };
+
+    const hasAddons = form.addonTicketTypeIds.length > 0;
+    const newUsersToRegister = selectedUsers.filter(u => !registeredUserIds.has(u.id));
+    const registeredUsersToAddAddons = selectedUsers.filter(u => registeredUserIds.has(u.id));
+    const totalValidUsers = newUsersToRegister.length + (hasAddons ? registeredUsersToAddAddons.length : 0);
+    const isSubmitDisabled = isSubmitting || selectedUsers.length === 0 || !form.eventId || !form.ticketTypeId || totalValidUsers === 0;
 
     return (
         <AdminLayout title="Add Registration">
@@ -704,7 +723,9 @@ export default function AddRegistrationPage() {
                                         {userResults.map((user: any) => {
                                             const isAlreadySelected = selectedUsers.some(u => u.id === user.id);
                                             const isRegistered = registeredUserIds.has(user.id);
-                                            const isDisabled = isAlreadySelected || isRegistered;
+                                            // A user is disabled only if they are already selected OR
+                                            // (they have a primary ticket AND no addons are checked on the form)
+                                            const isDisabled = isAlreadySelected || (isRegistered && form.addonTicketTypeIds.length === 0);
 
                                             return (
                                                 <button
@@ -792,8 +813,10 @@ export default function AddRegistrationPage() {
                                         <p className="text-xs text-yellow-600 mt-2 flex items-center gap-1">
                                             <IconAlertCircle size={14} />
                                             {ticketCategory === 'primary'
-                                            ? 'Users with a primary ticket (Early Bird / Regular) will be skipped'
-                                            : 'Users who already have this add-on will be skipped'}
+                                                ? form.addonTicketTypeIds.length > 0
+                                                    ? 'Users with a primary ticket will have the selected add-ons added to their existing registration.'
+                                                    : 'Users with a primary ticket (Early Bird / Regular) will be skipped. Select add-ons to add them.'
+                                                : 'Users who already have this add-on will be skipped.'}
                                         </p>
                                     )}
                                 </div>
@@ -822,18 +845,27 @@ export default function AddRegistrationPage() {
                                 <div className="py-2 border-b border-gray-100">
                                     <span className="text-gray-600">Users:</span>
                                     <div className="mt-1">
-                                        {selectedUsers.filter(u => !registeredUserIds.has(u.id)).length > 0 ? (
-                                            <span className="font-medium text-green-700">
-                                                {selectedUsers.filter(u => !registeredUserIds.has(u.id)).length} user(s) will be registered
-                                            </span>
-                                        ) : (
-                                            <span className="font-medium text-yellow-700">
-                                                No valid users to register
-                                            </span>
+                                        {newUsersToRegister.length > 0 && (
+                                            <div className="font-medium text-green-700">
+                                                {newUsersToRegister.length} new user(s) will be registered
+                                            </div>
                                         )}
-                                        {selectedUsers.filter(u => registeredUserIds.has(u.id)).length > 0 && (
-                                            <span className="text-yellow-600 ml-2">
-                                                ({selectedUsers.filter(u => registeredUserIds.has(u.id)).length} already registered, will be skipped)
+                                        {registeredUsersToAddAddons.length > 0 && (
+                                            <div className="mt-1">
+                                                {hasAddons ? (
+                                                    <span className="font-medium text-blue-700">
+                                                        {registeredUsersToAddAddons.length} registered user(s) will have selected add-ons added
+                                                    </span>
+                                                ) : (
+                                                    <span className="font-medium text-yellow-700">
+                                                        {registeredUsersToAddAddons.length} already registered user(s) will be skipped (select add-ons to add them)
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+                                        {selectedUsers.length === 0 && (
+                                            <span className="font-medium text-gray-500">
+                                                No users selected
                                             </span>
                                         )}
                                     </div>
@@ -882,7 +914,7 @@ export default function AddRegistrationPage() {
                             <button
                                 type="submit"
                                 className="btn-primary flex items-center gap-2"
-                                disabled={isSubmitting || selectedUsers.length === 0 || !form.eventId || !form.ticketTypeId || selectedUsers.filter(u => !registeredUserIds.has(u.id)).length === 0}
+                                disabled={isSubmitDisabled}
                             >
                                 {isSubmitting ? (
                                     <>
@@ -892,7 +924,7 @@ export default function AddRegistrationPage() {
                                 ) : (
                                     <>
                                         <IconUserPlus size={18} />
-                                        Add {selectedUsers.filter(u => !registeredUserIds.has(u.id)).length || ''} Registration{selectedUsers.filter(u => !registeredUserIds.has(u.id)).length !== 1 ? 's' : ''}
+                                        Add {totalValidUsers || ''} Registration{totalValidUsers !== 1 ? 's' : ''}
                                     </>
                                 )}
                             </button>
