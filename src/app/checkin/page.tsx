@@ -285,26 +285,8 @@ export default function CheckinPage() {
         }
     }, [showSessionPicker, fetchData]);
 
-    // ─── QR Scanner handler ───
-    const handleQrScan = useCallback((results: { rawValue: string }[]) => {
-        if (!results || results.length === 0) return;
-        const scannedCode = results[0].rawValue.trim().toUpperCase();
-        if (scannedCode && scannedCode !== lastScannedRef.current) {
-            lastScannedRef.current = scannedCode;
-            processScan(scannedCode);
-            setTimeout(() => { lastScannedRef.current = ''; }, 3000);
-        }
-    }, []);
-
-    // Auto-focus manual input
-    useEffect(() => {
-        if (scanMode === 'manual' && !scanResult && !pendingSessions && !showSessionPicker) {
-            setTimeout(() => manualInputRef.current?.focus(), 100);
-        }
-    }, [scanMode, scanResult, pendingSessions, showSessionPicker]);
-
     // ─── Process scan ───
-    const processScan = async (code: string) => {
+    const processScan = useCallback(async (code: string) => {
         setIsLoading(true);
         setScanResult(null);
         setPendingSessions(null);
@@ -377,7 +359,25 @@ export default function CheckinPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [activeSession, soundEnabled, fetchData]);
+
+    // ─── QR Scanner handler ───
+    const handleQrScan = useCallback((results: { rawValue: string }[]) => {
+        if (!results || results.length === 0) return;
+        const scannedCode = results[0].rawValue.trim().toUpperCase();
+        if (scannedCode && scannedCode !== lastScannedRef.current) {
+            lastScannedRef.current = scannedCode;
+            processScan(scannedCode);
+            setTimeout(() => { lastScannedRef.current = ''; }, 3000);
+        }
+    }, [processScan]);
+
+    // Auto-focus manual input
+    useEffect(() => {
+        if (scanMode === 'manual' && !scanResult && !pendingSessions && !showSessionPicker) {
+            setTimeout(() => manualInputRef.current?.focus(), 100);
+        }
+    }, [scanMode, scanResult, pendingSessions, showSessionPicker]);
 
     // ─── Check-in specific session (from session picker) ───
     const checkInSession = async (sessionId: number) => {
