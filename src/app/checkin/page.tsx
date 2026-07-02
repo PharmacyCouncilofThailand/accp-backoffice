@@ -35,6 +35,7 @@ type ScanResult = null | {
     message: string;
     eventName?: string;
     registrationSessionId?: number;
+    duplicateCount?: number;
 };
 
 interface EventOption {
@@ -301,6 +302,24 @@ export default function CheckinPage() {
                     assignedSessionId: activeSession.sessionId,
                 });
 
+                if (res.alreadyCheckedIn) {
+                    if (soundEnabled) playDuplicateSound();
+                    const dup = res.duplicateCount ?? 1;
+                    setScanResult({
+                        status: 'duplicate',
+                        code,
+                        name: res.registration
+                            ? getFullName(res.registration.firstName, res.registration.middleName, res.registration.lastName)
+                            : undefined,
+                        ticketType: res.registration?.ticketName,
+                        eventName: res.registration?.eventName,
+                        message: `Already checked in (${dup}x)${res.sessionName ? ` — ${res.sessionName}` : ''}`,
+                        duplicateCount: dup,
+                    });
+                    fetchData();
+                    return;
+                }
+
                 if (res.success) {
                     if (soundEnabled) playSuccessSound();
                     setScanResult({
@@ -317,6 +336,22 @@ export default function CheckinPage() {
             } else {
                 // No assigned session → use original flow
                 const res = await api.checkins.create(token, { regCode: code });
+
+                if (res.alreadyCheckedIn) {
+                    if (soundEnabled) playDuplicateSound();
+                    const dup = res.duplicateCount ?? 1;
+                    setScanResult({
+                        status: 'duplicate',
+                        code,
+                        name: res.registration
+                            ? getFullName(res.registration.firstName, res.registration.middleName, res.registration.lastName)
+                            : undefined,
+                        message: `Already checked in (${dup}x)`,
+                        duplicateCount: dup,
+                    });
+                    fetchData();
+                    return;
+                }
 
                 if (res.sessions) {
                     // Case 3: multiple sessions → show picker
@@ -389,6 +424,13 @@ export default function CheckinPage() {
                 regCode: pendingRegistration.regCode,
                 sessionId,
             });
+            if (res.alreadyCheckedIn) {
+                if (soundEnabled) playDuplicateSound();
+                const dup = res.duplicateCount ?? 1;
+                toast.error(`Already checked in (${dup}x)${res.sessionName ? ` — ${res.sessionName}` : ''}`);
+                fetchData();
+                return;
+            }
             if (res.success) {
                 if (soundEnabled) playSuccessSound();
                 setPendingSessions(prev =>
@@ -417,6 +459,21 @@ export default function CheckinPage() {
                 regCode: pendingRegistration.regCode,
                 checkInAll: true,
             });
+            if (res.alreadyCheckedIn) {
+                if (soundEnabled) playDuplicateSound();
+                const dup = res.duplicateCount ?? 1;
+                setScanResult({
+                    status: 'duplicate',
+                    code: pendingRegistration.regCode,
+                    name: getFullName(pendingRegistration.firstName, pendingRegistration.middleName, pendingRegistration.lastName),
+                    message: `Already checked in (${dup}x)`,
+                    duplicateCount: dup,
+                });
+                setPendingSessions(null);
+                setPendingRegistration(null);
+                fetchData();
+                return;
+            }
             if (res.success) {
                 if (soundEnabled) playSuccessSound();
                 setScanResult({
@@ -889,7 +946,7 @@ export default function CheckinPage() {
                                         : 'text-red-700'
                                     }`}>
                                         {scanResult.status === 'success' ? 'Check-in Successful!'
-                                            : scanResult.status === 'duplicate' ? 'Already Checked In'
+                                            : scanResult.status === 'duplicate' ? `Already Checked In${scanResult.duplicateCount ? ` (${scanResult.duplicateCount}x)` : ''}`
                                             : scanResult.status === 'no_access' ? 'No Access'
                                             : 'Check-in Failed'}
                                     </h3>

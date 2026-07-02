@@ -95,10 +95,13 @@ const menuStructure = [
     label: "OPERATIONS & REPORTS",
   },
   {
-    type: "link",
-    href: "/checkin",
-    label: "Check-in Scanner",
+    type: "submenu",
+    label: "Check-in",
     icon: IconScan,
+    children: [
+      { href: "/checkin", label: "Scanner" },
+      { href: "/checkins", label: "Attendance Log" },
+    ],
   },
   {
     type: "link",
@@ -193,7 +196,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       // Organizer specific restrictions
       if (role === "organizer") {
         if (item.href === "/members") return item;
+        if (item.href === "/reports") return item;
         if (item.label === "ATTENDEE MANAGEMENT") return item;
+        if (item.label === "OPERATIONS & REPORTS") return item;
+        if (item.label === "Check-in") return item;
 
         if (item.label === "Registrations" && item.children) {
           return {
@@ -215,8 +221,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
       // Staff specific restrictions
       if (role === "staff") {
-        // Only show Check-in Scanner
-        if (item.href === "/checkin") return item;
+        if (item.label === "Check-in") return item;
         return null;
       }
 

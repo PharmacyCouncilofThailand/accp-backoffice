@@ -275,10 +275,54 @@ export const api = {
   checkins: {
     list: (token: string, query?: string) =>
       fetchAPI<{ checkins: any[]; pagination: Pagination }>(`/api/backoffice/checkins${query ? `?${query}` : ''}`, { token }),
-    create: (token: string, data: { regCode: string; sessionId?: number; checkInAll?: boolean; assignedSessionId?: number }) =>
-      fetchAPI<any>(`/api/backoffice/checkins`, { method: 'POST', body: JSON.stringify(data), token }),
+    create: async (
+      token: string,
+      data: { regCode: string; sessionId?: number; checkInAll?: boolean; assignedSessionId?: number }
+    ) => {
+      const resolvedToken = token || getStoredBackofficeToken();
+      const res = await fetch(`${API_BASE}/api/backoffice/checkins`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {}),
+        },
+        body: JSON.stringify(data),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 409 && body.code === 'ALREADY_CHECKED_IN') {
+        return {
+          success: false,
+          alreadyCheckedIn: true,
+          duplicateCount: body.duplicateCount ?? 1,
+          checkedInAt: body.checkedInAt,
+          sessionName: body.sessionName,
+          registration: body.registration,
+          message: body.error,
+        };
+      }
+      if (!res.ok) {
+        if (res.status === 401) dispatchUnauthorizedEvent();
+        throw new Error(body.error || `API Error: ${res.status}`);
+      }
+      return body;
+    },
     stats: (token: string, query?: string) =>
-      fetchAPI<{ total: number; checkedIn: number; remaining: number; percentage: number }>(`/api/backoffice/checkins/stats${query ? `?${query}` : ''}`, { token }),
+      fetchAPI<{
+        total: number;
+        checkedIn: number;
+        remaining: number;
+        percentage: number;
+        duplicateScans?: number;
+        sessionBreakdown?: {
+          sessionId: number;
+          sessionName: string;
+          room: string | null;
+          total: number;
+          checkedIn: number;
+          remaining: number;
+          percentage: number;
+        }[];
+      }>(`/api/backoffice/checkins/stats${query ? `?${query}` : ''}`, { token }),
     undo: (token: string, registrationSessionId: number) =>
       fetchAPI<{ success: boolean; undone: any }>(`/api/backoffice/checkins/undo`, { method: 'POST', body: JSON.stringify({ registrationSessionId }), token }),
   },
@@ -400,6 +444,60 @@ export const api = {
         body: JSON.stringify(data),
         token,
       }),
+  },
+
+  reports: {
+    overview: (token: string, eventId: number) =>
+      fetchAPI<{ success: boolean; data: import('@/app/reports/types').ReportsOverviewResponse }>(
+        `/api/backoffice/reports/overview?eventId=${eventId}`,
+        { token }
+      ),
+    registrationTrend: (token: string, eventId: number, from?: string, to?: string) => {
+      const params = new URLSearchParams({ eventId: String(eventId) });
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      return fetchAPI<{ success: boolean; data: { eventId: number; points: { date: string; count: number }[] } }>(
+        `/api/backoffice/reports/registrations/trend?${params.toString()}`,
+        { token }
+      );
+    },
+    downloadExport: async (
+      token: string,
+      type: 'registrations' | 'orders' | 'members' | 'checkins' | 'abstracts' | 'sessions',
+      opts?: { eventId?: number; sessionId?: number; status?: string; presentationType?: string }
+    ): Promise<void> => {
+      const resolvedToken = token || getStoredBackofficeToken();
+      const params = new URLSearchParams({ format: 'csv' });
+      if (opts?.eventId) params.set('eventId', String(opts.eventId));
+      if (opts?.sessionId) params.set('sessionId', String(opts.sessionId));
+      if (opts?.status) params.set('status', opts.status);
+      if (opts?.presentationType) params.set('presentationType', opts.presentationType);
+
+      const url = `${API_BASE}/api/backoffice/reports/exports/${type}?${params.toString()}`;
+      const res = await fetch(url, {
+        headers: resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {},
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) dispatchUnauthorizedEvent();
+        const err = await res.json().catch(() => ({ error: 'Export failed' }));
+        throw new Error(err.error || `Export failed (${res.status})`);
+      }
+
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      const filename = match?.[1] || `${type}_export.csv`;
+
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    },
   },
 
   // File Upload

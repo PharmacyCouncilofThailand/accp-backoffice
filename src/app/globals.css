@@ -44,12 +44,11 @@
   --info: #3b82f6;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f172a;
-    --foreground: #f1f5f9;
-    --sidebar-bg: #0f172a;
-  }
+/* Force light theme — backoffice UI is light-only (white cards, gray page bg).
+   OS dark mode was overriding --foreground to a light color, making inherited
+   text (e.g. Recharts tooltip labels) nearly invisible on white surfaces. */
+html {
+  color-scheme: light;
 }
 
 @theme inline {
@@ -78,7 +77,7 @@ body {
 }
 
 .card {
-  @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6;
+  @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-gray-800;
 }
 
 .input-field {
@@ -199,4 +198,19 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-400;
+}
+
+/* Recharts tooltips — label inherits body color; pin readable contrast on white bg */
+.recharts-default-tooltip {
+  background-color: #fff !important;
+}
+
+.recharts-tooltip-label {
+  color: #1f2937 !important;
+  font-weight: 600;
+}
+
+.recharts-tooltip-item-name,
+.recharts-tooltip-item-separator {
+  color: #374151 !important;
 }
