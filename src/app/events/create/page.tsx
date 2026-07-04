@@ -2799,6 +2799,7 @@ export default function CreateEventPage() {
                       type="text"
                       className="input-field"
                       placeholder="Meeting Room 1"
+                      maxLength={255}
                       value={sessionForm.room}
                       onChange={(e) =>
                         setSessionForm((prev) => ({

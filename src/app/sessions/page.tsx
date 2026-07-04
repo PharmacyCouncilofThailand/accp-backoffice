@@ -1103,6 +1103,7 @@ export default function SessionsPage() {
                                         type="text"
                                         className="input-field"
                                         placeholder="Meeting Room 1"
+                                        maxLength={255}
                                         value={formData.room}
                                         onChange={(e) => setFormData({ ...formData, room: e.target.value })}
                                     />
