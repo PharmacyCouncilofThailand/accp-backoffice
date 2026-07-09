@@ -193,9 +193,9 @@ export default function CheckinPage() {
         }
     }, [hasAssignedSessions, assignedSessions.length]);
 
-    // ─── Fetch events for admin/multi-event roles ───
+    // ─── Fetch events for session picker ───
     useEffect(() => {
-        if (isAdmin && showSessionPicker) {
+        if (showSessionPicker) {
             const fetchEvents = async () => {
                 setLoadingEvents(true);
                 try {
@@ -210,11 +210,11 @@ export default function CheckinPage() {
             };
             fetchEvents();
         }
-    }, [isAdmin, showSessionPicker]);
+    }, [showSessionPicker]);
 
-    // ─── Fetch sessions when admin selects an event ───
+    // ─── Fetch sessions when user selects an event ───
     useEffect(() => {
-        if (selectedEvent && isAdmin) {
+        if (selectedEvent) {
             const fetchSessions = async () => {
                 try {
                     const token = getBackofficeToken();
@@ -235,7 +235,7 @@ export default function CheckinPage() {
             };
             fetchSessions();
         }
-    }, [selectedEvent, isAdmin]);
+    }, [selectedEvent]);
 
     // ─── Fetch stats (filtered by event/session) ───
     const fetchData = useCallback(async () => {
@@ -539,11 +539,6 @@ export default function CheckinPage() {
         setShowSessionPicker(false);
     };
 
-    const handleEnterFreeMode = () => {
-        setActiveSession(null);
-        setShowSessionPicker(false);
-    };
-
     // ─── SESSION PICKER SCREEN ───
     if (showSessionPicker) {
         return (
@@ -590,8 +585,8 @@ export default function CheckinPage() {
                         </div>
                     )}
 
-                    {/* Admin/multi-event: Event picker → then session picker */}
-                    {isAdmin && !selectedEvent && (
+                    {/* Event picker → then session picker */}
+                    {!selectedEvent && (
                         <div>
                             {hasAssignedSessions && (
                                 <div className="relative my-6">
@@ -627,8 +622,8 @@ export default function CheckinPage() {
                         </div>
                     )}
 
-                    {/* Admin: Session picker after event is selected */}
-                    {isAdmin && selectedEvent && (
+                    {/* Session picker after event is selected */}
+                    {selectedEvent && (
                         <div>
                             <div className="flex items-center gap-2 mb-4">
                                 <button
@@ -641,23 +636,6 @@ export default function CheckinPage() {
                                     {selectedEvent.eventName}
                                 </h3>
                             </div>
-
-                            {/* All Sessions option (event-level scan) */}
-                            <button
-                                onClick={() => {
-                                    setActiveSession(null);
-                                    setShowSessionPicker(false);
-                                }}
-                                className="w-full p-4 rounded-xl border-2 border-blue-200 bg-blue-50 hover:border-blue-400 text-left transition-all group mb-3"
-                            >
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="font-semibold text-blue-700">All Sessions</p>
-                                        <p className="text-xs text-blue-500 mt-1">Scan and choose sessions manually</p>
-                                    </div>
-                                    <IconCalendarEvent size={24} className="text-blue-400" />
-                                </div>
-                            </button>
 
                             {/* Individual sessions */}
                             <div className="space-y-3">
@@ -685,16 +663,7 @@ export default function CheckinPage() {
                         </div>
                     )}
 
-                    {/* Non-admin without assigned sessions → Free mode */}
-                    {!isAdmin && !hasAssignedSessions && (
-                        <button
-                            onClick={handleEnterFreeMode}
-                            className="w-full p-4 rounded-xl border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 text-center transition-all"
-                        >
-                            <p className="font-medium text-gray-600">Free Mode (All Sessions)</p>
-                            <p className="text-xs text-gray-400 mt-1">Scan and choose sessions manually</p>
-                        </button>
-                    )}
+
                 </div>
             </AdminLayout>
         );
@@ -710,15 +679,13 @@ export default function CheckinPage() {
                         {/* Top bar: mode toggle + controls */}
                         <div className="flex items-center gap-2 mb-4">
                             {/* Back to session picker */}
-                            {(hasAssignedSessions || isAdmin) && (
-                                <button
-                                    onClick={() => { setShowSessionPicker(true); clearResult(); }}
-                                    className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
-                                    title="Switch Session"
-                                >
-                                    <IconArrowsExchange size={20} />
-                                </button>
-                            )}
+                            <button
+                                onClick={() => { setShowSessionPicker(true); clearResult(); }}
+                                className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                                title="Switch Session"
+                            >
+                                <IconArrowsExchange size={20} />
+                            </button>
 
                             <button
                                 onClick={() => {
