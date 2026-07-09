@@ -67,7 +67,7 @@ interface AuthContextType {
 // Role-based page access
 const rolePageAccess: Record<UserRole, string[]> = {
   admin: ["*"], // All pages
-  organizer: ["/reports", "/checkins", "/members", "/verification"],
+  organizer: ["/reports", "/checkin", "/checkins", "/members", "/verification"],
   reviewer: ["/abstracts"],
   staff: ["/checkin"],
   verifier: ["/verification"],
