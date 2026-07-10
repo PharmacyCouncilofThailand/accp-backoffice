@@ -38,6 +38,11 @@ export default function AddRegistrationPage() {
         addonTicketTypeIds: [] as number[],
         sessionIds: [] as number[],
         note: '',
+        recordOfflinePayment: false,
+        paymentChannel: 'card' as 'card' | 'alipay' | 'promptpay',
+        paymentAmount: '',
+        paidAt: '',
+        sendReceipt: true,
     });
 
     // Data states
@@ -168,6 +173,20 @@ export default function AddRegistrationPage() {
         linkedSessionIdsForSelectedTickets.has(session.id)
     );
     const selectedTickets = selectedTicket ? [selectedTicket, ...selectedAddonTickets] : [];
+    const estimatedThbTotalPerUser = selectedTickets.reduce((sum, ticket) => {
+        if ((ticket?.currency || 'THB') !== 'THB') return sum;
+        const price = Number(ticket?.price);
+        return sum + (Number.isFinite(price) ? price : 0);
+    }, 0);
+    const hasNonThbTickets = selectedTickets.some((ticket) => (ticket?.currency || 'THB') !== 'THB');
+
+    useEffect(() => {
+        if (!form.recordOfflinePayment || form.paymentAmount.trim() !== '') return;
+        setForm((prev) => ({
+            ...prev,
+            paymentAmount: estimatedThbTotalPerUser > 0 ? String(estimatedThbTotalPerUser) : '',
+        }));
+    }, [form.recordOfflinePayment, estimatedThbTotalPerUser, form.paymentAmount]);
 
     const isWorkshopTicket = (ticket: any) =>
         (ticket?.groupName || '').toLowerCase() === 'workshop' ||
@@ -285,6 +304,14 @@ export default function AddRegistrationPage() {
             }
         }
 
+        if (form.recordOfflinePayment) {
+            const amount = Number(form.paymentAmount);
+            if (!Number.isFinite(amount) || amount < 0) {
+                toast.error('Please enter a valid payment amount');
+                return;
+            }
+        }
+
         setIsSubmitting(true);
         try {
             const token = getBackofficeToken();
@@ -297,10 +324,24 @@ export default function AddRegistrationPage() {
                 addonTicketTypeIds: form.addonTicketTypeIds.length > 0 ? form.addonTicketTypeIds : undefined,
                 ticketSessionSelections,
                 note: form.note || undefined,
+                offlinePayment: form.recordOfflinePayment
+                    ? {
+                        channel: form.paymentChannel,
+                        amount: Number(form.paymentAmount),
+                        currency: 'THB',
+                        ...(form.paidAt ? { paidAt: new Date(form.paidAt).toISOString() } : {}),
+                        sendReceipt: form.sendReceipt,
+                    }
+                    : undefined,
             });
 
             if (result.addedCount > 0) {
-                toast.success(`${result.addedCount} registration(s) added successfully!`);
+                const receiptCount = result.successList.filter((r: any) => r.offlineOrder).length;
+                if (form.recordOfflinePayment && receiptCount > 0) {
+                    toast.success(`${result.addedCount} registration(s) added with receipt (${receiptCount} order(s) created)`);
+                } else {
+                    toast.success(`${result.addedCount} registration(s) added successfully!`);
+                }
             }
             if (result.skippedList.length > 0) {
                 toast(`${result.skippedList.length} user(s) skipped`, { icon: '⚠️' });
@@ -824,6 +865,100 @@ export default function AddRegistrationPage() {
                         </div>
                     )}
 
+                    {/* Offline Payment */}
+                    {selectedTicket && (
+                        <div className="card">
+                            <h2 className="text-lg font-semibold mb-2">Offline Payment</h2>
+                            <p className="text-sm text-gray-600 mb-4">
+                                Enable this when the attendee has already paid outside the online system. The system will create a paid order and issue a receipt.
+                            </p>
+
+                            <label className="flex items-start gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={form.recordOfflinePayment}
+                                    onChange={(e) => setForm(prev => ({
+                                        ...prev,
+                                        recordOfflinePayment: e.target.checked,
+                                        paymentAmount: e.target.checked
+                                            ? (prev.paymentAmount.trim() !== '' ? prev.paymentAmount : (estimatedThbTotalPerUser > 0 ? String(estimatedThbTotalPerUser) : ''))
+                                            : prev.paymentAmount,
+                                    }))}
+                                    className="mt-1 accent-blue-600"
+                                />
+                                <div>
+                                    <p className="font-medium text-gray-900">Record offline payment &amp; issue receipt</p>
+                                    <p className="text-sm text-gray-500">
+                                        Enter the paid amount in THB
+                                        {estimatedThbTotalPerUser > 0
+                                            ? ` (THB list price: ฿${estimatedThbTotalPerUser.toLocaleString()} per registration)`
+                                            : hasNonThbTickets
+                                                ? ' — USD ticket selected, please enter THB amount manually'
+                                                : ''}
+                                    </p>
+                                </div>
+                            </label>
+
+                            {form.recordOfflinePayment && (
+                                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Payment channel *</label>
+                                        <select
+                                            value={form.paymentChannel}
+                                            onChange={(e) => setForm(prev => ({
+                                                ...prev,
+                                                paymentChannel: e.target.value as typeof form.paymentChannel,
+                                            }))}
+                                            className="input-field"
+                                        >
+                                            <option value="card">Credit / Debit Card</option>
+                                            <option value="promptpay">QR PromptPay</option>
+                                            <option value="alipay">Alipay</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Amount (THB) *
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="1"
+                                            value={form.paymentAmount}
+                                            onChange={(e) => setForm(prev => ({ ...prev, paymentAmount: e.target.value }))}
+                                            className="input-field"
+                                            placeholder={estimatedThbTotalPerUser > 0 ? String(estimatedThbTotalPerUser) : '0'}
+                                            required
+                                        />
+                                        {estimatedThbTotalPerUser > 0 && (
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                THB ticket list price: ฿{estimatedThbTotalPerUser.toLocaleString()}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Payment date</label>
+                                        <input
+                                            type="datetime-local"
+                                            value={form.paidAt}
+                                            onChange={(e) => setForm(prev => ({ ...prev, paidAt: e.target.value }))}
+                                            className="input-field"
+                                        />
+                                    </div>
+                                    <label className="flex items-center gap-2 sm:col-span-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={form.sendReceipt}
+                                            onChange={(e) => setForm(prev => ({ ...prev, sendReceipt: e.target.checked }))}
+                                            className="accent-blue-600"
+                                        />
+                                        <span className="text-sm text-gray-700">Send payment receipt email to attendee</span>
+                                    </label>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Note */}
                     <div className="card">
                         <h2 className="text-lg font-semibold mb-4">Note</h2>
@@ -900,6 +1035,19 @@ export default function AddRegistrationPage() {
                                     <div className="py-2">
                                         <span className="text-gray-600">Note:</span>
                                         <p className="font-medium mt-1">{form.note}</p>
+                                    </div>
+                                )}
+                                {form.recordOfflinePayment && (
+                                    <div className="py-2 border-t border-gray-100">
+                                        <span className="text-gray-600">Offline payment:</span>
+                                        <p className="font-medium mt-1 text-green-700">
+                                            {form.paymentChannel === 'promptpay'
+                                                ? 'QR PromptPay'
+                                                : form.paymentChannel === 'alipay'
+                                                    ? 'Alipay'
+                                                    : 'Credit / Debit Card'} — ฿{Number(form.paymentAmount || 0).toLocaleString()} per registration
+                                            {form.sendReceipt ? ' (receipt email will be sent)' : ' (receipt email disabled)'}
+                                        </p>
                                     </div>
                                 )}
                             </div>

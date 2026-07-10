@@ -23,6 +23,8 @@ import {
     IconPrinter,
     IconEdit,
     IconUserPlus,
+    IconDownload,
+    IconReceipt,
 } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
 
@@ -46,6 +48,8 @@ interface RegistrationSession {
     room: string | null;
     ticketName: string;
     ticketCategory: string;
+    ticketPrice?: string;
+    ticketCurrency?: string;
     checkedInByFirstName: string | null;
     checkedInByMiddleName: string | null;
     checkedInByLastName: string | null;
@@ -81,6 +85,12 @@ interface RegistrationDetail {
     addedByMiddleName: string | null;
     addedByLastName: string | null;
     sessions: RegistrationSession[];
+    offlineOrder?: {
+        orderId: number;
+        orderNumber: string;
+        receiptUrl: string;
+        status: string;
+    } | null;
 }
 
 const sessionTypeConfig: Record<string, { label: string; bg: string; text: string }> = {
@@ -100,6 +110,14 @@ export default function RegistrationDetailPage() {
     const [registration, setRegistration] = useState<RegistrationDetail | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [showReceiptForm, setShowReceiptForm] = useState(false);
+    const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+    const [receiptForm, setReceiptForm] = useState({
+        channel: 'card' as 'card' | 'alipay' | 'promptpay',
+        amount: '',
+        paidAt: '',
+        sendReceipt: true,
+    });
 
     useEffect(() => {
         if (id) {
@@ -119,6 +137,39 @@ export default function RegistrationDetailPage() {
             setError(err.message || 'Failed to load registration');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleRecordOfflinePayment = async () => {
+        if (!registration) return;
+        const amount = Number(receiptForm.amount);
+        if (!Number.isFinite(amount) || amount < 0) {
+            toast.error('Please enter a valid payment amount');
+            return;
+        }
+        setIsRecordingPayment(true);
+        const t = toast.loading('Creating receipt...');
+        try {
+            const token = getBackofficeToken();
+            const res = await api.registrations.recordOfflinePayment(token, registration.id, {
+                channel: receiptForm.channel,
+                amount,
+                currency: 'THB',
+                ...(receiptForm.paidAt ? { paidAt: new Date(receiptForm.paidAt).toISOString() } : {}),
+                sendReceipt: receiptForm.sendReceipt,
+            });
+            toast.success(
+                receiptForm.sendReceipt
+                    ? `Receipt created & email sent (${res.offlineOrder.orderNumber})`
+                    : `Receipt created (${res.offlineOrder.orderNumber})`,
+                { id: t },
+            );
+            setShowReceiptForm(false);
+            await fetchRegistration();
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to create receipt', { id: t });
+        } finally {
+            setIsRecordingPayment(false);
         }
     };
 
@@ -175,6 +226,29 @@ export default function RegistrationDetailPage() {
 
     const mainSessions = registration.sessions.filter(s => s.ticketCategory === 'primary');
     const addonSessions = registration.sessions.filter(s => s.ticketCategory === 'addon');
+    const estimatedThbReceiptAmount = (() => {
+        let total = 0;
+        if (registration.ticketCurrency === 'THB') {
+            const primary = Number(registration.ticketPrice);
+            if (Number.isFinite(primary)) total += primary;
+        }
+        const seenAddonIds = new Set<number>();
+        for (const session of addonSessions) {
+            if (session.ticketTypeId === registration.ticketTypeId || seenAddonIds.has(session.ticketTypeId)) {
+                continue;
+            }
+            seenAddonIds.add(session.ticketTypeId);
+            if (session.ticketCurrency !== 'THB') continue;
+            const price = Number(session.ticketPrice ?? 0);
+            if (Number.isFinite(price)) total += price;
+        }
+        return total;
+    })();
+    const hasNonThbTickets =
+        registration.ticketCurrency !== 'THB' ||
+        addonSessions.some((s) => s.ticketCurrency && s.ticketCurrency !== 'THB');
+    const hasReceipt = Boolean(registration.offlineOrder?.receiptUrl);
+    const canIssueReceipt = registration.status === 'confirmed' && registration.userId && !hasReceipt;
 
     return (
         <AdminLayout title="Registration Details">
@@ -368,6 +442,146 @@ export default function RegistrationDetailPage() {
                                 </div>
                             )}
                         </div>
+                    </div>
+
+                    {/* Payment / Receipt */}
+                    <div className="card">
+                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <IconReceipt size={20} />
+                            Payment Receipt
+                        </h2>
+
+                        {hasReceipt && registration.offlineOrder ? (
+                            <div className="space-y-3">
+                                <div>
+                                    <p className="text-sm text-gray-500">Order number</p>
+                                    <p className="font-medium text-gray-900">{registration.offlineOrder.orderNumber}</p>
+                                </div>
+                                <a
+                                    href={registration.offlineOrder.receiptUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btn-secondary w-full flex items-center justify-center gap-2 text-sm"
+                                >
+                                    <IconDownload size={16} />
+                                    Download Receipt (PDF)
+                                </a>
+                            </div>
+                        ) : canIssueReceipt ? (
+                            <div className="space-y-4">
+                                <p className="text-sm text-gray-600">
+                                    Enter the paid amount in THB
+                                    {estimatedThbReceiptAmount > 0
+                                        ? ` (THB list price: ฿${estimatedThbReceiptAmount.toLocaleString()})`
+                                        : hasNonThbTickets
+                                            ? ' — USD ticket, please enter THB amount manually'
+                                            : ''}.
+                                </p>
+
+                                {!showReceiptForm ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setReceiptForm((prev) => ({
+                                                ...prev,
+                                                amount: estimatedThbReceiptAmount > 0 ? String(estimatedThbReceiptAmount) : '',
+                                            }));
+                                            setShowReceiptForm(true);
+                                        }}
+                                        className="btn-primary w-full text-sm"
+                                    >
+                                        Issue Receipt
+                                    </button>
+                                ) : (
+                                    <div className="space-y-3 border-t border-gray-100 pt-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Payment channel</label>
+                                            <select
+                                                value={receiptForm.channel}
+                                                onChange={(e) => setReceiptForm((prev) => ({
+                                                    ...prev,
+                                                    channel: e.target.value as typeof prev.channel,
+                                                }))}
+                                                className="input-field"
+                                            >
+                                                <option value="card">Credit / Debit Card</option>
+                                                <option value="promptpay">QR PromptPay</option>
+                                                <option value="alipay">Alipay</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Amount (THB) *
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                value={receiptForm.amount}
+                                                onChange={(e) => setReceiptForm((prev) => ({ ...prev, amount: e.target.value }))}
+                                                className="input-field"
+                                                placeholder={estimatedThbReceiptAmount > 0 ? String(estimatedThbReceiptAmount) : '0'}
+                                                required
+                                            />
+                                            {estimatedThbReceiptAmount > 0 && (
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    THB ticket list price: ฿{estimatedThbReceiptAmount.toLocaleString()}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Payment date</label>
+                                            <input
+                                                type="datetime-local"
+                                                value={receiptForm.paidAt}
+                                                onChange={(e) => setReceiptForm((prev) => ({ ...prev, paidAt: e.target.value }))}
+                                                className="input-field"
+                                            />
+                                        </div>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={receiptForm.sendReceipt}
+                                                onChange={(e) => setReceiptForm((prev) => ({ ...prev, sendReceipt: e.target.checked }))}
+                                                className="accent-blue-600"
+                                            />
+                                            <span className="text-sm text-gray-700">Send receipt email</span>
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowReceiptForm(false)}
+                                                className="btn-secondary flex-1 text-sm"
+                                                disabled={isRecordingPayment}
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleRecordOfflinePayment}
+                                                className="btn-primary flex-1 text-sm flex items-center justify-center gap-2"
+                                                disabled={isRecordingPayment}
+                                            >
+                                                {isRecordingPayment ? (
+                                                    <IconLoader2 size={16} className="animate-spin" />
+                                                ) : (
+                                                    <IconReceipt size={16} />
+                                                )}
+                                                Create Receipt
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-500">
+                                {!registration.userId
+                                    ? 'Cannot issue receipt — no linked user account.'
+                                    : registration.status !== 'confirmed'
+                                        ? 'Receipt is only available for confirmed registrations.'
+                                        : 'No receipt available.'}
+                            </p>
+                        )}
                     </div>
 
                     {/* Check-in Summary */}
