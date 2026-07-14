@@ -64,6 +64,7 @@ const TEMPLATE_GROUPS = [
     { category: 'Account', templates: ['signup-notification', 'pending-approval', 'manual-registration'] },
     { category: 'Payment', templates: ['payment-receipt', 'approval-request'] },
     { category: 'Abstract', templates: ['abstract-submission', 'abstract-accepted-poster', 'abstract-accepted-oral', 'abstract-accepted-no-registration', 'abstract-rejected', 'academic-acceptance', 'presentation-schedule-notification'] },
+    { category: 'Certificates', templates: ['participation-certificate'] },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
