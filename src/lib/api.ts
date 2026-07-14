@@ -17,6 +17,21 @@ import type {
   OrdersResponse,
 } from '@/types/api';
 
+export interface CertificateRecipient {
+  id?: string;
+  sourceType?: string;
+  sourceId?: number;
+  titlePrefix: string;
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  email?: string | null;
+  institution?: string | null;
+  certificateNameOverride?: string | null;
+  certificateName?: string;
+  warnings?: string[];
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 const AUTH_UNAUTHORIZED_EVENT = "backoffice-auth:unauthorized";
 
@@ -503,6 +518,125 @@ export const api = {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
     },
+  },
+
+  certificates: {
+    getTemplates: (token: string) =>
+      fetchAPI<{
+        success: boolean;
+        data: Array<{
+          code: string;
+          name: string;
+          nameLabel: string;
+          dbSourceEnabled: boolean;
+          dbSourceType: string;
+          defaultFilters: Record<string, unknown>;
+        }>;
+      }>("/api/backoffice/certificates/templates", { token }),
+
+    parseUpload: async (token: string, file: File) => {
+      const resolvedToken = token || getStoredBackofficeToken();
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`${API_BASE}/api/backoffice/certificates/recipients/parse-upload`, {
+        method: "POST",
+        headers: resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {},
+        body: formData,
+      });
+      if (!res.ok) {
+        if (res.status === 401) dispatchUnauthorizedEvent();
+        const err = await res.json().catch(() => ({ error: "Upload failed" }));
+        throw new Error(err.error || `Upload failed (${res.status})`);
+      }
+      return res.json() as Promise<{
+        success: boolean;
+        data: {
+          recipients: CertificateRecipient[];
+          errors: Array<{ row: number; field?: string; message: string }>;
+          warnings: Array<{ row: number; code: string; message: string }>;
+        };
+      }>;
+    },
+
+    resolveRecipients: (token: string, body: Record<string, unknown>) =>
+      fetchAPI<{
+        success: boolean;
+        data: {
+          recipients: CertificateRecipient[];
+          stats: { total: number; duplicatesRemoved: number; missingTitlePrefix: number };
+        };
+      }>("/api/backoffice/certificates/recipients/resolve", {
+        method: "POST",
+        body: JSON.stringify(body),
+        token,
+      }),
+
+    previewPdf: async (token: string, templateCode: string, name?: string) => {
+      const resolvedToken = token || getStoredBackofficeToken();
+      const params = name ? `?name=${encodeURIComponent(name)}` : "";
+      const res = await fetch(
+        `${API_BASE}/api/backoffice/certificates/preview/${templateCode}/sample.pdf${params}`,
+        {
+          headers: resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {},
+        },
+      );
+      if (!res.ok) throw new Error("Preview failed");
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    },
+
+    downloadZip: async (
+      token: string,
+      templateCode: string,
+      recipients: CertificateRecipient[],
+    ) => {
+      const resolvedToken = token || getStoredBackofficeToken();
+      const res = await fetch(`${API_BASE}/api/backoffice/certificates/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {}),
+        },
+        body: JSON.stringify({ templateCode, recipients }),
+      });
+      if (!res.ok) {
+        if (res.status === 401) dispatchUnauthorizedEvent();
+        const err = await res.json().catch(() => ({ error: "Generate failed" }));
+        throw new Error(err.error || `Generate failed (${res.status})`);
+      }
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      const filename = match?.[1] || `certificates-${templateCode}.zip`;
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    },
+
+    sendEmail: (token: string, body: Record<string, unknown>) =>
+      fetchAPI<{
+        success: boolean;
+        data: {
+          summary: { sent: number; failed: number; skipped: number };
+          results: Array<{
+            email: string;
+            name: string;
+            status: "sent" | "failed" | "skipped";
+            reason?: string;
+          }>;
+        };
+      }>("/api/backoffice/certificates/send-email", {
+        method: "POST",
+        body: JSON.stringify(body),
+        token,
+      }),
   },
 
   // File Upload

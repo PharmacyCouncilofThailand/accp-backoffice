@@ -21,6 +21,7 @@ import {
   IconTicket,
   IconMailForward,
   IconMailBolt,
+  IconCertificate,
 } from "@tabler/icons-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -136,6 +137,12 @@ const menuStructure = [
     href: "/email-manual",
     label: "Manual Email",
     icon: IconMailBolt,
+  },
+  {
+    type: "link",
+    href: "/certificates",
+    label: "Certificates",
+    icon: IconCertificate,
   },
 ];
 
