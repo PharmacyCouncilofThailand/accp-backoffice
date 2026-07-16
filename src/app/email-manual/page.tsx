@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { AdminLayout } from '@/components/layout';
 import {
     IconMailBolt,
@@ -18,6 +18,7 @@ import {
     IconChevronRight,
     IconArrowLeft,
     IconLayoutGrid,
+    IconUpload,
 } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
 
@@ -28,7 +29,7 @@ import toast from 'react-hot-toast';
 interface TemplateInfo {
     id: string;
     label: string;
-    recipientType: 'user' | 'order' | 'registration' | 'abstract';
+    recipientType: 'user' | 'order' | 'registration' | 'abstract' | 'upload';
     requiresComment: boolean;
     description: string;
 }
@@ -65,6 +66,8 @@ const TEMPLATE_GROUPS = [
     { category: 'Payment', templates: ['payment-receipt', 'approval-request'] },
     { category: 'Abstract', templates: ['abstract-submission', 'abstract-accepted-poster', 'abstract-accepted-oral', 'abstract-accepted-no-registration', 'abstract-rejected', 'academic-acceptance', 'presentation-schedule-notification'] },
     { category: 'Certificates', templates: ['participation-certificate', 'participation-certificate-non-english'] },
+    { category: 'Award Certificates', templates: ['best-oral-silver-certificate', 'best-oral-gold-certificate', 'best-poster-silver-certificate', 'best-poster-gold-certificate'] },
+    { category: 'Role & Appreciation', templates: ['organizing-committee-certificate', 'oral-evaluator-certificate', 'poster-evaluator-certificate', 'speaker-certificate', 'session-moderator-certificate', 'sponsor-certificate'] },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -99,16 +102,18 @@ async function openAttachment(att: AttachmentInfo) {
     }
 }
 
-function PreviewModal({ templateId, recipientId, comment, apiBase, onClose }: {
-    templateId: string; recipientId: number; comment: string; apiBase: string; onClose: () => void;
+function PreviewModal({ templateId, recipient, comment, apiBase, onClose }: {
+    templateId: string; recipient: RecipientRow; comment: string; apiBase: string; onClose: () => void;
 }) {
     const [data, setData] = useState<PreviewData | null>(null);
     const [err, setErr]   = useState<string | null>(null);
 
     useEffect(() => {
         const token = localStorage.getItem('backoffice_token') || sessionStorage.getItem('backoffice_token') || '';
-        const params = new URLSearchParams({ template: templateId, id: String(recipientId) });
+        const params = new URLSearchParams({ template: templateId, id: String(recipient.id) });
         if (comment) params.set('comment', comment);
+        params.set('fullName', recipient.label);
+        params.set('email', recipient.email);
         fetch(`${apiBase}/api/backoffice/email-manual/render?${params}`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
         })
@@ -198,6 +203,8 @@ export default function EmailManualPage() {
     const [results, setResults]   = useState<ManualEmailResult[] | null>(null);
     const [summary, setSummary]   = useState<Summary | null>(null);
 
+    const csvInputRef = useRef<HTMLInputElement>(null);
+
     const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
     function getToken() {
@@ -217,7 +224,6 @@ export default function EmailManualPage() {
     // ── Load recipients when template changes ─────────────────────────────────
     useEffect(() => {
         if (!selectedTemplate) { setAllRecipients([]); setSelected(new Set()); return; }
-        setLoadingRec(true);
         setAllRecipients([]);
         setSelected(new Set());
         setFilterQuery('');
@@ -225,6 +231,12 @@ export default function EmailManualPage() {
         setSummary(null);
         setComment('');
 
+        if (selectedTemplate.recipientType === 'upload') {
+            setLoadingRec(false);
+            return;
+        }
+
+        setLoadingRec(true);
         fetch(`${API_BASE}/api/backoffice/email-manual/recipients?template=${selectedTemplate.id}`, {
             headers: { Authorization: `Bearer ${getToken()}` },
         })
@@ -240,6 +252,47 @@ export default function EmailManualPage() {
             .catch(() => toast.error('เชื่อมต่อ API ไม่ได้'))
             .finally(() => setLoadingRec(false));
     }, [selectedTemplate?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── CSV upload (award certificate templates) ──────────────────────────────
+    async function handleCsvUpload(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file || !selectedTemplate) return;
+        e.target.value = '';
+        setLoadingRec(true);
+        setResults(null);
+        setSummary(null);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch(
+                `${API_BASE}/api/backoffice/email-manual/parse-upload?template=${selectedTemplate.id}`,
+                {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${getToken()}` },
+                    body: formData,
+                },
+            );
+            const data = await res.json();
+            if (!data.success) {
+                toast.error(data.error ?? 'อัปโหลด CSV ไม่สำเร็จ');
+                if (data.errors?.length) {
+                    toast.error(`${data.errors.length} แถวมีข้อผิดพลาด — ตรวจสอบคอลัมน์ Fullname และ Email`);
+                }
+                return;
+            }
+            const rows = data.recipients as RecipientRow[];
+            setAllRecipients(rows);
+            setSelected(new Set(rows.map(r => r.id)));
+            if (data.warnings?.length) {
+                toast(`มีคำเตือน ${data.warnings.length} รายการ (เช่น email ซ้ำ)`, { icon: '⚠️' });
+            }
+            toast.success(`โหลด ${rows.length} รายชื่อจาก CSV`);
+        } catch {
+            toast.error('เชื่อมต่อ API ไม่ได้');
+        } finally {
+            setLoadingRec(false);
+        }
+    }
 
     // ── Client-side filter ────────────────────────────────────────────────────
     const filtered = useMemo(() => {
@@ -282,11 +335,24 @@ export default function EmailManualPage() {
         setResults(null);
         setSummary(null);
         try {
-            const ids = allRecipients.filter(r => selected.has(r.id)).map(r => r.id);
+            const selectedRows = allRecipients.filter(r => selected.has(r.id));
+            const payload: Record<string, unknown> = {
+                template: selectedTemplate.id,
+                recipientIds: selectedRows.map(r => r.id),
+                dryRun: false,
+                comment: comment || undefined,
+            };
+            if (selectedTemplate.recipientType === 'upload') {
+                payload.uploadRecipients = selectedRows.map(r => ({
+                    id: r.id,
+                    fullName: r.label,
+                    email: r.email,
+                }));
+            }
             const res = await fetch(`${API_BASE}/api/backoffice/email-manual`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-                body: JSON.stringify({ template: selectedTemplate.id, recipientIds: ids, dryRun: false, comment: comment || undefined }),
+                body: JSON.stringify(payload),
             });
             const data = await res.json();
             if (!data.success) { toast.error(data.error ?? 'เกิดข้อผิดพลาด'); return; }
@@ -387,6 +453,28 @@ export default function EmailManualPage() {
                                 />
                             )}
 
+                            {/* CSV upload (award certificates) */}
+                            {selectedTemplate.recipientType === 'upload' && (
+                                <>
+                                    <input
+                                        ref={csvInputRef}
+                                        type="file"
+                                        accept=".csv"
+                                        className="hidden"
+                                        onChange={handleCsvUpload}
+                                    />
+                                    <button
+                                        onClick={() => csvInputRef.current?.click()}
+                                        disabled={loadingRec}
+                                        className="flex items-center gap-1.5 bg-white hover:bg-slate-50 disabled:opacity-40 text-slate-700 border border-slate-300 hover:border-indigo-400 hover:text-indigo-700 font-medium px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap"
+                                        title="อัปโหลด CSV 2 คอลัมน์: Fullname, Email"
+                                    >
+                                        <IconUpload size={15} />
+                                        อัปโหลด CSV
+                                    </button>
+                                </>
+                            )}
+
                             {/* Bulk preview */}
                             <button
                                 onClick={() => setBulkPreviewOpen(true)}
@@ -419,7 +507,13 @@ export default function EmailManualPage() {
                             ) : filtered.length === 0 ? (
                                 <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-2">
                                     <IconMail size={36} strokeWidth={1} className="opacity-30" />
-                                    <p className="text-sm">{filterQuery ? 'ไม่พบรายการที่ตรงกับ filter' : 'ไม่มีผู้รับในหัวข้อนี้'}</p>
+                                    <p className="text-sm">
+                                        {filterQuery
+                                            ? 'ไม่พบรายการที่ตรงกับ filter'
+                                            : selectedTemplate.recipientType === 'upload'
+                                                ? 'อัปโหลดไฟล์ CSV (คอลัมน์ Fullname, Email) เพื่อเริ่มต้น'
+                                                : 'ไม่มีผู้รับในหัวข้อนี้'}
+                                    </p>
                                 </div>
                             ) : (
                                 <div className="overflow-auto flex-1">
@@ -545,7 +639,7 @@ export default function EmailManualPage() {
             {previewTarget && selectedTemplate && (
                 <PreviewModal
                     templateId={selectedTemplate.id}
-                    recipientId={previewTarget.id}
+                    recipient={previewTarget}
                     comment={comment}
                     apiBase={API_BASE}
                     onClose={() => setPreviewTarget(null)}
@@ -595,6 +689,8 @@ function BulkPreviewModal({ templateId, recipients, comment, apiBase, onClose }:
         async function fetchOne(rec: RecipientRow) {
             const params = new URLSearchParams({ template: templateId, id: String(rec.id) });
             if (comment) params.set('comment', comment);
+            params.set('fullName', rec.label);
+            params.set('email', rec.email);
             try {
                 const res = await fetch(`${apiBase}/api/backoffice/email-manual/render?${params}`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {},
