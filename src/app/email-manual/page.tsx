@@ -66,6 +66,7 @@ const TEMPLATE_GROUPS = [
     { category: 'Payment', templates: ['payment-receipt', 'approval-request'] },
     { category: 'Abstract', templates: ['abstract-submission', 'abstract-accepted-poster', 'abstract-accepted-oral', 'abstract-accepted-no-registration', 'abstract-rejected', 'academic-acceptance', 'presentation-schedule-notification'] },
     { category: 'Certificates', templates: ['participation-certificate', 'participation-certificate-non-english'] },
+    { category: 'Survey', templates: ['conference-evaluation-survey'] },
     { category: 'Award Certificates', templates: ['best-oral-silver-certificate', 'best-oral-gold-certificate', 'best-poster-silver-certificate', 'best-poster-gold-certificate'] },
     { category: 'Role & Appreciation', templates: ['organizing-committee-certificate', 'oral-evaluator-certificate', 'poster-evaluator-certificate', 'speaker-certificate', 'session-moderator-certificate', 'sponsor-certificate'] },
 ];
